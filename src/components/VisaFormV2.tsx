@@ -8,8 +8,6 @@ import { Language } from '../utils/translations';
 import { getVietnamPricing } from '../utils/pricing';
 import { sanitizePassportInput, isValidInternationalPhone, isValidTaxCode, isValidEmail } from '../utils/validation';
 import HistoricalAutofill from './HistoricalAutofill';
-import { generate9PayVietQRUrl } from '../utils/ninepay';
-import { subscribeToPaymentAutoCheck, simulateIncoming9PayBalanceFluctuation } from '../utils/paymentPolling';
 
 interface VisaFormV2Props {
   language: Language;
@@ -88,21 +86,6 @@ export default function VisaFormV2({
   const isEn = language === 'EN';
   const [previewModalUrl, setPreviewModalUrl] = React.useState<string | null>(null);
   const [isSameDayCutoffModalOpen, setIsSameDayCutoffModalOpen] = React.useState(false);
-
-  // Realtime 9Pay & Bank Balance Fluctuation Auto-Polling (3s)
-  useEffect(() => {
-    if (paymentMethod !== '9pay' && paymentMethod !== 'bank_transfer') return;
-    
-    const memoId = formData.passportNumber || 'PREVIEW';
-    const unsub = subscribeToPaymentAutoCheck(memoId, (res) => {
-      if (res.isPaid) {
-        const btn = document.getElementById('visa-submit-btn');
-        if (btn) btn.click();
-      }
-    });
-
-    return () => unsub();
-  }, [paymentMethod, formData.passportNumber]);
 
   // Realtime clock ticker for dynamic form filling time tracking
   const [liveNow, setLiveNow] = React.useState<Date>(() => new Date());
@@ -619,7 +602,7 @@ export default function VisaFormV2({
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-slate-900">
-                          {isEn ? '⚡ Sandbox Test Package (2,000 VND)' : '⚡ Gói Test Sandbox (2.000 VNĐ)'}
+                          {isEn ? '⚡ Sandbox Test Package (10,000 VND)' : '⚡ Gói Test Sandbox (10.000 VNĐ)'}
                         </span>
                         <input 
                           type="radio" 
@@ -629,7 +612,7 @@ export default function VisaFormV2({
                         />
                       </div>
                       <p className="text-[10px] text-slate-500 leading-tight">
-                        {isEn ? 'Micro 2,000 VND test charge to test live 9Pay banking & QR system' : 'Gói nạp thử 2.000 VNĐ để test thực tế Cổng 9Pay VietQR'}
+                        {isEn ? '10,000 VND sandbox charge (9Pay minimum) for live gateway testing' : 'Gói nạp thử 10.000 VNĐ (mức tối thiểu 9Pay) để test cổng thanh toán'}
                       </p>
 
                       <div className="pt-1">
@@ -643,7 +626,7 @@ export default function VisaFormV2({
                           {isEn ? 'Test price:' : 'Giá test:'}
                         </span>
                         <span className="text-xs font-extrabold text-emerald-700 font-mono">
-                          2.000 ₫
+                          10.000 ₫
                         </span>
                       </div>
                     </div>
@@ -1401,7 +1384,7 @@ export default function VisaFormV2({
             {/* 9Pay option */}
             <div 
               onClick={() => {
-                if (!validate()) {
+                if (!isVisaFormValid()) {
                   alert(isEn 
                     ? '⚠️ Please complete all required form fields above before generating the 9Pay QR code!' 
                     : '⚠️ Vui lòng điền đầy đủ các thông tin bắt buộc phía trên (Họ tên, Số Passport, Email, SĐT...) trước khi tạo Mã QR 9Pay!');
@@ -1415,7 +1398,7 @@ export default function VisaFormV2({
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-bold text-slate-900 flex items-center">
                     <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 mr-2.5 animate-pulse"></span>
-                    {isEn ? '9Pay Secured Gateway (VietQR Napas247 / Cards)' : 'Cổng Thanh Toán Bảo Mật 9Pay (Mã VietQR Napas247 & Thẻ Quốc Tế)'}
+                    {isEn ? '9Pay Secured Gateway (Cards / QR / ATM)' : 'Cổng Thanh Toán Bảo Mật 9Pay (Thẻ / QR / ATM)'}
                   </span>
                   <span className="text-[9px] font-bold text-indigo-700 bg-indigo-100/80 border border-indigo-200 px-2 py-0.5 rounded-md uppercase">
                     {isEn ? 'Default Gateway' : 'Cổng Mặc Định'}
@@ -1423,8 +1406,8 @@ export default function VisaFormV2({
                 </div>
                 <p className="text-[11px] text-slate-600 leading-relaxed">
                   {isEn 
-                    ? 'Scan dynamic Napas247 VietQR or pay via Visa, Mastercard, JCB. Real-time balance fluctuation detection auto-confirms receipt in 3 seconds.' 
-                    : 'Quét mã VietQR Napas247 trực tiếp hoặc thanh toán qua thẻ Visa, Mastercard, JCB. Hệ thống tự động quét số dư và hiển thị biên lai tức thì.'}
+                    ? 'After submit you will be redirected to the official 9Pay checkout. Payment is confirmed via signed IPN — not by URL alone.' 
+                    : 'Sau khi gửi đơn, bạn sẽ được chuyển tới trang thanh toán 9Pay chính thức. Đơn chỉ được xác nhận qua IPN đã ký.'}
                 </p>
               </div>
             </div>

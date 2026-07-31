@@ -1,3 +1,5 @@
+import { Currency, EXCHANGE_RATES } from '../types';
+
 export interface VietnamPricing {
   base: number;
   speed: number;
@@ -9,22 +11,143 @@ export interface VietnamPricing {
   totalVnd: number;
 }
 
+/** Exact USD→VND display/charge table used across the app. */
+export const USD_TO_VND_EXACT: Record<number, number> = {
+  0.4: 10000,
+  12: 300000,
+  15: 375000,
+  24: 600000,
+  27: 700000,
+  29: 750000,
+  38: 1000000,
+  39: 1000000,
+  40: 1050000,
+  42: 1100000,
+  45: 1150000,
+  49: 1250000,
+  51: 1300000,
+  54: 1375000,
+  55: 1400000,
+  57: 1500000,
+  59: 1550000,
+  60: 1525000,
+  61: 1550000,
+  63: 1600000,
+  64: 1625000,
+  65: 1700000,
+  66: 1700000,
+  67: 1750000,
+  69: 1800000,
+  70: 1775000,
+  72: 1850000,
+  73: 1850000,
+  74: 1950000,
+  75: 1950000,
+  76: 2000000,
+  77: 2000000,
+  78: 2050000,
+  79: 2000000,
+  80: 2100000,
+  81: 2100000,
+  82: 2100000,
+  83: 2150000,
+  84: 2200000,
+  85: 2200000,
+  86: 2250000,
+  87: 2250000,
+  88: 2225000,
+  89: 2300000,
+  91: 2350000,
+  93: 2400000,
+  94: 2375000,
+  95: 2500000,
+  96: 2475000,
+  97: 2550000,
+  99: 2600000,
+  102: 2650000,
+  103: 2700000,
+  104: 2700000,
+  105: 2700000,
+  106: 2750000,
+  108: 2800000,
+  112: 2900000,
+  114: 2950000,
+  120: 3120000,
+  122: 3150000,
+  130: 3450000,
+  132: 3300000,
+  135: 3375000,
+  144: 3600000,
+  147: 3675000,
+  150: 3850000,
+  159: 3975000,
+  162: 4100000,
+  177: 4475000,
+  195: 4875000,
+  207: 5175000,
+  210: 5250000,
+  219: 5475000,
+  220: 5720000,
+  222: 5550000,
+  234: 5850000,
+  237: 5975000,
+  252: 6350000,
+  300: 7800000,
+};
+
+/** Convert a USD fee to VND for 9Pay (exact table first, then EXCHANGE_RATES). */
+export function usdToVnd(usdAmount: number): number {
+  const val = typeof usdAmount === 'number' ? usdAmount : parseFloat(String(usdAmount)) || 0;
+  const matched = USD_TO_VND_EXACT[val];
+  if (matched !== undefined) return matched;
+  return Math.round(val * EXCHANGE_RATES.VND);
+}
+
+export function formatConvertedPrice(usdAmount: number, currency: Currency): string {
+  const val = typeof usdAmount === 'number' ? usdAmount : parseFloat(String(usdAmount)) || 0;
+  if (currency === 'VND') {
+    return `${usdToVnd(val).toLocaleString('en-US')} ₫`;
+  }
+  return `$ ${val.toFixed(2)}`;
+}
+
+/**
+ * Resolve chargeable VND for an order. Prefer explicit amountVnd / totalVnd;
+ * never invent a sub-minimum placeholder amount.
+ */
+export function resolveOrderAmountVnd(order: {
+  amountVnd?: number;
+  details?: { totalFee?: number; totalVnd?: number };
+}): number {
+  if (typeof order.amountVnd === 'number' && Number.isFinite(order.amountVnd)) {
+    return Math.round(order.amountVnd);
+  }
+  const details = order.details;
+  if (typeof details?.totalVnd === 'number' && Number.isFinite(details.totalVnd)) {
+    return Math.round(details.totalVnd);
+  }
+  if (typeof details?.totalFee === 'number' && Number.isFinite(details.totalFee)) {
+    return usdToVnd(details.totalFee);
+  }
+  return 0;
+}
+
 export function getVietnamPricing(
   visaType: string,
   resultsOption: string,
   submissionTiming: string
 ): VietnamPricing {
-  // Test Sandbox Package (2,000 VND)
+  // Sandbox package — 9Pay minimum charge (10,000 VND)
   if (resultsOption === 'test_sandbox' || visaType.includes('Test Sandbox') || visaType.includes('Gói Test')) {
     return {
-      base: 0.08,
+      base: 0.4,
       speed: 0,
       tax: 0,
-      total: 0.08,
-      baseVnd: 2000,
+      total: 0.4,
+      baseVnd: 10_000,
       speedVnd: 0,
       taxVnd: 0,
-      totalVnd: 2000,
+      totalVnd: 10_000,
     };
   }
   // Single eVisa

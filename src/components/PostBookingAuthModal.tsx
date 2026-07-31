@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShieldCheck, Sparkles, UserPlus, LogIn, Clock, ArrowRight, UserCheck } from 'lucide-react';
+import { Sparkles, UserPlus } from 'lucide-react';
 import { Language } from '../utils/translations';
 import { Order } from '../types';
 
@@ -8,6 +8,7 @@ interface PostBookingAuthModalProps {
   isOpen: boolean;
   order: Order | null;
   onCloseAsGuest: () => void;
+  /** Opens UserAuthModal; parent queues orderId then claims via /api/order-claim after login. */
   onOpenAuth: () => void;
   language: Language;
 }
@@ -30,7 +31,6 @@ export default function PostBookingAuthModal({
           exit={{ opacity: 0, scale: 0.92, y: 20 }}
           className="relative w-full max-w-lg bg-gradient-to-b from-slate-900 via-slate-900 to-indigo-950 border border-indigo-500/30 rounded-3xl shadow-2xl overflow-hidden p-6 sm:p-8 text-white"
         >
-          {/* Top Badge */}
           <div className="flex justify-center mb-4">
             <span className="inline-flex items-center space-x-1.5 px-3 py-1 bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 rounded-full text-xs font-bold font-mono tracking-wider">
               <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
@@ -38,29 +38,29 @@ export default function PostBookingAuthModal({
             </span>
           </div>
 
-          {/* Header */}
           <div className="text-center space-y-2">
             <h3 className="text-xl sm:text-2xl font-extrabold font-display tracking-tight text-white">
-              {language === 'VI' 
-                ? '⚡ Chỉ tốn 20s thôi để lưu trữ & bảo mật đơn!' 
+              {language === 'VI'
+                ? '⚡ Chỉ tốn 20s thôi để lưu trữ & bảo mật đơn!'
                 : '⚡ Takes only 20s to secure your booking!'}
             </h3>
             <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-md mx-auto">
               {language === 'VI' ? (
                 <>
-                  Đơn hàng mã <span className="font-mono font-bold text-indigo-300">{order.id}</span> của bạn đã hoàn tất điền thông tin. 
-                  <strong className="text-emerald-400 block mt-1">Tất cả dữ liệu bạn vừa điền sẽ được giữ nguyên 100%</strong> khi bạn tạo tài khoản hoặc đăng nhập!
+                  Đơn hàng mã <span className="font-mono font-bold text-indigo-300">{order.id}</span> của bạn đã hoàn tất điền thông tin.
+                  <strong className="text-emerald-400 block mt-1">Đăng ký/đăng nhập để gắn đơn vào tài khoản</strong>
+                  {' '}(máy chủ xác minh token — không tự ghi userId từ client).
                 </>
               ) : (
                 <>
-                  Your order <span className="font-mono font-bold text-indigo-300">{order.id}</span> information is complete. 
-                  <strong className="text-emerald-400 block mt-1">All filled information is 100% preserved</strong> when you create an account or sign in!
+                  Your order <span className="font-mono font-bold text-indigo-300">{order.id}</span> information is complete.
+                  <strong className="text-emerald-400 block mt-1">Sign up / sign in to link this order to your account</strong>
+                  {' '}(server verifies your ID token — clients cannot self-attach userId).
                 </>
               )}
             </p>
           </div>
 
-          {/* Value Props Bullet List */}
           <div className="my-6 p-4 bg-slate-950/60 border border-slate-800 rounded-2xl space-y-2.5 text-xs">
             <div className="flex items-center space-x-2 text-slate-200">
               <span className="w-5 h-5 rounded-full bg-indigo-600/30 text-indigo-400 flex items-center justify-center font-bold shrink-0">✓</span>
@@ -76,7 +76,6 @@ export default function PostBookingAuthModal({
             </div>
           </div>
 
-          {/* Action Buttons */}
           <div className="space-y-3">
             <button
               onClick={onOpenAuth}
@@ -84,8 +83,8 @@ export default function PostBookingAuthModal({
             >
               <UserPlus className="h-4 w-4 text-indigo-200 group-hover:scale-110 transition-transform" />
               <span>
-                {language === 'VI' 
-                  ? 'Tạo Tài Khoản / Đăng Nhập Ngay (Chỉ tốn 20s thôi) ➜' 
+                {language === 'VI'
+                  ? 'Tạo Tài Khoản / Đăng Nhập Ngay (Chỉ tốn 20s thôi) ➜'
                   : 'Create Account / Sign In Now (Takes 20s only) ➜'}
               </span>
             </button>
@@ -97,7 +96,6 @@ export default function PostBookingAuthModal({
               <span>{language === 'VI' ? 'Bỏ qua & Tiếp tục dưới dạng Khách vãng lai' : 'Skip & Continue as Guest'}</span>
             </button>
           </div>
-
         </motion.div>
       </div>
     </AnimatePresence>

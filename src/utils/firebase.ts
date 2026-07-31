@@ -12,6 +12,7 @@ import {
   signInWithPopup, 
   User 
 } from "firebase/auth";
+import { generateOrderId } from "./orderIds";
 
 // Firebase configuration provided for tracking, database & authentication
 const firebaseConfig = {
@@ -138,7 +139,7 @@ export { onAuthStateChanged };
  */
 export const saveOrderToFirestore = async (order: any): Promise<{ success: boolean; error?: string }> => {
   try {
-    const orderId = order.id || `DV-${Date.now().toString().slice(-6)}`;
+    const orderId = order.id || generateOrderId();
     const orderRef = doc(collection(db, "orders"), orderId);
     
     // Clean data to avoid undefined values which Firestore rejects
@@ -160,29 +161,19 @@ export const saveOrderToFirestore = async (order: any): Promise<{ success: boole
 };
 
 /**
- * Fetch orders filtered specifically for a user ID
+ * Fetch orders for the signed-in owner (rules: userId == auth.uid).
+ * Email-based queries are not allowed by security rules.
  */
-export const fetchOrdersForUser = async (userId: string, email?: string): Promise<any[]> => {
+export const fetchOrdersForUser = async (userId: string, _email?: string): Promise<any[]> => {
   try {
-    const ordersMap = new Map<string, any>();
-    
-    if (userId) {
-      const q1 = query(collection(db, "orders"), where("userId", "==", userId));
-      const querySnapshot1 = await getDocs(q1);
-      querySnapshot1.forEach((doc) => {
-        ordersMap.set(doc.id, doc.data());
-      });
-    }
-
-    if (email) {
-      const q2 = query(collection(db, "orders"), where("details.email", "==", email));
-      const querySnapshot2 = await getDocs(q2);
-      querySnapshot2.forEach((doc) => {
-        ordersMap.set(doc.id, doc.data());
-      });
-    }
-
-    return Array.from(ordersMap.values());
+    if (!userId) return [];
+    const q1 = query(collection(db, "orders"), where("userId", "==", userId));
+    const querySnapshot1 = await getDocs(q1);
+    const orders: any[] = [];
+    querySnapshot1.forEach((d) => {
+      orders.push(d.data());
+    });
+    return orders;
   } catch (error) {
     console.error("[Firebase Firestore] Error fetching user orders:", error);
     return [];
@@ -190,18 +181,36 @@ export const fetchOrdersForUser = async (userId: string, email?: string): Promis
 };
 
 /**
- * Fetch all orders for Admin OMS
+ * Fetch all orders for OMS — requires Firebase Auth custom claim staff:true.
  */
 export const fetchAllOrdersFromFirestore = async (): Promise<any[]> => {
   try {
+    const user = auth.currentUser;
+    if (!user) {
+      console.error("[Firebase Firestore] fetchAllOrders requires signed-in staff");
+      return [];
+    }
+    const token = await user.getIdTokenResult();
+    if (token.claims.staff !== true) {
+      console.error("[Firebase Firestore] fetchAllOrders denied — missing staff claim");
+      return [];
+    }
     const querySnapshot = await getDocs(collection(db, "orders"));
     const orders: any[] = [];
-    querySnapshot.forEach((doc) => {
-      orders.push(doc.data());
+    querySnapshot.forEach((d) => {
+      orders.push(d.data());
     });
     return orders;
   } catch (error) {
     console.error("[Firebase Firestore] Error fetching all orders:", error);
     return [];
   }
+};
+
+/** True when the current Firebase user has custom claim staff:true. */
+export const currentUserHasStaffClaim = async (): Promise<boolean> => {
+  const user = auth.currentUser;
+  if (!user) return false;
+  const token = await user.getIdTokenResult(true);
+  return token.claims.staff === true;
 };

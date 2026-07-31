@@ -164,6 +164,8 @@ export default function Header({
                 onClick={() => {
                   setUserRole('customer');
                   setActiveTab('services');
+                  // End Firebase session so staff claim cannot keep reading orders
+                  onLogout?.();
                 }}
                 className="flex items-center space-x-1 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-900 text-emerald-400 font-bold rounded-xl text-[10px] uppercase tracking-wider transition-colors cursor-pointer border border-slate-700"
                 title={isEn ? "Exit Staff Admin Mode" : "Thoát chế độ Admin"}

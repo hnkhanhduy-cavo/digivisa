@@ -11,6 +11,7 @@ import HistoricalAutofill from './HistoricalAutofill';
 import { HistoricalProfile } from '../data/historicalUsers';
 import { safeStorage, safeOpen } from '../utils/storage';
 import { isValidEmail, isValidPassportNumber, isValidInternationalPhone, isValidTaxCode } from '../utils/validation';
+import { generateOrderId, generateTrackingToken } from '../utils/orderIds';
 import UploadErrorModal, { UploadErrorModalData } from './UploadErrorModal';
 
 interface VisaFormProps {
@@ -497,9 +498,9 @@ export default function VisaForm({ language, currency, onSuccess, onCancel }: Vi
       return;
     }
 
-    // Generate unique DigiVisa ID
-    const orderId = `DV-VS${Math.floor(100000 + Math.random() * 900000)}`;
-    
+    const orderId = generateOrderId();
+    const trackingToken = generateTrackingToken();
+
     const finalApplication: VisaApplication = {
       ...formData,
       phone: `${formData.phone} (${contactPref})`,
@@ -519,6 +520,7 @@ export default function VisaForm({ language, currency, onSuccess, onCancel }: Vi
       status: 'Pending Payment',
       createdAt: new Date().toISOString(),
       paymentStatus: 'Pending',
+      trackingToken,
       details: finalApplication,
     };
 

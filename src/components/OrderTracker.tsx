@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
 import { 
   Search, ClipboardCheck, ArrowRight, MapPin, Calendar, 
@@ -6,11 +6,12 @@ import {
   BadgeAlert, Plane, ShieldCheck as VerifiedIcon, QrCode, CreditCard,
   CheckCircle, AlertTriangle, Check, Car
 } from 'lucide-react';
-import { Order, Currency, CURRENCY_SYMBOLS, EXCHANGE_RATES } from '../types';
+import { Order, PublicOrderSummary, Currency, CURRENCY_SYMBOLS, EXCHANGE_RATES } from '../types';
 import { safeOpen, safeStorage } from '../utils/storage';
 import { Language } from '../utils/translations';
 import { getVietnamPricing } from '../utils/pricing';
 import { formatPhoneE164 } from '../utils/validation';
+import { claimPendingOrdersFromLocalStorage, listLocalTrackingTokens } from '../utils/orderClaim';
 
 interface OrderTrackerProps {
   orders: Order[];
@@ -22,6 +23,22 @@ interface OrderTrackerProps {
   language?: Language;
   currentUser?: { email?: string | null; displayName?: string | null; uid?: string } | null;
   userRole?: 'customer' | 'staff';
+}
+
+function publicSummaryToOrder(summary: PublicOrderSummary): Order {
+  return {
+    id: summary.id,
+    type: (summary.type as Order['type']) || 'Visa',
+    status: summary.status,
+    createdAt: summary.createdAt,
+    paymentStatus: (summary.paymentStatus as Order['paymentStatus']) || 'Pending',
+    // Marker only — never hydrate PII from lookup API
+    details: { __publicLookup: true } as any,
+  };
+}
+
+function isPublicLookupOrder(order: Order | null | undefined): boolean {
+  return !!(order && (order.details as any)?.__publicLookup === true);
 }
 
 export default function OrderTracker({
@@ -37,59 +54,109 @@ export default function OrderTracker({
 }: OrderTrackerProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [lookupError, setLookupError] = useState<string | null>(null);
+  const [lookedUpOrder, setLookedUpOrder] = useState<Order | null>(null);
+  const autoClaimDoneForUid = useRef<string | null>(null);
 
-  const currentGuestSessionId = (typeof window !== 'undefined' && safeStorage.getItem('digivisa_guest_session_id')) || '';
+  const isEn = language === 'EN';
 
-  // Privacy filter: Logged-in users only see orders associated with their email/uid
-  // Guest users ONLY see orders created in THEIR CURRENT BROWSER SESSION
+  // Auto-claim guest orders when a signed-in user still has digivisa_track_* tokens (once per uid, debounced).
+  useEffect(() => {
+    const uid = currentUser?.uid;
+    if (!uid || userRole === 'staff') return;
+    if (autoClaimDoneForUid.current === uid) return;
+    if (listLocalTrackingTokens().length === 0) {
+      autoClaimDoneForUid.current = uid;
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      if (autoClaimDoneForUid.current === uid) return;
+      autoClaimDoneForUid.current = uid;
+      try {
+        const result = await claimPendingOrdersFromLocalStorage();
+        if (result.claimed.length > 0) {
+          setOrders((prev) =>
+            prev.map((o) =>
+              result.claimed.includes(o.id)
+                ? { ...o, userId: uid, userEmail: currentUser?.email || o.userEmail }
+                : o
+            )
+          );
+        }
+      } catch (e) {
+        console.error('[OrderTracker] auto-claim failed', e);
+        // Allow retry on next mount / uid change
+        if (autoClaimDoneForUid.current === uid) autoClaimDoneForUid.current = null;
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [currentUser?.uid, currentUser?.email, userRole, setOrders]);
+
+  // Privacy filter: owners (userId) or this-browser local orders. Guests look up via trackingToken API.
+  // Never match by passport number or guessable order id against remote data.
   const userVisibleOrders = orders.filter((o) => {
-    if (userRole === 'staff') return true; // Staff sees all in OMS
-    if (currentUser && currentUser.email) {
+    if (userRole === 'staff') return true;
+    if (currentUser?.uid && (o as any).userId === currentUser.uid) {
+      return true;
+    }
+    if (currentUser?.email) {
       const currentEmail = currentUser.email.toLowerCase();
-      const detailsEmail = (o.details as any)?.email?.toLowerCase();
       const userEmail = (o as any).userEmail?.toLowerCase();
-      const userId = (o as any).userId;
-      
-      return (
-        detailsEmail === currentEmail ||
-        userEmail === currentEmail ||
-        (userId && userId === currentUser.uid)
-      );
+      if (userEmail === currentEmail) return true;
     }
-
-    // Unauthenticated Guest user: MUST ONLY see orders created in THIS browser session
-    const oSessionId = (o as any).guestSessionId || (o as any).sessionId;
-    if (oSessionId && currentGuestSessionId && oSessionId === currentGuestSessionId) {
+    // Local-only guest copies from this device (already in memory / localStorage)
+    if ((o as any).isLocalGuestSession === true) return true;
+    if (o.trackingToken && safeStorage.getItem(`digivisa_track_${o.id}`) === o.trackingToken) {
       return true;
     }
-    if ((o as any).isLocalGuestSession === true) {
-      return true;
-    }
-
-    // Allow lookup if query matches exact Order ID or Passport Number
-    const query = searchQuery.trim().toUpperCase();
-    if (query && query.length >= 4) {
-      return (
-        o.id.toUpperCase() === query ||
-        (o.details as any).passportNumber?.toUpperCase() === query
-      );
-    }
-
     return false;
   });
 
-  // Quick lookup filter
-  const filteredOrders = userVisibleOrders.filter((o) => {
+  const filteredOrders = (() => {
+    const list = lookedUpOrder
+      ? [lookedUpOrder, ...userVisibleOrders.filter((o) => o.id !== lookedUpOrder.id)]
+      : userVisibleOrders;
     const query = searchQuery.trim().toUpperCase();
-    if (!query) return true;
-    return (
-      o.id.toUpperCase().includes(query) ||
-      o.type.toUpperCase().includes(query) ||
-      (o.details as any).passengerName?.toUpperCase().includes(query) ||
-      (o.details as any).firstName?.toUpperCase().includes(query) ||
-      (o.details as any).lastName?.toUpperCase().includes(query)
-    );
-  });
+    if (!query || query.length >= 32) return list;
+    return list.filter((o) => {
+      return (
+        o.id.toUpperCase().includes(query) ||
+        o.type.toUpperCase().includes(query)
+      );
+    });
+  })();
+
+  const lookupByTrackingToken = async () => {
+    const token = searchQuery.trim();
+    setLookupError(null);
+    if (token.length < 32) {
+      setLookupError(isEn
+        ? 'Enter the full tracking token (≥32 characters) from your booking confirmation.'
+        : 'Nhập đầy đủ mã theo dõi (≥32 ký tự) từ lúc đặt đơn.');
+      return;
+    }
+    setLookupLoading(true);
+    try {
+      const res = await fetch(`/api/order-lookup?trackingToken=${encodeURIComponent(token)}`);
+      const data = await res.json() as { success?: boolean; order?: PublicOrderSummary; error?: string };
+      if (!res.ok || !data.success || !data.order) {
+        setLookedUpOrder(null);
+        setLookupError(data.error || (isEn ? 'Order not found' : 'Không tìm thấy đơn'));
+        return;
+      }
+      const publicOrder = publicSummaryToOrder(data.order);
+      setLookedUpOrder(publicOrder);
+      setSelectedOrderId(publicOrder.id);
+    } catch {
+      setLookedUpOrder(null);
+      setLookupError(isEn ? 'Lookup failed. Try again.' : 'Tra cứu thất bại. Thử lại.');
+    } finally {
+      setLookupLoading(false);
+    }
+  };
 
   const getStatusColor = (status: Order['status']) => {
     const s = String(status || '').toLowerCase();
@@ -713,7 +780,10 @@ export default function OrderTracker({
     });
   };
 
-  const selectedOrder = orders.find((o) => o.id === selectedOrderId);
+  const selectedOrder =
+    (lookedUpOrder && lookedUpOrder.id === selectedOrderId ? lookedUpOrder : null)
+    || orders.find((o) => o.id === selectedOrderId)
+    || null;
 
   // Reset active combo leg when selected order changes
   useEffect(() => {
@@ -783,12 +853,39 @@ export default function OrderTracker({
               <input
                 type="text"
                 id="search-input"
-                placeholder="Enter DV- ID or Passenger..."
+                placeholder={isEn ? 'Paste tracking token (≥32 chars)...' : 'Dán mã theo dõi (≥32 ký tự)...'}
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2.5 text-xs focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:outline-none transition-all font-medium"
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setLookupError(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    lookupByTrackingToken();
+                  }
+                }}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2.5 text-xs focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:outline-none transition-all font-medium font-mono"
               />
             </div>
+            <button
+              type="button"
+              onClick={lookupByTrackingToken}
+              disabled={lookupLoading || searchQuery.trim().length < 32}
+              className="w-full py-2 rounded-xl bg-teal-600 hover:bg-teal-500 disabled:opacity-40 text-white text-[11px] font-bold transition-colors"
+            >
+              {lookupLoading
+                ? (isEn ? 'Looking up…' : 'Đang tra cứu…')
+                : (isEn ? 'Look up status' : 'Tra cứu trạng thái')}
+            </button>
+            {lookupError && (
+              <p className="text-[11px] text-rose-600 font-medium">{lookupError}</p>
+            )}
+            <p className="text-[10px] text-slate-400 leading-relaxed">
+              {isEn
+                ? 'Guests track by opaque token only — passport numbers and order IDs are not accepted for public lookup.'
+                : 'Khách tra cứu bằng mã theo dõi — không dùng số passport hay mã đơn để tìm công khai.'}
+            </p>
           </div>
 
           <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
@@ -822,9 +919,12 @@ export default function OrderTracker({
               filteredOrders.map((order) => {
                 const isSelected = order.id === selectedOrderId;
                 const details = order.details as any;
-                const paxName = order.type === 'Visa' 
-                  ? `${details.firstName} ${details.lastName}` 
-                  : details.contactName || details.passengerName;
+                const publicOnly = isPublicLookupOrder(order);
+                const paxName = publicOnly
+                  ? (isEn ? 'Status only (no personal data)' : 'Chỉ trạng thái (không hiện PII)')
+                  : order.type === 'Visa'
+                    ? `${details.firstName || ''} ${details.lastName || ''}`.trim() || '—'
+                    : details.contactName || details.passengerName || '—';
 
                 return (
                   <div
@@ -856,11 +956,18 @@ export default function OrderTracker({
                       </div>
                       
                       <div className="text-right">
-                        <span className="text-xs font-black text-slate-900 font-display">
-                          {formatCharge(details.totalFee || 0, order)}
-                        </span>
+                        {!publicOnly && (
+                          <span className="text-xs font-black text-slate-900 font-display">
+                            {formatCharge(details.totalFee || 0, order)}
+                          </span>
+                        )}
                         <p className="text-[9px] text-slate-400 mt-0.5">
-                          {new Date(order.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                          {order.createdAt
+                            ? new Date(order.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+                            : '—'}
+                        </p>
+                        <p className="text-[9px] font-bold text-slate-500 mt-0.5">
+                          {order.paymentStatus}
                         </p>
                       </div>
                     </div>
@@ -873,7 +980,46 @@ export default function OrderTracker({
 
         {/* Right Column: Detailed visual layout */}
         <div className="lg:col-span-2">
-          {selectedOrder ? (
+          {selectedOrder && isPublicLookupOrder(selectedOrder) ? (
+            <motion.div
+              layoutId={selectedOrder.id}
+              className="bg-white rounded-3xl border border-slate-150 shadow-md p-6 sm:p-8 space-y-5"
+            >
+              <div>
+                <span className="text-[10px] font-mono text-slate-400 uppercase font-black">
+                  {isEn ? 'Public status (token lookup)' : 'Trạng thái công khai (mã theo dõi)'}
+                </span>
+                <h2 className="font-display font-bold text-2xl text-slate-900 mt-1">{selectedOrder.id}</h2>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+                  <p className="text-[10px] font-bold uppercase text-slate-400">Status</p>
+                  <p className="font-bold text-slate-800 mt-1">{selectedOrder.status}</p>
+                </div>
+                <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+                  <p className="text-[10px] font-bold uppercase text-slate-400">Payment</p>
+                  <p className="font-bold text-slate-800 mt-1">{selectedOrder.paymentStatus}</p>
+                </div>
+                <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+                  <p className="text-[10px] font-bold uppercase text-slate-400">Type</p>
+                  <p className="font-bold text-slate-800 mt-1">{selectedOrder.type}</p>
+                </div>
+                <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+                  <p className="text-[10px] font-bold uppercase text-slate-400">Created</p>
+                  <p className="font-bold text-slate-800 mt-1">
+                    {selectedOrder.createdAt
+                      ? new Date(selectedOrder.createdAt).toLocaleString()
+                      : '—'}
+                  </p>
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-500">
+                {isEn
+                  ? 'Passport, date of birth, and document scans are never returned by this lookup.'
+                  : 'Passport, ngày sinh và ảnh scan không bao giờ được trả về qua tra cứu này.'}
+              </p>
+            </motion.div>
+          ) : selectedOrder ? (
             <motion.div
               layoutId={selectedOrder.id}
               className="bg-white rounded-3xl border border-slate-150 shadow-md p-6 sm:p-8 space-y-6"

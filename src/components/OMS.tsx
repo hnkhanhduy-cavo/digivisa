@@ -2032,7 +2032,7 @@ export default function OMS({ orders, setOrders, currency, language = 'EN' }: OM
                               saveOrderToFirestore(updatedOrder);
                             }}
                             className={`w-full text-xs font-bold rounded-xl px-3 py-2 border focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer ${
-                              selectedOrder.paymentStatus === 'Paid'
+                              selectedOrder.paymentStatus?.startsWith('Paid')
                                 ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
                                 : 'bg-amber-50 text-amber-800 border-amber-200'
                             }`}

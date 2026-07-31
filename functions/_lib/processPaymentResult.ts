@@ -1,0 +1,108 @@
+import type { Env } from './env';
+import { requireNinePayEnv, jsonResponse } from './env';
+import {
+  verifyAndDecode,
+  isPaymentSuccessStatus,
+  parseAmount,
+} from '../api/_ninepay';
+import { getOrderFromFirestore, markOrderPaidInFirestore } from './firestore';
+
+export async function processVerifiedPaymentResult(
+  env: Env,
+  result: string,
+  checksum: string
+): Promise<Response> {
+  let checksumKey: string;
+  try {
+    ({ checksumKey } = requireNinePayEnv(env));
+  } catch (e: any) {
+    return jsonResponse({ success: false, error: e?.message || 'Config error' }, 500);
+  }
+
+  // B1 verify raw result → B2 Base64URL UTF-8 decode (shared helper)
+  const decoded = await verifyAndDecode(result, checksum, checksumKey);
+  if (!decoded.ok || !decoded.data) {
+    return jsonResponse({ success: false, error: decoded.error || 'Invalid result' }, 400);
+  }
+
+  const payload = decoded.data;
+  const invoiceNo = payload.invoice_no;
+  if (!invoiceNo) {
+    return jsonResponse({ success: false, error: 'Missing invoice_no' }, 400);
+  }
+
+  // Only status === 5 means success — do not treat other codes as Paid
+  if (!isPaymentSuccessStatus(payload.status)) {
+    return jsonResponse({
+      success: true,
+      isPaid: false,
+      invoice_no: invoiceNo,
+      status: payload.status,
+      failure_reason: payload.failure_reason ?? null,
+    });
+  }
+
+  const paidAmount = parseAmount(payload.amount);
+  if (!Number.isFinite(paidAmount)) {
+    return jsonResponse({ success: false, error: 'Invalid amount in result' }, 400);
+  }
+
+  const order = await getOrderFromFirestore(invoiceNo, env);
+  if (!order.ok) {
+    return jsonResponse({ success: false, error: 'Order not found', invoice_no: invoiceNo }, 404);
+  }
+
+  if (order.fields.paymentStatus?.includes('Paid')) {
+    return jsonResponse({
+      success: true,
+      isPaid: true,
+      invoice_no: invoiceNo,
+      payment_no: order.fields.ninepayPaymentNo || String(payload.payment_no ?? ''),
+      alreadyProcessed: true,
+    });
+  }
+
+  const expectedAmount = order.fields.amountVnd;
+  if (expectedAmount === undefined || expectedAmount === null) {
+    return jsonResponse({
+      success: false,
+      error: 'Order missing amountVnd; cannot verify payment amount',
+      invoice_no: invoiceNo,
+    }, 409);
+  }
+
+  if (paidAmount !== Math.round(expectedAmount)) {
+    return jsonResponse({
+      success: false,
+      error: 'Amount mismatch',
+      invoice_no: invoiceNo,
+      expected: expectedAmount,
+      received: paidAmount,
+    }, 400);
+  }
+
+  const paymentNo = String(payload.payment_no ?? '');
+  const write = await markOrderPaidInFirestore(
+    invoiceNo,
+    paymentNo,
+    Math.round(expectedAmount),
+    env
+  );
+  if (!write.ok) {
+    console.error('[9Pay] Firestore mark paid failed:', write.status, write.body);
+    return jsonResponse({
+      success: false,
+      error: 'Failed to update order in Firestore',
+      firestoreStatus: write.status,
+    }, 502);
+  }
+
+  return jsonResponse({
+    success: true,
+    isPaid: true,
+    invoice_no: invoiceNo,
+    payment_no: paymentNo,
+    amount: paidAmount,
+    status: 5,
+  });
+}

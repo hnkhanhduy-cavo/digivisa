@@ -10,10 +10,8 @@ import { TimePicker } from './TimePicker';
 import { HistoricalProfile } from '../data/historicalUsers';
 import { safeStorage, safeOpen } from '../utils/storage';
 import { isValidEmail, isValidInternationalPhone, isValidTaxCode, isValidFlightNumber, sanitizeFlightNumber, formatPhoneE164 } from '../utils/validation';
+import { generateOrderId, generateTrackingToken } from '../utils/orderIds';
 import { Language } from '../utils/translations';
-import { generate9PayVietQRUrl } from '../utils/ninepay';
-import { subscribeToPaymentAutoCheck } from '../utils/paymentPolling';
-
 // @ts-ignore
 import ecoSedanImg from '../assets/images/eco_sedan_1781328905917.jpg';
 // @ts-ignore
@@ -77,7 +75,7 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
     );
   };
 
-  const [orderIdPreview] = useState(() => (initialDraft && initialDraft.orderId) || `DV-AP${Math.floor(10000 + Math.random() * 90000)}`);
+  const [orderIdPreview] = useState(() => (initialDraft && initialDraft.orderId) || generateOrderId());
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // New requirements states
@@ -98,20 +96,6 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
 
   const [paymentMethod, setPaymentMethod] = useState<'9pay' | 'bank_transfer'>(() => (initialDraft && initialDraft.paymentMethod) ?? '9pay');
   const [isRedirecting, setIsRedirecting] = useState(false);
-
-  // Realtime 9Pay & Bank Balance Fluctuation Auto-Polling (3s)
-  React.useEffect(() => {
-    if (paymentMethod !== '9pay' && paymentMethod !== 'bank_transfer') return;
-    
-    const unsub = subscribeToPaymentAutoCheck(orderIdPreview, (res) => {
-      if (res.isPaid) {
-        const btn = document.getElementById('airport-submit-btn');
-        if (btn) btn.click();
-      }
-    });
-
-    return () => unsub();
-  }, [paymentMethod, orderIdPreview]);
 
   const [hasRestoredDraft, setHasRestoredDraft] = useState<boolean>(() => {
     if (initialDraft && initialDraft.formData) {
@@ -196,7 +180,7 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
     '4 seats': { maxPax: 3, maxLuggage: 2, sampleModels: isEn ? 'Standard Eco Sedan' : 'Dòng xe Sedan Tiêu chuẩn', label: '4 Seats (Eco Sedan)' },
     '7 seats': { maxPax: 6, maxLuggage: 5, sampleModels: isEn ? 'Comfort Family SUV' : 'Dòng xe SUV Gia đình Rộng rãi', label: '7 Seats (Comfort SUV)' },
     '16 seats': { maxPax: 15, maxLuggage: 12, sampleModels: isEn ? 'Executive Minibus Van' : 'Dòng xe Minibus Cao cấp', label: '16 Seats (Executive Minibus)' },
-    'Test Sandbox': { maxPax: 1, maxLuggage: 0, sampleModels: isEn ? '2,000 VND Test Charge' : 'Gói nạp thử 2.000 VNĐ 9Pay VietQR', label: '2,000 VND Test Charge' },
+    'Test Sandbox': { maxPax: 1, maxLuggage: 0, sampleModels: isEn ? '10,000 VND Test Charge' : 'Gói nạp thử 10.000 VNĐ 9Pay', label: '10,000 VND Test Charge' },
   };
 
   const FAST_TRACK_RATES = {
@@ -208,16 +192,16 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
   const getCalculatedFees = () => {
     if ((formData?.vehicleType as string) === 'Test Sandbox' || (formData?.vehicleType as string)?.includes('Test Sandbox')) {
       return {
-        base: 0.08,
-        baseVnd: 2000,
+        base: 0.4,
+        baseVnd: 10000,
         fastTrackCost: 0,
         fastTrackCostVnd: 0,
-        subtotal: 0.08,
-        subtotalVnd: 2000,
+        subtotal: 0.4,
+        subtotalVnd: 10000,
         tax: 0,
         taxVnd: 0,
-        total: 0.08,
-        totalVnd: 2000,
+        total: 0.4,
+        totalVnd: 10000,
       };
     }
     const vPrice = getVehiclePrice(formData?.airport || 'Tan Son Nhat (SGN)', formData?.vehicleType || '4 seats');
@@ -425,8 +409,8 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
       return;
     }
 
-    // Generate unique DigiVisa App Order ID
     const orderId = orderIdPreview;
+    const trackingToken = generateTrackingToken();
 
     const finalBooking: AirportPickupBooking = {
       ...formData,
@@ -454,6 +438,7 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
       status: 'Pending Payment',
       createdAt: new Date().toISOString(),
       paymentStatus: 'Pending',
+      trackingToken,
       details: finalBooking,
     };
     onSuccess(newOrder);
@@ -618,11 +603,11 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
                 { id: '4 seats', title: isEn ? '4 Seats Eco Sedan' : 'Xe 4 Chỗ (Eco Sedan)' },
                 { id: '7 seats', title: isEn ? '7 Seats Comfort SUV' : 'Xe 7 Chỗ (Comfort SUV)' },
                 { id: '16 seats', title: isEn ? '16 Seats Executive Minibus' : 'Xe 16 Chỗ (Executive Minibus)' },
-                { id: 'Test Sandbox', title: isEn ? '⚡ Sandbox Test Package (2,000 VND)' : '⚡ Gói Test Sandbox (2.000 VNĐ)' },
-              ].map((car) => {
-                const vPrice = car.id === 'Test Sandbox' ? { usd: 0.08, vnd: 2000 } : getVehiclePrice(formData.airport || 'Tan Son Nhat (SGN)', car.id as any);
+                { id: 'Test Sandbox', title: isEn ? '⚡ Sandbox Test Package (10,000 VND)' : '⚡ Gói Test Sandbox (10.000 VNĐ)' },
+                ].map((car) => {
+                const vPrice = car.id === 'Test Sandbox' ? { usd: 0.4, vnd: 10000 } : getVehiclePrice(formData.airport || 'Tan Son Nhat (SGN)', car.id as any);
                 const spec = car.id === 'Test Sandbox' 
-                  ? { maxPax: 1, maxLuggage: 0, sampleModels: 'Gói nạp thử 2.000 VNĐ Cổng 9Pay VietQR', label: '2,000 VND Test Charge' }
+                  ? { maxPax: 1, maxLuggage: 0, sampleModels: 'Gói nạp thử 10.000 VNĐ Cổng 9Pay', label: '10,000 VND Test Charge' }
                   : FLEET_SPECS[car.id as AirportPickupBooking['vehicleType']] || FLEET_SPECS['4 seats'];
                 const isSelected = formData.vehicleType === car.id;
                 return (
@@ -1292,7 +1277,7 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-bold text-slate-900 flex items-center">
                       <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 mr-2.5 animate-pulse"></span>
-                      {isEn ? '9Pay Secured Gateway (VietQR Napas247 / Cards)' : 'Cổng Thanh Toán Bảo Mật 9Pay (Mã VietQR Napas247 & Thẻ Quốc Tế)'}
+                      {isEn ? '9Pay Secured Gateway (Cards / QR / ATM)' : 'Cổng Thanh Toán Bảo Mật 9Pay (Thẻ / QR / ATM)'}
                     </span>
                     <span className="text-[9px] font-bold text-indigo-700 bg-indigo-100/80 border border-indigo-200 px-2 py-0.5 rounded-md uppercase">
                       {isEn ? 'Default Gateway' : 'Cổng Mặc Định'}
@@ -1300,8 +1285,8 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
                   </div>
                   <p className="text-[11px] text-slate-600 leading-relaxed">
                     {isEn 
-                      ? 'Scan dynamic Napas247 VietQR or pay via Visa, Mastercard, JCB. Real-time balance fluctuation detection auto-confirms receipt in 3 seconds.' 
-                      : 'Quét mã VietQR Napas247 trực tiếp hoặc thanh toán qua thẻ Visa, Mastercard, JCB. Hệ thống tự động quét số dư và hiển thị biên lai tức thì.'}
+                      ? 'After submit you will be redirected to the official 9Pay checkout. Payment is confirmed via signed IPN — not by URL alone.'
+                      : 'Sau khi gửi đơn, bạn sẽ được chuyển tới trang thanh toán 9Pay chính thức. Đơn chỉ được xác nhận qua IPN đã ký.'}
                   </p>
                 </div>
               </div>
