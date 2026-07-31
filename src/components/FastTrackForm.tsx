@@ -11,10 +11,8 @@ import HistoricalAutofill from './HistoricalAutofill';
 import { TimePicker } from './TimePicker';
 import { HistoricalProfile } from '../data/historicalUsers';
 import { safeStorage, safeOpen } from '../utils/storage';
-import { isValidEmail, isValidInternationalPhone, isValidTaxCode, isValidFlightNumber, sanitizeFlightNumber, formatPhoneE164 } from '../utils/validation';
-import { generate9PayVietQRUrl } from '../utils/ninepay';
-import { subscribeToPaymentAutoCheck } from '../utils/paymentPolling';
-
+import { isValidEmail, isValidInternationalPhone, isValidTaxCode, isValidFlightNumber, sanitizeFlightNumber, formatPhoneE164, getTodayOffsetStr } from '../utils/validation';
+import { generateOrderId, generateTrackingToken } from '../utils/orderIds';
 interface FastTrackFormProps {
   currency: Currency;
   onSuccess: (newOrder: Order) => void;
@@ -88,21 +86,6 @@ export default function FastTrackForm({ currency, onSuccess, onCancel, language 
   const [companyEmail, setCompanyEmail] = useState<string>(() => (initialDraft && initialDraft.companyEmail) ?? '');
   
   const [paymentMethod, setPaymentMethod] = useState<'9pay' | 'bank_transfer'>(() => (initialDraft && initialDraft.paymentMethod) ?? '9pay');
-
-  // Realtime 9Pay & Bank Balance Fluctuation Auto-Polling (3s)
-  React.useEffect(() => {
-    if (paymentMethod !== '9pay' && paymentMethod !== 'bank_transfer') return;
-    
-    const memoId = formData.contactName || 'PREVIEW';
-    const unsub = subscribeToPaymentAutoCheck(memoId, (res) => {
-      if (res.isPaid) {
-        const btn = document.getElementById('fasttrack-submit-btn');
-        if (btn) btn.click();
-      }
-    });
-
-    return () => unsub();
-  }, [paymentMethod, formData.contactName]);
 
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [contactPref, setContactPref] = useState<'WhatsApp' | 'Zalo' | 'SMS'>(() => (initialDraft && initialDraft.contactPref) ?? 'WhatsApp');
@@ -201,18 +184,18 @@ export default function FastTrackForm({ currency, onSuccess, onCancel, language 
   const getCalculatedFees = () => {
     if ((formData.packageType as string) === 'Test Sandbox' || (formData.packageType as string).includes('Test Sandbox')) {
       return {
-        basePerPax: 0.08,
-        basePerPaxVnd: 2000,
+        basePerPax: 0.4,
+        basePerPaxVnd: 10000,
         esimCost: 0,
         esimCostVnd: 0,
         pickupCost: 0,
         pickupCostVnd: 0,
-        subtotal: 0.08,
-        subtotalVnd: 2000,
+        subtotal: 0.4,
+        subtotalVnd: 10000,
         tax: 0,
         taxVnd: 0,
-        total: 0.08,
-        totalVnd: 2000,
+        total: 0.4,
+        totalVnd: 10000,
       };
     }
     const base = PACKAGE_RATES[formData.packageType] || 45;
@@ -448,8 +431,8 @@ export default function FastTrackForm({ currency, onSuccess, onCancel, language 
       return;
     }
 
-    // Generate unique DigiVisa ID
-    const orderId = `DV-FT${Math.floor(10000 + Math.random() * 90000)}`;
+    const orderId = generateOrderId();
+    const trackingToken = generateTrackingToken();
 
     const finalBooking: FastTrackBooking = {
       ...formData,
@@ -473,6 +456,7 @@ export default function FastTrackForm({ currency, onSuccess, onCancel, language 
       status: 'Pending Payment',
       createdAt: new Date().toISOString(),
       paymentStatus: 'Pending',
+      trackingToken,
       details: finalBooking,
     };
     onSuccess(newOrder);
@@ -772,12 +756,12 @@ export default function FastTrackForm({ currency, onSuccess, onCancel, language 
                 },
                 {
                   id: 'Test Sandbox',
-                  title: isEn ? '⚡ Sandbox Test Package' : '⚡ Gói Test Sandbox (2.000 VNĐ)',
-                  price: 0.08,
-                  desc: isEn ? 'Micro 2,000 VND test charge to test live 9Pay banking & QR system' : 'Gói nạp thử 2.000 VNĐ để test thực tế Cổng 9Pay VietQR',
+                  title: isEn ? '⚡ Sandbox Test Package' : '⚡ Gói Test Sandbox (10.000 VNĐ)',
+                  price: 0.4,
+                  desc: isEn ? '10,000 VND sandbox charge (9Pay minimum) for live gateway testing' : 'Gói nạp thử 10.000 VNĐ (mức tối thiểu 9Pay) để test cổng thanh toán',
                   perks: isEn 
-                    ? ['Micro 2,000 VND 9Pay Test Charge', 'Live VietQR Instant Verification', 'Automatic Success Confirmation']
-                    : ['Nạp thử 2.000 VNĐ qua cổng 9Pay', 'Xác thực mã VietQR tức thì', 'Tự động tạo biên lai xác nhận thành công']
+                    ? ['10,000 VND 9Pay Test Charge', 'Official 9Pay Hosted Checkout', 'IPN-verified Confirmation']
+                    : ['Nạp thử 10.000 VNĐ qua cổng 9Pay', 'Thanh toán trên trang 9Pay chính thức', 'Xác nhận qua IPN đã ký']
                 },
               ].map((pkg) => {
                 const isSelected = formData.packageType === pkg.id;
@@ -1533,14 +1517,14 @@ export default function FastTrackForm({ currency, onSuccess, onCancel, language 
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-bold text-slate-900 flex items-center">
                       <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 mr-2.5 animate-pulse"></span>
-                      {isEn ? '9Pay Secured Gateway (VietQR Napas247 / Cards)' : 'Cổng Thanh Toán Bảo Mật 9Pay (Mã VietQR Napas247 & Thẻ Quốc Tế)'}
+                      {isEn ? '9Pay Secured Gateway (Cards / QR / ATM)' : 'Cổng Thanh Toán Bảo Mật 9Pay (Thẻ / QR / ATM)'}
                     </span>
                     <span className="text-[9px] font-bold text-indigo-700 bg-indigo-100/80 border border-indigo-200 px-2 py-0.5 rounded-md uppercase">{isEn ? 'Default Gateway' : 'Cổng Mặc Định'}</span>
                   </div>
                   <p className="text-[11px] text-slate-600 leading-relaxed">
                     {isEn 
-                      ? 'Scan dynamic Napas247 VietQR or pay via Visa, Mastercard, JCB. Real-time balance fluctuation detection auto-confirms receipt in 3 seconds.' 
-                      : 'Quét mã VietQR Napas247 trực tiếp hoặc thanh toán qua thẻ Visa, Mastercard, JCB. Hệ thống tự động quét số dư và hiển thị biên lai tức thì.'}
+                      ? 'After submit you will be redirected to the official 9Pay checkout. Payment is confirmed via signed IPN — not by URL alone.'
+                      : 'Sau khi gửi đơn, bạn sẽ được chuyển tới trang thanh toán 9Pay chính thức. Đơn chỉ được xác nhận qua IPN đã ký.'}
                   </p>
                 </div>
               </div>

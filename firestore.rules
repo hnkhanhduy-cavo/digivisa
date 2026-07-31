@@ -1,0 +1,51 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /orders/{orderId} {
+      // Owners (by userId) or staff (custom claim). Guests use /api/order-lookup + trackingToken.
+      allow read: if request.auth != null
+        && (resource.data.userId == request.auth.uid
+            || request.auth.token.staff == true);
+
+      // Clients may create unpaid orders only (no forged Paid / payment_no).
+      // trackingToken required for guest lookup via Pages Function.
+      allow create: if request.resource.data.paymentStatus == 'Pending'
+        && !('ninepayPaymentNo' in request.resource.data)
+        && request.resource.data.trackingToken is string
+        && request.resource.data.trackingToken.size() >= 32
+        && (
+          !('userId' in request.resource.data)
+          || (request.auth != null && request.resource.data.userId == request.auth.uid)
+        );
+
+      function paymentFieldsUnchanged() {
+        return request.resource.data.paymentStatus == resource.data.paymentStatus
+          && (
+            (!('ninepayPaymentNo' in request.resource.data) && !('ninepayPaymentNo' in resource.data))
+            || request.resource.data.ninepayPaymentNo == resource.data.ninepayPaymentNo
+          )
+          && (
+            (!('amountVnd' in request.resource.data) && !('amountVnd' in resource.data))
+            || request.resource.data.amountVnd == resource.data.amountVnd
+          );
+      }
+
+      function trackingTokenUnchanged() {
+        return (
+          (!('trackingToken' in request.resource.data) && !('trackingToken' in resource.data))
+          || request.resource.data.trackingToken == resource.data.trackingToken
+        );
+      }
+
+      // Payment fields + trackingToken immutable for clients.
+      // Only owner or staff may update other fields. SA writes bypass rules.
+      allow update: if paymentFieldsUnchanged()
+        && trackingTokenUnchanged()
+        && request.auth != null
+        && (resource.data.userId == request.auth.uid
+            || request.auth.token.staff == true);
+
+      allow delete: if false;
+    }
+  }
+}

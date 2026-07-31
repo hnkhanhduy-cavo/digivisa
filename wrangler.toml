@@ -1,0 +1,32 @@
+# Cloudflare Pages — DigiVisa
+# Local API test: npx wrangler pages dev
+# (npm run dev uses Express/Vite only and does NOT serve functions/)
+
+name = "digivisa"
+compatibility_date = "2024-09-23"
+pages_build_output_dir = "dist"
+
+# Non-secret defaults (override per environment as needed)
+[vars]
+NINEPAY_ENDPOINT = "https://sand-payment.9pay.vn"
+FIREBASE_PROJECT_ID = "digivisa"
+
+# Secrets — set via `wrangler pages secret put <NAME>` or `.dev.vars` locally:
+#   NINEPAY_MERCHANT_KEY
+#   NINEPAY_SECRET_KEY
+#   NINEPAY_CHECKSUM_KEY
+#   FIREBASE_CLIENT_EMAIL
+#   FIREBASE_PRIVATE_KEY   → wrangler pages secret put FIREBASE_PRIVATE_KEY
+#   SYNC_SECRET            → header X-Sync-Secret for POST /api/9pay-sync-unpaid
+#
+# Cron backstop (Pages has no native cron): schedule an external job every ~5m:
+#   POST /api/9pay-sync-unpaid  { "orderIds": ["DV-..."] }
+#   Header: X-Sync-Secret: <SYNC_SECRET>
+# Tracker/OMS also re-inquire recent unpaid orders client-side (debounced).
+#
+# Staff bootstrap (once per account):
+#   POST /api/staff-set-claim  { "email": "staff@..." }  Header: X-Sync-Secret
+# Guest Tracker:
+#   GET /api/order-lookup?trackingToken=...
+# Claim guest order after signup:
+#   POST /api/order-claim  { "trackingToken", "idToken" }

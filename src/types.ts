@@ -95,6 +95,15 @@ export type FastTrackStatus = 'Confirmed' | 'Staff Assigned' | 'Flying' | 'Delay
 export type AirportPickupStatus = 'Confirmed' | 'Staff Assigned' | 'Flying' | 'Delay' | 'On Time' | 'Completed' | 'Active' | 'Cancelled' | 'Awaiting Dispatch' | 'Driver Assigned' | 'Driver Waiting At Gate' | 'In Transit' | 'Luggage Handover Completed' | 'Journey Completed';
 export type PaymentStatus = 'Paid (Bank Transfer)' | 'Paid (9Pay)' | 'Pending' | 'Refunded';
 
+/** Public fields returned by /api/order-lookup (no PII / passport scans). */
+export interface PublicOrderSummary {
+  id: string;
+  type: 'Visa' | 'FastTrack' | 'AirportPickup' | string;
+  status: string;
+  paymentStatus: PaymentStatus | string;
+  createdAt: string;
+}
+
 export interface Order {
   id: string;
   type: 'Visa' | 'FastTrack' | 'AirportPickup';
@@ -102,6 +111,14 @@ export interface Order {
   subStatus?: string;
   createdAt: string;
   paymentStatus: PaymentStatus;
+  /** Chargeable VND amount sent to 9Pay (must be ≥ 10,000). */
+  amountVnd?: number;
+  /** 9Pay payment_no stored after verified IPN / return_url. */
+  ninepayPaymentNo?: string;
+  /** Opaque guest Tracker token (≥32 chars). Not the same as order id. */
+  trackingToken?: string;
+  userId?: string;
+  userEmail?: string;
   details: VisaApplication | FastTrackBooking | AirportPickupBooking;
   // Agency staff / vehicle details
   staffName?: string;

@@ -6,10 +6,13 @@ import {
   Search, ShieldAlert, Award, FileText, ChevronRight, BellRing, PhoneCall
 } from 'lucide-react';
 
-import { Order, Currency, CURRENCY_SYMBOLS, EXCHANGE_RATES } from './types';
+import { Order, Currency, CURRENCY_SYMBOLS } from './types';
 import { safeStorage } from './utils/storage';
 import { Language, TRANSLATIONS } from './utils/translations';
 import { getTodayStr, getTodayOffsetStr } from './utils/validation';
+import { formatConvertedPrice, resolveOrderAmountVnd } from './utils/pricing';
+import { NINEPAY_MIN_AMOUNT_VND } from './utils/ninepay';
+import { syncUnpaidOrdersViaInquire, verifyOrderPayment } from './utils/paymentSync';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import VisaForm from './components/VisaForm';
@@ -18,13 +21,13 @@ import AirportPickupForm from './components/AirportPickupForm';
 import OrderTracker from './components/OrderTracker';
 import Faqs from './components/Faqs';
 import OMS from './components/OMS';
-import { saveOrderToFirestore, fetchAllOrdersFromFirestore, fetchOrdersForUser, auth, onAuthStateChanged, logoutUser } from './utils/firebase';
+import { saveOrderToFirestore, fetchAllOrdersFromFirestore, fetchOrdersForUser, auth, onAuthStateChanged, logoutUser, currentUserHasStaffClaim } from './utils/firebase';
+import { generateTrackingToken } from './utils/orderIds';
+import { claimPendingOrdersFromLocalStorage } from './utils/orderClaim';
 import PostBookingAuthModal from './components/PostBookingAuthModal';
 import UserAuthModal from './components/UserAuthModal';
 import AdminLoginModal from './components/AdminLoginModal';
-import NinePayModal from './components/NinePayModal';
 import PaymentSuccessModal from './components/PaymentSuccessModal';
-import { build9PayCheckoutUrl } from './utils/ninepay';
 
 interface SafeServiceBoundaryProps {
   children: React.ReactNode;
@@ -92,7 +95,8 @@ export default function App() {
   });
   const currency: Currency = language === 'VI' ? 'VND' : 'USD';
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [toastType, setToastType] = useState<'success' | 'info'>('success');
+  const [toastType, setToastType] = useState<'success' | 'info' | 'error'>('success');
+  const [isVerifyingPayment, setIsVerifyingPayment] = useState(false);
 
   const handleSetUserRole = (role: 'customer' | 'staff') => {
     setUserRole(role);
@@ -114,26 +118,33 @@ export default function App() {
   const [isAdminLoginOpen, setIsAdminLoginOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<{ uid?: string; email?: string | null; displayName?: string | null } | null>(null);
 
-  // 9Pay & Payment Success Modal States
-  const [ninePayModalState, setNinePayModalState] = useState<{
-    isOpen: boolean;
-    order: Order | null;
-    amountVnd: number;
-  }>({ isOpen: false, order: null, amountVnd: 0 });
-
   const [paymentSuccessState, setPaymentSuccessState] = useState<{
     isOpen: boolean;
     order: Order | null;
     transactionId: string;
   }>({ isOpen: false, order: null, transactionId: '' });
 
-  // Firebase auth state listener
+  // Firebase auth state listener — staff role only from custom claim, never localStorage
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setCurrentUser({ uid: user.uid, email: user.email, displayName: user.displayName });
+        try {
+          const token = await user.getIdTokenResult();
+          if (token.claims.staff === true) {
+            setUserRole('staff');
+            safeStorage.setItem('digivisa_user_role', 'staff');
+          } else {
+            setUserRole('customer');
+            safeStorage.setItem('digivisa_user_role', 'customer');
+          }
+        } catch {
+          setUserRole('customer');
+        }
       } else {
         setCurrentUser(null);
+        setUserRole('customer');
+        safeStorage.setItem('digivisa_user_role', 'customer');
       }
     });
     return () => unsubscribe();
@@ -159,9 +170,64 @@ export default function App() {
   }, [currentUser, userRole]);
 
   const [postBookingOrder, setPostBookingOrder] = useState<Order | null>(null);
+  /** Order ids queued for /api/order-claim after guest registers / signs in. */
+  const [pendingClaimOrderIds, setPendingClaimOrderIds] = useState<string[]>([]);
 
-  // Helper to trigger Admin authentication and sync Firestore orders
+  const runOrderClaimAfterAuth = async (preferIds?: string[]) => {
+    try {
+      const result = await claimPendingOrdersFromLocalStorage(preferIds);
+      if (result.claimed.length > 0) {
+        const uid = auth.currentUser?.uid || '';
+        const email = auth.currentUser?.email || undefined;
+        setOrders((prev) =>
+          prev.map((o) =>
+            result.claimed.includes(o.id)
+              ? { ...o, userId: uid, userEmail: email || o.userEmail }
+              : o
+          )
+        );
+        if (uid) {
+          const remote = await fetchOrdersForUser(uid);
+          if (remote?.length) {
+            const byId = new Map(remote.map((o: any) => [o.id, sanitizeOrder(o)]));
+            setOrders((prev) => {
+              const merged = new Map(prev.map((o) => [o.id, o]));
+              byId.forEach((o, id) => merged.set(id, o));
+              return Array.from(merged.values());
+            });
+          }
+        }
+        triggerToast(
+          language === 'VI'
+            ? `Đã gắn ${result.claimed.length} đơn vào tài khoản.`
+            : `Linked ${result.claimed.length} order(s) to your account.`,
+          'success'
+        );
+      }
+      if (result.conflicts.length > 0) {
+        triggerToast(
+          language === 'VI'
+            ? 'Một số đơn đã thuộc tài khoản khác — không thể nhận.'
+            : 'Some orders already belong to another account — not claimed.',
+          'error'
+        );
+      }
+    } catch (e) {
+      console.error('[order-claim] client', e);
+    }
+  };
+
+  // Staff modal already verified Firebase claim staff:true before calling this
   const handleAdminSuccess = async () => {
+    const isStaff = await currentUserHasStaffClaim();
+    if (!isStaff) {
+      triggerToast(
+        language === 'VI' ? 'Thiếu claim staff — không mở OMS.' : 'Missing staff claim — OMS denied.',
+        'error'
+      );
+      setIsAdminLoginOpen(false);
+      return;
+    }
     setUserRole('staff');
     safeStorage.setItem('digivisa_user_role', 'staff');
     setActiveTab('oms');
@@ -169,12 +235,12 @@ export default function App() {
     try {
       const remoteOrders = await fetchAllOrdersFromFirestore();
       if (remoteOrders && remoteOrders.length > 0) {
-        setOrders(remoteOrders);
+        setOrders(remoteOrders.map(sanitizeOrder));
       }
     } catch (e) {
       console.error("Firestore sync error", e);
     }
-    triggerToast(language === 'VI' ? 'Đăng nhập Staff Admin thành công!' : 'Staff Admin logged in successfully!', 'success');
+    triggerToast(language === 'VI' ? 'Đăng nhập Staff thành công!' : 'Staff logged in successfully!', 'success');
   };
 
   // Hash route listener for secret admin URL: /#/verynoice -> Pops up password prompt
@@ -350,7 +416,7 @@ export default function App() {
   };
 
   // Toast notification helper
-  const triggerToast = (msg: string, type: 'success' | 'info' = 'success') => {
+  const triggerToast = (msg: string, type: 'success' | 'info' | 'error' = 'success') => {
     setToastMessage(msg);
     setToastType(type);
     setTimeout(() => {
@@ -358,245 +424,257 @@ export default function App() {
     }, 4500);
   };
 
-  // Currency Converter helper
   const getConvertedPrice = (usdAmount: any) => {
     const val = typeof usdAmount === 'number' ? usdAmount : (parseFloat(usdAmount) || 0);
-    if (currency === 'VND') {
-      const EXACT_SUMS: Record<number, number> = {
-        12: 300000,
-        15: 375000,
-        24: 600000,
-        27: 700000,
-        29: 750000,
-        38: 1000000,
-        39: 1000000,
-        40: 1050000,
-        42: 1100000,
-        45: 1150000,
-        49: 1250000,
-        51: 1300000,
-        54: 1375000,
-        55: 1400000,
-        57: 1500000,
-        59: 1550000,
-        60: 1525000,
-        61: 1550000,
-        63: 1600000,
-        64: 1625000,
-        65: 1700000,
-        66: 1700000,
-        67: 1750000,
-        69: 1800000,
-        70: 1775000,
-        72: 1850000,
-        73: 1850000,
-        74: 1950000,
-        75: 1950000,
-        76: 2000000,
-        77: 2000000,
-        78: 2050000,
-        79: 2000000,
-        80: 2100000,
-        81: 2100000,
-        82: 2100000,
-        83: 2150000,
-        84: 2200000,
-        85: 2200000,
-        86: 2250000,
-        87: 2250000,
-        88: 2225000,
-        89: 2300000,
-        91: 2350000,
-        93: 2400000,
-        94: 2375000,
-        95: 2500000,
-        96: 2475000,
-        97: 2550000,
-        99: 2600000,
-        102: 2650000,
-        103: 2700000,
-        104: 2700000,
-        105: 2700000,
-        106: 2750000,
-        108: 2800000,
-        112: 2900000,
-        114: 2950000,
-        120: 3120000,
-        122: 3150000,
-        130: 3450000,
-        132: 3300000,
-        135: 3375000,
-        144: 3600000,
-        147: 3675000,
-        150: 3850000,
-        159: 3975000,
-        162: 4100000,
-        177: 4475000,
-        195: 4875000,
-        207: 5175000,
-        210: 5250000,
-        219: 5475000,
-        220: 5720000,
-        222: 5550000,
-        234: 5850000,
-        237: 5975000,
-        252: 6350000,
-        300: 7800000,
-      };
-      
-      const matched = EXACT_SUMS[val];
-      if (matched !== undefined) {
-        return `${matched.toLocaleString('en-US')} ₫`;
-      }
-      
-      const converted = val * EXCHANGE_RATES[currency];
-      return `${converted.toLocaleString('en-US')} ₫`;
-    }
-    return `$ ${val.toFixed(2)}`;
+    return formatConvertedPrice(val, currency);
   };
 
-  // 9Pay Redirect Return URL Handler (?payment=success&orderId=DV-XXXXX)
+  const applyPaidOrderLocally = (
+    orderId: string,
+    transactionId: string,
+    opts?: { showSuccessModal?: boolean }
+  ) => {
+    const showSuccessModal = opts?.showSuccessModal !== false;
+    const storedOrdersRaw = safeStorage.getItem('digivisa_orders') || '[]';
+    let storedOrders: Order[] = [];
+    try { storedOrders = JSON.parse(storedOrdersRaw); } catch { /* ignore */ }
+
+    const foundOrder = storedOrders.find((o) => o.id === orderId) || orders.find((o) => o.id === orderId);
+    if (!foundOrder) {
+      triggerToast(
+        language === 'VI'
+          ? `Thanh toán xác nhận cho ${orderId}, đang đồng bộ đơn hàng…`
+          : `Payment confirmed for ${orderId}, syncing order…`,
+        'success'
+      );
+      return;
+    }
+
+    const updatedOrder: Order = {
+      ...foundOrder,
+      paymentStatus: 'Paid (9Pay)',
+      status: 'Agency Review',
+      ninepayPaymentNo: transactionId || foundOrder.ninepayPaymentNo,
+    };
+
+    // Local UX only — Firestore Paid is written solely by /api/9pay-verify (Inquire).
+    saveOrders((prev) => {
+      const base = prev.some((o) => o.id === orderId) ? prev : storedOrders;
+      const merged = base.some((o) => o.id === orderId) ? base : [updatedOrder, ...base];
+      return merged.map((o) => (o.id === orderId ? updatedOrder : o));
+    });
+
+    if (showSuccessModal) {
+      safeStorage.removeItem('digivisa_visa_draft');
+      safeStorage.removeItem('digivisa_fasttrack_draft');
+      safeStorage.removeItem('digivisa_airport_pickup_draft');
+      setActiveService(null);
+      setPaymentSuccessState({
+        isOpen: true,
+        order: updatedOrder,
+        transactionId: transactionId || updatedOrder.ninepayPaymentNo || orderId,
+      });
+    }
+
+    triggerToast(
+      language === 'VI'
+        ? `Thanh toán 9Pay đơn hàng ${orderId} thành công!`
+        : `9Pay payment for order ${orderId} confirmed!`,
+      'success'
+    );
+  };
+
+  // return_url is UX-only: never trust query params to set Paid. Inquire decides.
   useEffect(() => {
     if (typeof window === 'undefined') return;
+
+    // Sandbox discovery: log whatever 9Pay actually appends on return.
+    console.log('[DigiVisa 9Pay return_url] window.location.search =', window.location.search);
+
     const urlParams = new URLSearchParams(window.location.search);
     const paymentStatus = urlParams.get('payment');
     const orderId = urlParams.get('orderId');
 
-    if (paymentStatus === 'success' && orderId) {
-      // Retrieve stored orders or find match
-      const storedOrdersRaw = safeStorage.getItem('digivisa_orders') || '[]';
-      let storedOrders: Order[] = [];
-      try { storedOrders = JSON.parse(storedOrdersRaw); } catch (e) {}
-
-      const foundOrder = storedOrders.find(o => o.id === orderId);
-
-      const targetOrder: Order = foundOrder || {
-        id: orderId,
-        type: 'Visa',
-        status: 'Agency Review',
-        createdAt: new Date().toISOString(),
-        paymentStatus: 'Paid (9Pay)',
-        details: { totalFee: 130 }
-      };
-
-      const updatedOrder: Order = {
-        ...targetOrder,
-        paymentStatus: 'Paid (9Pay)',
-        status: 'Agency Review'
-      };
-
-      // Save updated order to storage and Firestore
-      saveOrders(storedOrders.map(o => o.id === orderId ? updatedOrder : o));
-      saveOrderToFirestore(updatedOrder);
-
-      // Clean draft storage & reset active service form
-      safeStorage.removeItem('digivisa_visa_draft');
-      safeStorage.removeItem('digivisa_fasttrack_draft');
-      safeStorage.removeItem('digivisa_airport_pickup_draft');
-      setActiveService(null);
-
-      // Clean URL params without reloading page
-      window.history.replaceState({}, document.title, window.location.pathname);
-
-      // Trigger Electronic Payment Receipt Modal!
-      setPaymentSuccessState({
-        isOpen: true,
-        order: updatedOrder,
-        transactionId: `9PAY-${Date.now().toString().slice(-8)}`
+    // Informational only — if result/checksum ever appear, inquire remains authoritative.
+    if (urlParams.get('result') || urlParams.get('checksum')) {
+      console.log('[DigiVisa 9Pay return_url] observed result/checksum params (ignored for Paid; inquire decides)', {
+        hasResult: !!urlParams.get('result'),
+        hasChecksum: !!urlParams.get('checksum'),
       });
+    }
 
-      triggerToast(language === 'VI' ? `Thanh toán 9Pay đơn hàng ${orderId} thành công!` : `9Pay payment for order ${orderId} confirmed!`, 'success');
-    } else if (paymentStatus === 'cancel' && orderId) {
+    const cleanUrl = () => {
       window.history.replaceState({}, document.title, window.location.pathname);
-      triggerToast(language === 'VI' ? `Đơn hàng ${orderId} chưa hoàn tất thanh toán. Dữ liệu của bạn vẫn được giữ nguyên.` : `Payment for order ${orderId} was cancelled.`, 'info');
+    };
+
+    if (paymentStatus === 'cancel' && orderId) {
+      cleanUrl();
+      triggerToast(
+        language === 'VI'
+          ? `Đơn hàng ${orderId} chưa hoàn tất thanh toán. Dữ liệu của bạn vẫn được giữ nguyên.`
+          : `Payment for order ${orderId} was cancelled. Your order remains unpaid.`,
+        'info'
+      );
+      return;
+    }
+
+    // ?payment=success is only a UX signal to inquire — never trust URL params for Paid.
+    // Hand-typed success URLs without a real 9Pay payment stay Unpaid.
+    if (paymentStatus === 'success' && orderId) {
+      let cancelled = false;
+      setIsVerifyingPayment(true);
+
+      (async () => {
+        try {
+          const data = await verifyOrderPayment(orderId, { force: true });
+          if (cancelled) return;
+          cleanUrl();
+
+          if (data.isPaid) {
+            applyPaidOrderLocally(orderId, data.payment_no || '', { showSuccessModal: true });
+          } else {
+            triggerToast(
+              language === 'VI'
+                ? `Chưa xác nhận được thanh toán cho ${orderId}. Đơn vẫn chưa thanh toán.`
+                : `Payment for ${orderId} not confirmed yet. Order remains unpaid.`,
+              'info'
+            );
+          }
+        } catch {
+          if (cancelled) return;
+          cleanUrl();
+          triggerToast(
+            language === 'VI'
+              ? 'Không kết nối được máy chủ xác nhận thanh toán. Đơn vẫn chưa thanh toán.'
+              : 'Could not reach payment verification server. Order remains unpaid.',
+            'error'
+          );
+        } finally {
+          if (!cancelled) setIsVerifyingPayment(false);
+        }
+      })();
+
+      return () => {
+        cancelled = true;
+      };
     }
   }, []);
+
+  // Backstop: when opening Tracker or OMS, re-inquire recent unpaid orders (debounced).
+  useEffect(() => {
+    if (activeTab !== 'tracker' && activeTab !== 'oms') return;
+    if (!orders.length) return;
+
+    let cancelled = false;
+    (async () => {
+      const paid = await syncUnpaidOrdersViaInquire(orders);
+      if (cancelled || !paid.length) return;
+      for (const result of paid) {
+        applyPaidOrderLocally(result.orderId, result.payment_no || '', { showSuccessModal: false });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, orders]);
 
   // Submit Callbacks
   const handleBookingSuccess = async (newOrder: Order) => {
     try {
-      console.log("[DigiVisa 9Pay] Order Creation Triggered:", newOrder.id);
+      console.log('[DigiVisa 9Pay] Order Creation Triggered:', newOrder.id);
+      const amountVnd = resolveOrderAmountVnd(newOrder);
+
+      if (amountVnd < NINEPAY_MIN_AMOUNT_VND) {
+        triggerToast(
+          language === 'VI'
+            ? `Số tiền ${amountVnd.toLocaleString('vi-VN')}₫ dưới mức tối thiểu 9Pay (${NINEPAY_MIN_AMOUNT_VND.toLocaleString('vi-VN')}₫). Đơn giữ Unpaid.`
+            : `Amount ${amountVnd} VND is below 9Pay minimum (${NINEPAY_MIN_AMOUNT_VND} VND). Order kept unpaid.`,
+          'error'
+        );
+        const unpaid: Order = {
+          ...newOrder,
+          amountVnd,
+          trackingToken: newOrder.trackingToken || generateTrackingToken(),
+          userId: currentUser?.uid || (newOrder as any).userId,
+          userEmail: currentUser?.email || (newOrder as any).userEmail || (newOrder.details as any)?.email,
+          paymentStatus: 'Pending',
+        };
+        if (!currentUser?.uid) {
+          delete (unpaid as any).userId;
+        }
+        saveOrders([unpaid, ...orders]);
+        try {
+          if (unpaid.trackingToken) safeStorage.setItem(`digivisa_track_${unpaid.id}`, unpaid.trackingToken);
+        } catch { /* ignore */ }
+        saveOrderToFirestore(unpaid).catch((err) => console.error('Firestore sync background err:', err));
+        return;
+      }
+
+      const trackingToken = newOrder.trackingToken || generateTrackingToken();
       const orderWithUser: Order = {
         ...newOrder,
+        amountVnd,
+        trackingToken,
         userId: currentUser?.uid || (newOrder as any).userId,
         userEmail: currentUser?.email || (newOrder as any).userEmail || (newOrder.details as any)?.email,
+        paymentStatus: 'Pending',
       };
-      const updated = [orderWithUser, ...orders];
-      saveOrders(updated);
-      saveOrderToFirestore(orderWithUser).catch(err => console.error("Firestore sync background err:", err));
+      // Drop forged userId when guest (rules reject create with foreign userId)
+      if (!currentUser?.uid) {
+        delete (orderWithUser as any).userId;
+      }
+      saveOrders([orderWithUser, ...orders]);
+      try {
+        safeStorage.setItem(`digivisa_track_${orderWithUser.id}`, trackingToken);
+        if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+          navigator.clipboard.writeText(trackingToken).catch(() => {});
+        }
+      } catch { /* ignore */ }
+      await saveOrderToFirestore(orderWithUser);
       setPostBookingOrder(null);
 
-      // Compute VND amount for 9Pay (Preserve exact test amount like 2000 VND)
-      const feeUsd = (orderWithUser.details as any)?.totalFee;
-      const amountVnd = feeUsd ? Math.round(feeUsd * 26000) : 2000;
-
       triggerToast(
-        language === 'VI' 
-          ? `Đơn ${orderWithUser.id} đã khởi tạo! Đang chuyển hướng sang Cổng 9Pay...` 
-          : `Order ${orderWithUser.id} created! Redirecting to 9Pay Gateway...`, 
+        language === 'VI'
+          ? `Đơn ${orderWithUser.id} tạo OK. Mã theo dõi đã copy — dán vào Tracker nếu cần. Đang sang 9Pay...`
+          : `Order ${orderWithUser.id} created. Tracking token copied — paste into Tracker if needed. Opening 9Pay...`,
         'success'
       );
 
-      // Call Cloudflare Pages 9Pay API to get valid Redirect Payment URL (0% 404)
-      try {
-        const res = await fetch('/api/9pay-create-payment', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            orderId: orderWithUser.id,
-            amountVnd
-          })
-        });
-
-        if (res.ok) {
-          const data = await res.json() as any;
-          if (data.paymentUrl) {
-            console.log("[DigiVisa 9Pay API Redirecting to]:", data.paymentUrl);
-            window.location.href = data.paymentUrl;
-            return;
-          }
-        }
-      } catch (apiErr) {
-        console.warn("9Pay Create Payment API fallback to returnUrl:", apiErr);
-      }
-
-      // Fallback Direct Redirect
-      const fallbackUrl = build9PayCheckoutUrl(orderWithUser.id, amountVnd);
-      window.location.href = fallbackUrl;
-    } catch (e) {
-      console.error("[DigiVisa 9Pay] handleBookingSuccess execution error:", e);
-      alert(`⚠️ Lỗi khởi tạo đơn hàng: ${e instanceof Error ? e.message : String(e)}`);
-    }
-  };
-
-  const handle9PaySuccess = (orderId: string, transactionId: string) => {
-    setNinePayModalState(prev => ({ ...prev, isOpen: false }));
-
-    const targetOrder = orders.find(o => o.id === orderId) || ninePayModalState.order;
-    if (targetOrder) {
-      const updatedOrder: Order = {
-        ...targetOrder,
-        paymentStatus: 'Paid (9Pay)',
-        status: 'Agency Review'
-      };
-
-      saveOrders((prev) => prev.map((o) => (o.id === orderId ? updatedOrder : o)));
-      saveOrderToFirestore(updatedOrder);
-
-      // Payment confirmed: Clear draft storage & close active service view
-      safeStorage.removeItem('digivisa_visa_draft');
-      safeStorage.removeItem('digivisa_fasttrack_draft');
-      safeStorage.removeItem('digivisa_airport_pickup_draft');
-      setActiveService(null);
-
-      // Trigger Electronic Receipt & Success Confirmation Modal
-      setPaymentSuccessState({
-        isOpen: true,
-        order: updatedOrder,
-        transactionId
+      const res = await fetch('/api/9pay-create-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: orderWithUser.id,
+          amountVnd,
+        }),
       });
 
-      triggerToast(language === 'VI' ? `Thanh toán 9Pay đơn hàng ${orderId} thành công!` : `9Pay payment for ${orderId} confirmed!`, 'success');
+      const data = (await res.json().catch(() => ({}))) as {
+        success?: boolean;
+        paymentUrl?: string;
+        error?: string;
+      };
+
+      if (res.ok && data.success && data.paymentUrl) {
+        window.location.href = data.paymentUrl;
+        return;
+      }
+
+      triggerToast(
+        language === 'VI'
+          ? `Không tạo được liên kết 9Pay: ${data.error || res.statusText}. Đơn ${orderWithUser.id} vẫn chưa thanh toán.`
+          : `Failed to create 9Pay link: ${data.error || res.statusText}. Order ${orderWithUser.id} remains unpaid.`,
+        'error'
+      );
+    } catch (e) {
+      console.error('[DigiVisa 9Pay] handleBookingSuccess execution error:', e);
+      triggerToast(
+        language === 'VI'
+          ? `Lỗi khởi tạo thanh toán: ${e instanceof Error ? e.message : String(e)}. Đơn vẫn chưa thanh toán.`
+          : `Payment init error: ${e instanceof Error ? e.message : String(e)}. Order remains unpaid.`,
+        'error'
+      );
     }
   };
 
@@ -613,15 +691,25 @@ export default function App() {
             className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] w-[90%] max-w-lg"
           >
             <div className={`p-4 rounded-2xl shadow-xl flex items-start space-x-3 text-white border ${
-              toastType === 'success' 
-                ? 'bg-emerald-950 border-emerald-500/30' 
-                : 'bg-indigo-950 border-indigo-500/30'
+              toastType === 'success'
+                ? 'bg-emerald-950 border-emerald-500/30'
+                : toastType === 'error'
+                  ? 'bg-rose-950 border-rose-500/30'
+                  : 'bg-indigo-950 border-indigo-500/30'
             }`}>
-              <div className={`p-1.5 rounded-lg ${toastType === 'success' ? 'bg-emerald-500 text-slate-950' : 'bg-indigo-500 text-white'}`}>
+              <div className={`p-1.5 rounded-lg ${
+                toastType === 'success'
+                  ? 'bg-emerald-500 text-slate-950'
+                  : toastType === 'error'
+                    ? 'bg-rose-500 text-white'
+                    : 'bg-indigo-500 text-white'
+              }`}>
                 <BellRing className="h-4 w-4" />
               </div>
               <div className="flex-1">
-                <p className="text-xs font-bold font-sans uppercase tracking-widest text-[#10B981] mb-0.5">Notification dispatch</p>
+                <p className={`text-xs font-bold font-sans uppercase tracking-widest mb-0.5 ${
+                  toastType === 'error' ? 'text-rose-400' : 'text-[#10B981]'
+                }`}>Notification dispatch</p>
                 <p className="text-xs text-slate-200">{toastMessage}</p>
               </div>
               <button 
@@ -1014,6 +1102,11 @@ export default function App() {
         order={postBookingOrder}
         onCloseAsGuest={() => setPostBookingOrder(null)}
         onOpenAuth={() => {
+          if (postBookingOrder?.id) {
+            setPendingClaimOrderIds((prev) =>
+              prev.includes(postBookingOrder.id) ? prev : [...prev, postBookingOrder.id]
+            );
+          }
           setPostBookingOrder(null);
           setIsUserAuthOpen(true);
         }}
@@ -1024,10 +1117,13 @@ export default function App() {
       <UserAuthModal
         isOpen={isUserAuthOpen}
         onClose={() => setIsUserAuthOpen(false)}
-        onSuccess={(userData) => {
+        onSuccess={async (userData) => {
           setCurrentUser(userData);
           setIsUserAuthOpen(false);
           triggerToast(language === 'VI' ? 'Đăng nhập thành công!' : 'Logged in successfully!', 'success');
+          const prefer = [...pendingClaimOrderIds];
+          setPendingClaimOrderIds([]);
+          await runOrderClaimAfterAuth(prefer.length ? prefer : undefined);
         }}
         language={language}
       />
@@ -1040,15 +1136,24 @@ export default function App() {
         language={language}
       />
 
-      {/* 9Pay VietQR Payment Gateway Modal */}
-      <NinePayModal
-        isOpen={ninePayModalState.isOpen}
-        onClose={() => setNinePayModalState(prev => ({ ...prev, isOpen: false }))}
-        order={ninePayModalState.order}
-        amountVnd={ninePayModalState.amountVnd}
-        onPaymentSuccess={handle9PaySuccess}
-        language={language}
-      />
+      {/* Server-side payment verification after 9Pay return_url */}
+      <AnimatePresence>
+        {isVerifyingPayment && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4"
+          >
+            <div className="bg-white rounded-2xl px-6 py-5 shadow-xl flex items-center gap-3 max-w-sm w-full">
+              <RefreshCw className="h-5 w-5 animate-spin text-indigo-600 shrink-0" />
+              <p className="text-sm font-semibold text-slate-800">
+                {language === 'VI' ? 'Đang xác nhận thanh toán…' : 'Confirming payment…'}
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Electronic Receipt & Payment Success Modal */}
       <PaymentSuccessModal
@@ -1056,7 +1161,7 @@ export default function App() {
         onClose={() => setPaymentSuccessState(prev => ({ ...prev, isOpen: false }))}
         order={paymentSuccessState.order}
         transactionId={paymentSuccessState.transactionId}
-        onTrackOrder={(orderId) => {
+        onTrackOrder={() => {
           setPaymentSuccessState(prev => ({ ...prev, isOpen: false }));
           setActiveTab('tracker');
         }}

@@ -1,63 +1,36 @@
 /**
- * Cloudflare Pages Function: 24/7 9Pay Webhook & Real-time Transaction Query API
+ * Cloudflare Pages Function: 9Pay IPN receiver + order status poll.
  * Route: /api/9pay-webhook
+ *
+ * Currently UNUSED — Merchant View cannot register ipn_url; Inquire is the source of truth
+ * via /api/9pay-verify. Keep this handler correct so IPN works the day ipn_url is enabled.
+ *
+ * IPN: POST application/x-www-form-urlencoded with fields `result` + `checksum`.
+ * Verify/decode via shared `verifyAndDecode` in ./_ninepay (raw checksum → Base64URL UTF-8).
  */
 
-interface Env {}
+import type { Env } from '../_lib/env';
+import { jsonResponse } from '../_lib/env';
+import { processVerifiedPaymentResult } from '../_lib/processPaymentResult';
+import { getOrderFromFirestore } from '../_lib/firestore';
 
 export const onRequestPost: PagesFunction<Env> = async (context) => {
   try {
-    const request = context.request;
-    const body = await request.json() as any;
-    console.log('[Cloudflare Pages 24/7 Webhook] Received 9Pay Payload:', body);
+    const form = await context.request.formData();
+    const result = String(form.get('result') ?? '');
+    const checksum = String(form.get('checksum') ?? '');
 
-    // Extract Order ID and Payment Status from 9Pay IPN Payload
-    const orderId = body.invoice_no || body.order_id;
-    const status = body.status; // 'SUCCESS' or 5 or '5'
-
-    if (orderId && (status === 'SUCCESS' || status === 5 || status === '5' || status === 200 || status === '200')) {
-      // Update Firebase Firestore order doc to 'Paid (9Pay)' via REST API
-      const firestoreUrl = `https://firestore.googleapis.com/v1/projects/digivisa/databases/(default)/documents/orders/${encodeURIComponent(orderId)}?updateMask.fieldPaths=paymentStatus&updateMask.fieldPaths=status`;
-      
-      const firestoreRes = await fetch(firestoreUrl, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fields: {
-            paymentStatus: { stringValue: 'Paid (9Pay)' },
-            status: { stringValue: 'Agency Review' }
-          }
-        })
-      });
-
-      console.log('[Cloudflare Pages Webhook] Firestore Update Status:', firestoreRes.status);
-
-      return new Response(JSON.stringify({ 
-        status: 200, 
-        message: '9Pay IPN Webhook Verified & Processed Successfully',
-        orderId 
-      }), {
-        headers: { 'Content-Type': 'application/json' }
-      });
+    if (!result || !checksum) {
+      return jsonResponse({ success: false, error: 'Missing result or checksum' }, 400);
     }
 
-    return new Response(JSON.stringify({ 
-      status: 400, 
-      message: 'Payment status not successful or missing orderId',
-      receivedStatus: status 
-    }), { 
-      status: 400,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return await processVerifiedPaymentResult(context.env, result, checksum);
   } catch (error: any) {
-    console.error('[Cloudflare Pages Webhook Error]:', error);
-    return new Response(JSON.stringify({ 
-      status: 500, 
-      error: error?.message || 'Internal Server Error' 
-    }), { 
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    console.error('[9Pay webhook]', error);
+    return jsonResponse({
+      success: false,
+      error: error?.message || 'Internal Server Error',
+    }, 500);
   }
 };
 
@@ -66,41 +39,26 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   const orderId = url.searchParams.get('orderId');
 
   if (!orderId) {
-    return new Response(JSON.stringify({ 
-      active: true, 
-      service: 'DigiVisa 9Pay 24/7 Webhook Service',
-      timestamp: new Date().toISOString()
-    }), {
-      headers: { 'Content-Type': 'application/json' }
+    return jsonResponse({
+      active: true,
+      service: 'DigiVisa 9Pay IPN',
+      timestamp: new Date().toISOString(),
     });
   }
 
   try {
-    // Fetch current order state directly from Firestore REST API
-    const firestoreUrl = `https://firestore.googleapis.com/v1/projects/digivisa/databases/(default)/documents/orders/${encodeURIComponent(orderId)}`;
-    const res = await fetch(firestoreUrl);
+    const order = await getOrderFromFirestore(orderId, context.env);
+    const paymentStatus = order.fields.paymentStatus || 'Pending';
+    const isPaid = paymentStatus.includes('Paid');
 
-    if (res.ok) {
-      const data = await res.json() as any;
-      const paymentStatus = data?.fields?.paymentStatus?.stringValue || 'Pending';
-      const isPaid = paymentStatus.includes('Paid');
-
-      return new Response(JSON.stringify({
-        orderId,
-        isPaid,
-        paymentStatus,
-        status: data?.fields?.status?.stringValue || 'Pending'
-      }), {
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
-    return new Response(JSON.stringify({ orderId, isPaid: false, paymentStatus: 'Pending' }), {
-      headers: { 'Content-Type': 'application/json' }
+    return jsonResponse({
+      orderId,
+      isPaid,
+      paymentStatus,
+      status: order.fields.status || 'Pending',
+      payment_no: order.fields.ninepayPaymentNo || null,
     });
   } catch (e: any) {
-    return new Response(JSON.stringify({ orderId, isPaid: false, error: e.message }), {
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return jsonResponse({ orderId, isPaid: false, error: e.message }, 500);
   }
 };
