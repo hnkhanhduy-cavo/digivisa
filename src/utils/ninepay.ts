@@ -151,7 +151,7 @@ function hmacSha256Base64Sync(message: string, secretKey: string): string {
   }
 }
 
-// Build 100% Exact 9Pay Payment Gateway Portal Redirect URL (Matches 9Pay official sample-javascript index.js)
+// Build 100% Exact 9Pay Payment Gateway Portal Redirect URL (Matches 100% 9Pay sample URL)
 export function build9PayCheckoutUrl(orderId: string, amountVnd: number): string {
   try {
     const timestamp = Math.floor(Date.now() / 1000);
@@ -163,7 +163,8 @@ export function build9PayCheckoutUrl(orderId: string, amountVnd: number): string
     const secretKey = NINEPAY_CONFIG.secretKey;
     const endpoint = NINEPAY_CONFIG.isSandbox ? 'https://sand-payment.9pay.vn' : 'https://payment.9pay.vn';
 
-    const validAmount = Math.round(amountVnd || 2000);
+    // 9Pay minimum transaction amount is 10,000 VND
+    const validAmount = Math.max(10000, Math.round(amountVnd || 10000));
 
     const parameters: Record<string, any> = {
       merchantKey,
@@ -175,9 +176,12 @@ export function build9PayCheckoutUrl(orderId: string, amountVnd: number): string
       back_url: backUrl
     };
 
-    // Sort parameters alphabetically as required by 9Pay official buildHttpQuery
-    const sortedKeys = Object.keys(parameters).sort();
-    const httpQuery = sortedKeys.map(k => `${k}=${encodeURIComponent(parameters[k])}`).join('&');
+    // Sort parameters alphabetically and format with URLSearchParams matching 9Pay buildHttpQuery
+    const orderedParams = Object.keys(parameters).sort().reduce((obj: any, key) => {
+      obj[key] = parameters[key];
+      return obj;
+    }, {});
+    const httpQuery = new URLSearchParams(orderedParams).toString();
 
     // Official 9Pay signature message: "POST\nhttps://sand-payment.9pay.vn/payments/create\n<timestamp>\n<httpQuery>"
     const message = `POST\n${endpoint}/payments/create\n${timestamp}\n${httpQuery}`;
@@ -189,6 +193,6 @@ export function build9PayCheckoutUrl(orderId: string, amountVnd: number): string
     return `${endpoint}/portal?baseEncode=${encodeURIComponent(baseEncode)}&signature=${encodeURIComponent(signature)}`;
   } catch (err) {
     console.error("build9PayCheckoutUrl fallback error:", err);
-    return `${NINEPAY_CONFIG.sandboxPaymentUrl}?merchantKey=${NINEPAY_CONFIG.merchantKey}&invoice_no=${orderId}&amount=${amountVnd}`;
+    return `${NINEPAY_CONFIG.sandboxPaymentUrl}?merchantKey=${NINEPAY_CONFIG.merchantKey}&invoice_no=${orderId}&amount=10000`;
   }
 }
