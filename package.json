@@ -9,7 +9,8 @@
     "start": "node dist/server.cjs",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "dev:pages": "npx wrangler pages dev --ip 127.0.0.1 --port 8788"
+    "dev:pages": "npx wrangler pages dev --ip 127.0.0.1 --port 8788",
+    "dev:api": "npx wrangler pages dev --ip 127.0.0.1 --port 8788"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

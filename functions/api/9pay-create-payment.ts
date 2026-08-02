@@ -48,7 +48,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     }
 
     const { merchantKey, secretKey, endpoint } = requireNinePayEnv(context.env);
-    const origin = new URL(context.request.url).origin;
+    const origin = (context.env.APP_BASE_URL || new URL(context.request.url).origin).replace(/\/$/, '');
     const time = Math.round(Date.now() / 1000);
 
     const parameters: NinePayCreateParams = {

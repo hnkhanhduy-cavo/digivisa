@@ -7,6 +7,7 @@ export interface Env {
   FIREBASE_CLIENT_EMAIL: string;
   FIREBASE_PRIVATE_KEY: string;
   SYNC_SECRET: string;
+  APP_BASE_URL?: string;
 }
 
 export function requireNinePayEnv(env: Env): {

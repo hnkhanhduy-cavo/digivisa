@@ -18,10 +18,18 @@ DigiVisa is a visa-processing / airport fast-track / private-pickup booking site
 ## Architecture
 
 - **`src/App.tsx`** — root SPA shell. Owns language (`EN`/`VI`), auth user, and `activeService` (`visa | fasttrack | pickup`). Navigation is conditional rendering inside `AnimatePresence`. A hidden route, hash `#/verynoice`, opens the admin login modal.
-- **`functions/api/`** — Cloudflare Pages Functions (file-based routing; no `wrangler.toml`). Two endpoints:
-  - `9pay-create-payment.ts` — signs and posts to 9Pay's create-payment REST API, returns `{ paymentUrl, orderId }`.
+- **`functions/api/`** — Cloudflare Pages Functions (file-based routing; no `wrangler.toml`). Endpoints available:
+  - `9pay-create-payment.ts` — builds a signed 9Pay portal redirect URL (does NOT call 9Pay API directly), returns `{ paymentUrl, orderId }`.
+  - `9pay-verify.ts` — checks payment status with 9Pay inquire API and updates Firestore.
+  - `9pay-inquire.ts` — queries 9Pay payment status directly.
+  - `9pay-sync-unpaid.ts` — batch syncs unpaid orders with 9Pay inquire API.
   - `9pay-webhook.ts` — `onRequestPost` (9Pay IPN receiver) and `onRequestGet` (status-poll endpoint used by the frontend).
-- **Payment flow (9Pay redirect + Inquire):** form submit → order saved with `amountVnd` + `Pending` → `POST /api/9pay-create-payment` builds signed portal URL → browser redirects to 9Pay. **Source of truth = Inquire** via `GET/POST /api/9pay-verify?orderId=…` (3-part GET signature). Paid only when inquire `status === 5` AND amount matches Firestore. Return URL is UX-only (`App.tsx` shows “Đang xác nhận…” then calls verify) — never trust `?payment=success` / `result` / `checksum` query params. Tracker/OMS re-inquire unpaid orders from the last 24h (debounced); optional batch `POST /api/9pay-sync-unpaid`. `9pay-webhook` stays IPN-ready (`verifyAndDecode`) but is unused until Merchant View can register `ipn_url`. Helpers: `functions/api/_ninepay.ts`. Test with `npm run dev:pages` (`npm run dev` does not serve `functions/`).
+  - `order-claim.ts` — handles staff claiming orders.
+  - `order-lookup.ts` — looks up order details.
+  - `staff-set-claim.ts` — manages staff assignment for orders.
+  - (Note: `_ninepay.ts` is a shared helper module, not an endpoint route).
+  - *Warning:* `npm run dev` does not serve `functions/` directly — run `npm run dev:api` (or `npm run dev:pages`) alongside it in another terminal.
+- **Payment flow (9Pay redirect + Inquire):** form submit → order saved with `amountVnd` + `Pending` → `POST /api/9pay-create-payment` builds signed portal URL → browser redirects to 9Pay. **Source of truth = Inquire** via `GET/POST /api/9pay-verify?orderId=…` (3-part GET signature). Paid only when inquire `status === 5` AND amount matches Firestore. Return URL is UX-only (`App.tsx` shows “Đang xác nhận…” then calls verify) — never trust `?payment=success` / `result` / `checksum` query params. Tracker/OMS re-inquire unpaid orders from the last 24h (debounced); optional batch `POST /api/9pay-sync-unpaid`. `9pay-webhook` stays IPN-ready (`verifyAndDecode`) but is unused until Merchant View can register `ipn_url`. Helpers: `functions/api/_ninepay.ts`. Test with `npm run dev:api` (`npm run dev` does not serve `functions/`).
 - **Data layer:** Firestore (`orders` collection, single collection, no security-rules file present in repo) is best-effort/secondary; `localStorage` (via `src/utils/storage.ts`'s `safeStorage` wrapper, which falls back to an in-memory object if storage is blocked) is the primary client-side source of truth. Firebase Auth (email/password + email-verification gate) handles customer accounts; there's no server-side session.
 - **Cross-cutting utils in `src/utils/`:**
   - `translations.ts` — `EN`/`VI` dictionary; nearly every component takes a `language` prop and indexes into it.
