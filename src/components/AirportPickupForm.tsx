@@ -180,7 +180,6 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
     '4 seats': { maxPax: 3, maxLuggage: 2, sampleModels: isEn ? 'Standard Eco Sedan' : 'Dòng xe Sedan Tiêu chuẩn', label: '4 Seats (Eco Sedan)' },
     '7 seats': { maxPax: 6, maxLuggage: 5, sampleModels: isEn ? 'Comfort Family SUV' : 'Dòng xe SUV Gia đình Rộng rãi', label: '7 Seats (Comfort SUV)' },
     '16 seats': { maxPax: 15, maxLuggage: 12, sampleModels: isEn ? 'Executive Minibus Van' : 'Dòng xe Minibus Cao cấp', label: '16 Seats (Executive Minibus)' },
-    'Test Sandbox': { maxPax: 1, maxLuggage: 0, sampleModels: isEn ? '10,000 VND Test Charge' : 'Gói nạp thử 10.000 VNĐ 9Pay', label: '10,000 VND Test Charge' },
   };
 
   const FAST_TRACK_RATES = {
@@ -190,20 +189,6 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
   };
 
   const getCalculatedFees = () => {
-    if ((formData?.vehicleType as string) === 'Test Sandbox' || (formData?.vehicleType as string)?.includes('Test Sandbox')) {
-      return {
-        base: 0.4,
-        baseVnd: 10000,
-        fastTrackCost: 0,
-        fastTrackCostVnd: 0,
-        subtotal: 0.4,
-        subtotalVnd: 10000,
-        tax: 0,
-        taxVnd: 0,
-        total: 0.4,
-        totalVnd: 10000,
-      };
-    }
     const vPrice = getVehiclePrice(formData?.airport || 'Tan Son Nhat (SGN)', formData?.vehicleType || '4 seats');
     const base = vPrice.usd;
     const baseVnd = vPrice.vnd;

@@ -137,19 +137,6 @@ export function getVietnamPricing(
   resultsOption: string,
   submissionTiming: string
 ): VietnamPricing {
-  // Sandbox package — 9Pay minimum charge (10,000 VND)
-  if (resultsOption === 'test_sandbox' || visaType.includes('Test Sandbox') || visaType.includes('Gói Test')) {
-    return {
-      base: 0.4,
-      speed: 0,
-      tax: 0,
-      total: 0.4,
-      baseVnd: 10_000,
-      speedVnd: 0,
-      taxVnd: 0,
-      totalVnd: 10_000,
-    };
-  }
   // Single eVisa
   if (visaType === 'Single eVisa') {
     if (resultsOption === 'same_day') {

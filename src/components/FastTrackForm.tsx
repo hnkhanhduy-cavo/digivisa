@@ -158,7 +158,6 @@ export default function FastTrackForm({ currency, onSuccess, onCancel, language 
     'Fast Track Standard': 45,
     'Fast Track Business': 48,
     'Fast Track Vip': 55,
-    'Test Sandbox': 0.08,
   };
 
   const getVehiclePrice = (airportName: string, vehicleType: '4 seats' | '7 seats' | '16 seats') => {
@@ -182,22 +181,6 @@ export default function FastTrackForm({ currency, onSuccess, onCancel, language 
   };
 
   const getCalculatedFees = () => {
-    if ((formData.packageType as string) === 'Test Sandbox' || (formData.packageType as string).includes('Test Sandbox')) {
-      return {
-        basePerPax: 0.4,
-        basePerPaxVnd: 10000,
-        esimCost: 0,
-        esimCostVnd: 0,
-        pickupCost: 0,
-        pickupCostVnd: 0,
-        subtotal: 0.4,
-        subtotalVnd: 10000,
-        tax: 0,
-        taxVnd: 0,
-        total: 0.4,
-        totalVnd: 10000,
-      };
-    }
     const base = PACKAGE_RATES[formData.packageType] || 45;
     const baseExactVnd: Record<number, number> = {
       45: 1150000,

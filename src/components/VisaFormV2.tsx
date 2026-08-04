@@ -583,54 +583,6 @@ export default function VisaFormV2({
                       </div>
                     </div>
                   </div>
-
-                  {/* Option 3: Gói Test Sandbox (1.000 VNĐ) */}
-                  <div 
-                    onClick={() => {
-                      setFormData(prev => ({ 
-                        ...prev, 
-                        resultsOption: 'test_sandbox',
-                        submissionTiming: ''
-                      }));
-                    }}
-                    className={`p-3.5 rounded-xl border flex flex-col justify-between transition-all cursor-pointer ${
-                      formData.resultsOption === 'test_sandbox'
-                        ? 'border-emerald-600 bg-emerald-50/20 ring-1 ring-emerald-500 shadow-2xs'
-                        : 'border-slate-200 hover:border-slate-300 bg-slate-50/30'
-                    }`}
-                  >
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-900">
-                          {isEn ? '⚡ Sandbox Test Package (10,000 VND)' : '⚡ Gói Test Sandbox (10.000 VNĐ)'}
-                        </span>
-                        <input 
-                          type="radio" 
-                          checked={formData.resultsOption === 'test_sandbox'} 
-                          onChange={() => {}}
-                          className="h-3.5 w-3.5 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-                        />
-                      </div>
-                      <p className="text-[10px] text-slate-500 leading-tight">
-                        {isEn ? '10,000 VND sandbox charge (9Pay minimum) for live gateway testing' : 'Gói nạp thử 10.000 VNĐ (mức tối thiểu 9Pay) để test cổng thanh toán'}
-                      </p>
-
-                      <div className="pt-1">
-                        <span className="inline-flex items-center gap-1 text-[9.5px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded border border-emerald-200">
-                          ⚡ {isEn ? 'REALTIME TEST PACK' : 'THỬ NGHIỆM THỰC TẾ'}
-                        </span>
-                      </div>
-
-                      <div className="mt-2 pt-1.5 border-t border-slate-100 flex items-center justify-between">
-                        <span className="text-[10px] text-slate-400 font-medium">
-                          {isEn ? 'Test price:' : 'Giá test:'}
-                        </span>
-                        <span className="text-xs font-extrabold text-emerald-700 font-mono">
-                          10.000 ₫
-                        </span>
-                      </div>
-                    </div>
-                  </div>
                 </div>
 
                 {/* Sub-options for Option 1 and Test Sandbox with Locked and Recommended states */}
