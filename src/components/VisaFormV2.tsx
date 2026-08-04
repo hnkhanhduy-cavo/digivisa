@@ -804,6 +804,24 @@ export default function VisaFormV2({
 
       {/* 2. Applicant Identity & Passport Logs */}
       <div className="p-5 sm:p-6 bg-slate-50/50 rounded-2xl border border-slate-205 space-y-4 shadow-sm" id="v2-card-bio">
+        <HistoricalAutofill
+          serviceType="Visa"
+          language={language}
+          onSelect={(profile: any) => {
+            setFormData((prev) => ({
+              ...prev,
+              firstName: profile.firstName || (profile.contactName ? profile.contactName.split(' ')[0] : prev.firstName),
+              lastName: profile.lastName || (profile.contactName ? profile.contactName.split(' ').slice(1).join(' ') : prev.lastName),
+              passportNumber: profile.passportNumber || prev.passportNumber,
+              passportExpiry: profile.passportExpiry || prev.passportExpiry,
+              nationality: profile.nationality || prev.nationality,
+              dateOfBirth: profile.dateOfBirth || prev.dateOfBirth,
+              email: profile.email || prev.email,
+              phone: profile.phone || prev.phone,
+            }));
+          }}
+        />
+
         <div className="flex items-center space-x-2.5 pb-2 border-b border-slate-150">
           <div className="h-6 w-6 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-650">
             <FileUser className="h-4 w-4" />

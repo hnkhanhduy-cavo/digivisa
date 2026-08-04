@@ -541,7 +541,7 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
                 ? `${profile.firstName || ''} ${profile.lastName || ''}`.trim() 
                 : (profile.passengerName || profile.fullName || '');
               
-              const validVehicles = ['4 seats', '7 seats', '16 seats', 'Test Sandbox'];
+              const validVehicles = ['4 seats', '7 seats', '16 seats'];
               const safeVehicle = validVehicles.includes(profile.vehicleType)
                 ? profile.vehicleType
                 : '4 seats';

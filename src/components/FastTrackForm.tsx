@@ -504,33 +504,6 @@ export default function FastTrackForm({ currency, onSuccess, onCancel, language 
           <span>{isEn ? 'Back to Landing' : 'Quay lại trang chủ'}</span>
         </button>
         <div className="flex items-center space-x-2">
-          <button
-            type="button"
-            onClick={() => {
-              const futureDate = getTodayOffsetStr(3);
-              setFormData({
-                packageType: 'Arrival Standard',
-                airport: 'Tan Son Nhat (SGN)',
-                serviceDirection: 'Arrival',
-                airlineName: 'Vietnam Airlines',
-                flightNumber: 'VN123',
-                arrivalDate: futureDate,
-                arrivalTime: '14:30',
-                contactName: 'Nguyen Van A',
-                contactEmail: 'test@digivisa.com',
-                contactPhone: '+84901234567',
-                specialRequests: 'Test 9Pay Redirect Flow'
-              });
-              setErrors({});
-              alert(isEn 
-                ? '⚡ Sample test data filled! Click Checkout button below to test 9Pay Redirect immediately.' 
-                : '⚡ Đã tự động điền dữ liệu mẫu hợp lệ 100%! Cuộn xuống bấm nút Thanh Toán để chuyển hướng sang 9Pay ngay lập tức.');
-            }}
-            className="text-[11px] font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-3 py-1.5 rounded-full transition-all cursor-pointer flex items-center space-x-1"
-          >
-            <Sparkles className="h-3 w-3 text-teal-600" />
-            <span>{isEn ? '⚡ Auto-Fill Sample Data to Test 9Pay' : '⚡ Auto-Fill Điền Nhanh Dữ Liệu Mẫu Đạt Chuẩn để Test 9Pay'}</span>
-          </button>
           <span className="text-xs font-bold text-amber-600 bg-amber-50 rounded-full border border-amber-200 px-3 py-1 font-mono tracking-tight flex items-center space-x-1">
             <Sparkles className="h-3 w-3 mr-1 text-amber-500" />
             <span>{isEn ? 'MOST POPULAR CHOICE' : 'LỰA CHỌN PHỔ BIẾN NHẤT'}</span>
