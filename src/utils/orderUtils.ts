@@ -2,8 +2,9 @@ import { Order } from '../types';
 
 export function getSplitOrders(orders: Order[]): Array<Order & { isSplitLeg?: boolean; parentId?: string }> {
   const result: any[] = [];
+  if (!Array.isArray(orders)) return result;
   for (const order of orders) {
-    if (!order) continue;
+    if (!order || !order.id) continue;
     const isCombo = (order.type === 'FastTrack' && (order.details as any)?.addAirportPickup) ||
                     (order.type === 'AirportPickup' && (order.details as any)?.addFastTrack);
     

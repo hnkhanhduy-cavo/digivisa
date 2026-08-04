@@ -172,8 +172,9 @@ export default function OMSAgencyComms({
 
   // Filtered order list
   const filteredOrders = getSplitOrders(orders).filter(o => {
+    if (!o || !o.id) return false;
     const custName = getCustomerName(o).toLowerCase();
-    const matchesSearch = o.id.toLowerCase().includes(searchQuery.toLowerCase()) || custName.includes(searchQuery.toLowerCase());
+    const matchesSearch = (o.id || '').toLowerCase().includes(searchQuery.toLowerCase()) || custName.includes(searchQuery.toLowerCase());
     const matchesType = filterType === 'All' || o.type === filterType;
     return matchesSearch && matchesType;
   });

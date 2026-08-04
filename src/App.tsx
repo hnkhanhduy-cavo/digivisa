@@ -243,12 +243,15 @@ export default function App() {
     triggerToast(language === 'VI' ? 'Đăng nhập Staff thành công!' : 'Staff logged in successfully!', 'success');
   };
 
-  // Hash route listener for secret admin URL: /#/verynoice -> Pops up password prompt
+  // Hash route listener for secret admin URL: /#/verynoice -> Pops up password prompt or opens OMS tab
   useEffect(() => {
     const checkHash = () => {
       const hash = window.location.hash;
       if (hash === '#/verynoice' || hash === '#verynoice') {
-        if (userRole !== 'staff') {
+        const savedRole = safeStorage.getItem('digivisa_user_role');
+        if (userRole === 'staff' || savedRole === 'staff') {
+          setActiveTab('oms');
+        } else {
           setIsAdminLoginOpen(true);
         }
       }
@@ -265,10 +268,16 @@ export default function App() {
     window.location.search.includes('demo=true')
   ));
 
-  // Helper to sanitize any legacy TSN references in order details
-  const sanitizeOrder = (o: Order): Order => {
-    if (!o || !o.details) return o;
-    const details = { ...o.details } as any;
+  // Helper to sanitize any legacy TSN references and missing order properties
+  const sanitizeOrder = (o: any): Order => {
+    if (!o) return { id: 'DV-UNKNOWN', type: 'Visa', status: 'Pending', createdAt: '', paymentStatus: 'Pending', details: {} as any };
+    const id = o.id || o.orderId || o.docId || 'DV-UNKNOWN';
+    const type = o.type || 'Visa';
+    const status = o.status || 'Pending';
+    const paymentStatus = o.paymentStatus || 'Pending';
+    const createdAt = o.createdAt || '';
+    const details = { ...(o.details || {}) } as any;
+
     if (typeof details.airport === 'string') {
       details.airport = details.airport.replace(/TSN/g, 'SGN');
     }
@@ -278,7 +287,7 @@ export default function App() {
     if (typeof details.destinationAddress === 'string') {
       details.destinationAddress = details.destinationAddress.replace(/TSN/g, 'SGN');
     }
-    return { ...o, details };
+    return { ...o, id, type, status, paymentStatus, createdAt, details };
   };
 
   // Load orders from localStorage if any, filtering out any old default mock records
