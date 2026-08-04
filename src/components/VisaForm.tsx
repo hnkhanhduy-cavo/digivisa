@@ -7,7 +7,6 @@ import { VisaApplication, Currency, CURRENCY_SYMBOLS, EXCHANGE_RATES, NATIONALIT
 import { Language, TRANSLATIONS } from '../utils/translations';
 import { getVietnamPricing } from '../utils/pricing';
 import VisaFormV2 from './VisaFormV2';
-import HistoricalAutofill from './HistoricalAutofill';
 import { HistoricalProfile } from '../data/historicalUsers';
 import { safeStorage, safeOpen } from '../utils/storage';
 import { isValidEmail, isValidPassportNumber, isValidInternationalPhone, isValidTaxCode } from '../utils/validation';
@@ -637,33 +636,6 @@ export default function VisaForm({ language, currency, onSuccess, onCancel }: Vi
           </div>
 
           <div className="p-6 sm:p-10">
-            <HistoricalAutofill
-              serviceType="Visa"
-              language={language}
-              onSelect={(profile: any) => {
-                setFormData((prev) => ({
-                  ...prev,
-                  firstName: profile.firstName,
-                  lastName: profile.lastName,
-                  passportNumber: profile.passportNumber,
-                  passportExpiry: profile.passportExpiry,
-                  nationality: profile.nationality,
-                  dateOfBirth: profile.dateOfBirth,
-                  email: profile.email,
-                  phone: profile.phone,
-                  passportScan: profile.passportScan,
-                  photoScan: profile.photoScan,
-                }));
-                setWantsInvoice(profile.wantsInvoice);
-                if (profile.wantsInvoice) {
-                  setCompanyName(profile.companyName);
-                  setTaxCode(profile.taxCode);
-                  setCompanyAddress(profile.companyAddress);
-                  setCompanyEmail(profile.companyEmail);
-                }
-              }}
-            />
-
             <VisaFormV2
               language={language}
               currency={currency}
