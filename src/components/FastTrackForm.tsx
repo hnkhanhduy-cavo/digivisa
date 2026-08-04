@@ -550,6 +550,7 @@ export default function FastTrackForm({ currency, onSuccess, onCancel, language 
           
           <HistoricalAutofill
             serviceType="FastTrack"
+            language={language}
             onSelect={(profile: any) => {
               const nameCandidate = (profile.firstName || profile.lastName) 
                 ? `${profile.firstName || ''} ${profile.lastName || ''}`.trim() 
@@ -709,15 +710,6 @@ export default function FastTrackForm({ currency, onSuccess, onCancel, language 
                             'Đưa khách đến khu vực kiểm tra hải quan',
                             'Tiễn khách ra khu vực xe đón'
                           ])
-                },
-                {
-                  id: 'Test Sandbox',
-                  title: isEn ? '⚡ Sandbox Test Package' : '⚡ Gói Test Sandbox (10.000 VNĐ)',
-                  price: 0.4,
-                  desc: isEn ? '10,000 VND sandbox charge (9Pay minimum) for live gateway testing' : 'Gói nạp thử 10.000 VNĐ (mức tối thiểu 9Pay) để test cổng thanh toán',
-                  perks: isEn 
-                    ? ['10,000 VND 9Pay Test Charge', 'Official 9Pay Hosted Checkout', 'IPN-verified Confirmation']
-                    : ['Nạp thử 10.000 VNĐ qua cổng 9Pay', 'Thanh toán trên trang 9Pay chính thức', 'Xác nhận qua IPN đã ký']
                 },
               ].map((pkg) => {
                 const isSelected = formData.packageType === pkg.id;

@@ -536,6 +536,7 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
           
           <HistoricalAutofill
             serviceType="AirportPickup"
+            language={language}
             onSelect={(profile: any) => {
               const nameCandidate = (profile.firstName || profile.lastName) 
                 ? `${profile.firstName || ''} ${profile.lastName || ''}`.trim() 
@@ -588,12 +589,9 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
                 { id: '4 seats', title: isEn ? '4 Seats Eco Sedan' : 'Xe 4 Chỗ (Eco Sedan)' },
                 { id: '7 seats', title: isEn ? '7 Seats Comfort SUV' : 'Xe 7 Chỗ (Comfort SUV)' },
                 { id: '16 seats', title: isEn ? '16 Seats Executive Minibus' : 'Xe 16 Chỗ (Executive Minibus)' },
-                { id: 'Test Sandbox', title: isEn ? '⚡ Sandbox Test Package (10,000 VND)' : '⚡ Gói Test Sandbox (10.000 VNĐ)' },
-                ].map((car) => {
-                const vPrice = car.id === 'Test Sandbox' ? { usd: 0.4, vnd: 10000 } : getVehiclePrice(formData.airport || 'Tan Son Nhat (SGN)', car.id as any);
-                const spec = car.id === 'Test Sandbox' 
-                  ? { maxPax: 1, maxLuggage: 0, sampleModels: 'Gói nạp thử 10.000 VNĐ Cổng 9Pay', label: '10,000 VND Test Charge' }
-                  : FLEET_SPECS[car.id as AirportPickupBooking['vehicleType']] || FLEET_SPECS['4 seats'];
+              ].map((car) => {
+                const vPrice = getVehiclePrice(formData.airport || 'Tan Son Nhat (SGN)', car.id as any);
+                const spec = FLEET_SPECS[car.id as AirportPickupBooking['vehicleType']] || FLEET_SPECS['4 seats'];
                 const isSelected = formData.vehicleType === car.id;
                 return (
                   <div
