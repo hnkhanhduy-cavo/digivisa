@@ -117,6 +117,12 @@ export interface Order {
   ninepayPaymentNo?: string;
   /** Opaque guest Tracker token (≥32 chars). Not the same as order id. */
   trackingToken?: string;
+  /** Link mời nhóm chat riêng của đơn. Chỉ host chat.whatsapp.com. */
+  whatsappGroupUrl?: string;
+  /** Link mời nhóm Zalo riêng của đơn. Chỉ host zalo.me. */
+  zaloGroupUrl?: string;
+  /** ISO timestamp lần cuối staff cập nhật link nhóm. */
+  groupLinkUpdatedAt?: string;
   userId?: string;
   userEmail?: string;
   details: VisaApplication | FastTrackBooking | AirportPickupBooking;

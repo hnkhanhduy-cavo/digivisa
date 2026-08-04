@@ -2,7 +2,7 @@
  * Guest order status lookup by opaque trackingToken.
  * Route: GET|POST /api/order-lookup
  *
- * Returns only non-sensitive fields. Never returns passport, DOB, scans, phone, email.
+ * Returns only non-sensitive fields (and group chat links if set). Never returns passport, DOB, scans, phone, email.
  */
 
 import type { Env } from '../_lib/env';

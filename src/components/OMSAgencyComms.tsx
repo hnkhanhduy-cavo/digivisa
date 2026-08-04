@@ -11,6 +11,7 @@ import { Order, Currency, CURRENCY_SYMBOLS } from '../types';
 import { safeStorage } from '../utils/storage';
 import { getSplitOrders } from '../utils/orderUtils';
 import { formatPhoneE164 } from '../utils/validation';
+import { auth } from '../utils/firebase';
 
 interface OMSAgencyCommsProps {
   orders: Order[];
@@ -78,6 +79,13 @@ export default function OMSAgencyComms({
   const [liaisonNote, setLiaisonNote] = useState('');
   const [copySuccess, setCopySuccess] = useState<string | null>(null);
   const [dossierTransferSuccess, setDossierTransferSuccess] = useState<string | null>(null);
+
+  // Group Chat Link state for staff
+  const [waGroupInput, setWaGroupInput] = useState('');
+  const [zaGroupInput, setZaGroupInput] = useState('');
+  const [groupLinkError, setGroupLinkError] = useState('');
+  const [groupLinkSuccess, setGroupLinkSuccess] = useState('');
+  const [isSavingGroupLinks, setIsSavingGroupLinks] = useState(false);
 
   // Track active leg for combo orders (Dual Service coordination)
   const [activeComboLeg, setActiveComboLeg] = useState<'primary' | 'secondary'>('primary');
@@ -191,6 +199,75 @@ export default function OMSAgencyComms({
       ? assignedPartners[selectedOrder.id]
       : assignedPartners[selectedOrder.id + '_secondary']
   ) : undefined;
+
+  useEffect(() => {
+    if (selectedOrder) {
+      setWaGroupInput(selectedOrder.whatsappGroupUrl || '');
+      setZaGroupInput(selectedOrder.zaloGroupUrl || '');
+      setGroupLinkError('');
+      setGroupLinkSuccess('');
+    }
+  }, [selectedOrder?.id, selectedOrder?.whatsappGroupUrl, selectedOrder?.zaloGroupUrl]);
+
+  const handleSaveGroupLinks = async () => {
+    if (!selectedOrder) return;
+    setIsSavingGroupLinks(true);
+    setGroupLinkError('');
+    setGroupLinkSuccess('');
+
+    try {
+      const user = auth.currentUser;
+      if (!user) {
+        setGroupLinkError('Chưa đăng nhập tài khoản Staff');
+        setIsSavingGroupLinks(false);
+        return;
+      }
+
+      const token = await user.getIdToken();
+      const isSec = selectedOrder.id.endsWith('_secondary');
+      const baseId = isSec ? selectedOrder.id.replace('_secondary', '') : selectedOrder.id;
+
+      const res = await fetch('/api/order-set-group-links', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          orderId: baseId,
+          whatsappGroupUrl: waGroupInput,
+          zaloGroupUrl: zaGroupInput,
+        }),
+      });
+
+      const data = (await res.json()) as any;
+      if (!res.ok || !data.success) {
+        setGroupLinkError(data.error || 'Lỗi khi cập nhật link nhóm');
+        setIsSavingGroupLinks(false);
+        return;
+      }
+
+      const updated = orders.map((o) => {
+        if (o.id === baseId) {
+          return {
+            ...o,
+            whatsappGroupUrl: data.whatsappGroupUrl || undefined,
+            zaloGroupUrl: data.zaloGroupUrl || undefined,
+            groupLinkUpdatedAt: data.groupLinkUpdatedAt,
+          };
+        }
+        return o;
+      });
+
+      setOrders(updated);
+      safeStorage.setItem('digivisa_orders', JSON.stringify(updated));
+      setGroupLinkSuccess('Cập nhật link nhóm chat thành công!');
+    } catch (err: any) {
+      setGroupLinkError(err.message || 'Lỗi kết nối máy chủ');
+    } finally {
+      setIsSavingGroupLinks(false);
+    }
+  };
 
   // Look up actual partner details from PARTNERS
   const activePartner = activeServiceType && activePartnerId
@@ -1566,6 +1643,84 @@ export default function OMSAgencyComms({
                         </div>
                       </div>
                     )}
+                  </div>
+
+                  {/* Order Private Group Chat Links (Staff Only) */}
+                  <div className="mt-4 p-4 bg-indigo-50/60 border border-indigo-200 rounded-2xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-1.5">
+                        <MessageSquare className="h-4 w-4 text-indigo-700" />
+                        <span className="text-[10.5px] font-black text-indigo-900 uppercase tracking-wider">
+                          Link Nhóm Chat Riêng Cho Đơn Hàng (WhatsApp & Zalo)
+                        </span>
+                      </div>
+                      {selectedOrder.groupLinkUpdatedAt && (
+                        <span className="text-[9.5px] font-mono text-slate-500">
+                          Cập nhật: {new Date(selectedOrder.groupLinkUpdatedAt).toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="text-[10.5px] text-slate-600 leading-normal">
+                      💡 <strong>Hướng dẫn:</strong> Nhóm chat phải được tạo thủ công trong ứng dụng WhatsApp/Zalo. Sau đó copy link mời (invite link) và dán vào bên dưới rồi bấm <strong>Lưu Link Nhóm</strong>. (Tẩy trống ô rồi lưu để xóa link).
+                    </p>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[9px] font-black text-slate-600 uppercase mb-1">
+                          WhatsApp Group Link (https://chat.whatsapp.com/...)
+                        </label>
+                        <input
+                          type="text"
+                          value={waGroupInput}
+                          onChange={(e) => setWaGroupInput(e.target.value)}
+                          placeholder="https://chat.whatsapp.com/..."
+                          className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs focus:ring-1 focus:ring-indigo-400 focus:outline-none font-mono"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[9px] font-black text-slate-600 uppercase mb-1">
+                          Zalo Group Link (https://zalo.me/g/...)
+                        </label>
+                        <input
+                          type="text"
+                          value={zaGroupInput}
+                          onChange={(e) => setZaGroupInput(e.target.value)}
+                          placeholder="https://zalo.me/g/..."
+                          className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs focus:ring-1 focus:ring-indigo-400 focus:outline-none font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    {groupLinkError && (
+                      <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-700 rounded-lg text-xs font-medium flex items-center gap-1.5">
+                        <AlertCircle className="h-4 w-4 text-rose-500 shrink-0" />
+                        <span>{groupLinkError}</span>
+                      </div>
+                    )}
+
+                    {groupLinkSuccess && (
+                      <div className="p-2.5 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg text-xs font-medium flex items-center gap-1.5">
+                        <CheckCircle className="h-4 w-4 text-emerald-500 shrink-0" />
+                        <span>{groupLinkSuccess}</span>
+                      </div>
+                    )}
+
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        disabled={isSavingGroupLinks}
+                        onClick={handleSaveGroupLinks}
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer flex items-center space-x-1.5"
+                      >
+                        {isSavingGroupLinks ? (
+                          <span>Đang lưu...</span>
+                        ) : (
+                          <span>Lưu Link Nhóm</span>
+                        )}
+                      </button>
+                    </div>
                   </div>
 
                   {/* Liaison discussion log */}

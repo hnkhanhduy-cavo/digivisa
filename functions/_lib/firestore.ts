@@ -27,15 +27,20 @@ export interface FirestoreOrderFields {
   type?: string;
   createdAt?: string;
   trackingToken?: string;
+  whatsappGroupUrl?: string;
+  zaloGroupUrl?: string;
+  groupLinkUpdatedAt?: string;
 }
 
-/** Safe fields for guest Tracker — never include passport / scans / contact PII. */
+/** Safe fields for guest Tracker — never include passport / scans / contact PII. Includes group links when set. */
 export interface PublicOrderLookupFields {
   id: string;
   status: string;
   paymentStatus: string;
   createdAt: string;
   type: string;
+  whatsappGroupUrl?: string;
+  zaloGroupUrl?: string;
 }
 
 function readStringField(fields: any, key: string): string | undefined {
@@ -101,6 +106,9 @@ export async function getOrderFromFirestore(
       type: readStringField(f, 'type'),
       createdAt: readStringField(f, 'createdAt'),
       trackingToken: readStringField(f, 'trackingToken'),
+      whatsappGroupUrl: readStringField(f, 'whatsappGroupUrl'),
+      zaloGroupUrl: readStringField(f, 'zaloGroupUrl'),
+      groupLinkUpdatedAt: readStringField(f, 'groupLinkUpdatedAt'),
     },
   };
 }
@@ -165,6 +173,9 @@ export async function findOrderByTrackingToken(
 
   const f = doc.fields;
   const id = docNameToOrderId(doc.name);
+  const whatsappGroupUrl = readStringField(f, 'whatsappGroupUrl');
+  const zaloGroupUrl = readStringField(f, 'zaloGroupUrl');
+
   return {
     ok: true,
     orderId: id,
@@ -176,6 +187,8 @@ export async function findOrderByTrackingToken(
       paymentStatus: readStringField(f, 'paymentStatus') || 'Pending',
       createdAt: readStringField(f, 'createdAt') || '',
       type: readStringField(f, 'type') || '',
+      ...(whatsappGroupUrl ? { whatsappGroupUrl } : {}),
+      ...(zaloGroupUrl ? { zaloGroupUrl } : {}),
     },
   };
 }
@@ -244,4 +257,41 @@ export async function markOrderPaidInFirestore(
 
   const body = await res.text();
   return { ok: res.ok, status: res.status, body };
+}
+
+export async function setGroupLinksInFirestore(
+  orderId: string,
+  links: { whatsappGroupUrl?: string; zaloGroupUrl?: string },
+  env: Env
+): Promise<{ ok: boolean; status: number; body?: string; groupLinkUpdatedAt?: string }> {
+  const token = await getAccessToken(env);
+  const groupLinkUpdatedAt = new Date().toISOString();
+
+  const mask: string[] = ['groupLinkUpdatedAt'];
+  const fields: Record<string, unknown> = {
+    groupLinkUpdatedAt: { stringValue: groupLinkUpdatedAt },
+  };
+
+  if (links.whatsappGroupUrl !== undefined) {
+    mask.push('whatsappGroupUrl');
+    fields.whatsappGroupUrl = { stringValue: links.whatsappGroupUrl };
+  }
+  if (links.zaloGroupUrl !== undefined) {
+    mask.push('zaloGroupUrl');
+    fields.zaloGroupUrl = { stringValue: links.zaloGroupUrl };
+  }
+
+  const url = firestoreDocUrl(projectId(env), orderId, mask);
+
+  const res = await fetch(url, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ fields }),
+  });
+
+  const body = await res.text();
+  return { ok: res.ok, status: res.status, body, groupLinkUpdatedAt };
 }

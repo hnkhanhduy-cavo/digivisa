@@ -149,6 +149,11 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     chauffeurRates: 'Chauffeur Rates',
     bookShuttle: 'Book Shuttle',
     mostSelected: 'Most Selected',
+    orderSupportGroup: 'Order Support Group',
+    privateGroupNotice: 'Private group for this order, including the handling partner.',
+    whatsappChat: 'WhatsApp Chat',
+    zaloChat: 'Zalo Chat',
+    groupSettingUp: 'A dedicated support group for this order is being set up. We will contact you shortly.',
   },
   VI: {
     // Header & Tabs
@@ -298,5 +303,10 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     chauffeurRates: 'Phí dịch vụ xe',
     bookShuttle: 'Đặt xe ngay',
     mostSelected: 'Được chọn nhiều nhất',
+    orderSupportGroup: 'Nhóm hỗ trợ đơn hàng',
+    privateGroupNotice: 'Nhóm riêng cho đơn này, có cả đối tác xử lý.',
+    whatsappChat: 'Chat qua WhatsApp',
+    zaloChat: 'Chat qua Zalo',
+    groupSettingUp: 'Nhóm hỗ trợ riêng cho đơn này đang được tạo. Chúng tôi sẽ liên hệ bạn sớm.',
   }
 };

@@ -2,6 +2,7 @@ import React from 'react';
 import { ShieldCheck } from 'lucide-react';
 import { safeOpen } from '../utils/storage';
 import { Language, TRANSLATIONS } from '../utils/translations';
+import { hasWhatsApp, hasZalo, buildWhatsAppChatUrl, buildZaloChatUrl, HOTLINE_DISPLAY } from '../utils/contact';
 
 interface FooterProps {
   language: Language;
@@ -10,6 +11,11 @@ interface FooterProps {
 export default function Footer({ language }: FooterProps) {
   const t = TRANSLATIONS[language];
   const isEn = language === 'EN';
+
+  const showWa = hasWhatsApp();
+  const showZa = hasZalo();
+  const waUrl = buildWhatsAppChatUrl();
+  const zaUrl = buildZaloChatUrl();
 
   return (
     <footer className="bg-white border-t border-slate-100 py-10 mt-auto">
@@ -47,15 +53,21 @@ export default function Footer({ language }: FooterProps) {
                 {isEn ? '24/7 Priority Support' : 'Hỗ trợ Ưu tiên 24/7'}
               </span>
             </div>
-            <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 text-[11px] text-slate-500">
-              <span className="font-sans font-medium">{isEn ? 'Chat/Contact Support:' : 'Trò chuyện / Liên hệ:'}</span>
-              <span onClick={() => safeOpen('https://wa.me/84999088888', '_blank')} className="flex items-center gap-1 font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-md hover:bg-emerald-100 transition-all cursor-pointer select-none">
-                WhatsApp: +84999088888
-              </span>
-              <span onClick={() => safeOpen('https://zalo.me/84999088888', '_blank')} className="flex items-center gap-1 font-bold text-sky-600 bg-sky-50 border border-sky-100 px-2 py-0.5 rounded-md hover:bg-sky-100 transition-all cursor-pointer select-none">
-                Zalo: +84999088888
-              </span>
-            </div>
+            {(showWa || showZa) && (
+              <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 text-[11px] text-slate-500">
+                <span className="font-sans font-medium">{isEn ? 'Chat/Contact Support:' : 'Trò chuyện / Liên hệ:'}</span>
+                {showWa && waUrl && (
+                  <span onClick={() => safeOpen(waUrl, '_blank')} className="flex items-center gap-1 font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-md hover:bg-emerald-100 transition-all cursor-pointer select-none">
+                    {HOTLINE_DISPLAY ? `WhatsApp: ${HOTLINE_DISPLAY}` : 'WhatsApp'}
+                  </span>
+                )}
+                {showZa && zaUrl && (
+                  <span onClick={() => safeOpen(zaUrl, '_blank')} className="flex items-center gap-1 font-bold text-sky-600 bg-sky-50 border border-sky-100 px-2 py-0.5 rounded-md hover:bg-sky-100 transition-all cursor-pointer select-none">
+                    {HOTLINE_DISPLAY ? `Zalo: ${HOTLINE_DISPLAY}` : 'Zalo'}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
           {/* User count pill indicator */}

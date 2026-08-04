@@ -8,10 +8,11 @@ import {
 } from 'lucide-react';
 import { Order, PublicOrderSummary, Currency, CURRENCY_SYMBOLS, EXCHANGE_RATES } from '../types';
 import { safeOpen, safeStorage } from '../utils/storage';
-import { Language } from '../utils/translations';
+import { Language, TRANSLATIONS } from '../utils/translations';
 import { getVietnamPricing } from '../utils/pricing';
 import { formatPhoneE164 } from '../utils/validation';
 import { claimPendingOrdersFromLocalStorage, listLocalTrackingTokens } from '../utils/orderClaim';
+import { hasWhatsApp, hasZalo, buildWhatsAppChatUrl, buildZaloChatUrl } from '../utils/contact';
 
 interface OrderTrackerProps {
   orders: Order[];
@@ -1677,25 +1678,95 @@ export default function OrderTracker({
 
 
               {/* Instant WhatsApp / Zalo contact support helper card */}
-              <div className="bg-white border border-slate-150 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="space-y-0.5 text-center sm:text-left">
-                  <h6 className="text-[12px] font-bold text-slate-800 uppercase tracking-wide">Status or details incorrect?</h6>
-                  <p className="text-[11px] text-slate-500">Contact Digivisa instantly via WhatsApp or Zalo 24/7 to adjust passport information, flight times or vehicle details.</p>
+              <div className="bg-white border border-slate-150 rounded-2xl p-4 flex flex-col space-y-3">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="space-y-0.5 text-center sm:text-left">
+                    <h6 className="text-[12px] font-bold text-slate-800 uppercase tracking-wide">
+                      {isEn ? 'Status or details incorrect?' : 'Thông tin hoặc trạng thái chưa đúng?'}
+                    </h6>
+                    <p className="text-[11px] text-slate-500">
+                      {isEn 
+                        ? 'Contact DigiVisa instantly via WhatsApp or Zalo 24/7 to adjust passport information, flight times or vehicle details.' 
+                        : 'Liên hệ DigiVisa 24/7 qua WhatsApp hoặc Zalo để hỗ trợ đính chính thông tin hộ chiếu, chuyến bay hoặc xe đón.'}
+                    </p>
+                  </div>
+                  <div className="flex gap-2 shrink-0 items-center">
+                    {(() => {
+                      const showWaGroup = !!selectedOrder?.whatsappGroupUrl;
+                      const showWaDirect = !showWaGroup && hasWhatsApp();
+                      const showWa = showWaGroup || showWaDirect;
+
+                      const showZaGroup = !!selectedOrder?.zaloGroupUrl;
+                      const showZaDirect = !showZaGroup && hasZalo();
+                      const showZa = showZaGroup || showZaDirect;
+
+                      if (!showWa && !showZa) {
+                        return (
+                          <span className="text-[11px] text-slate-500 italic">
+                            {TRANSLATIONS[language]?.groupSettingUp || (isEn 
+                              ? 'A dedicated support group for this order is being set up. We will contact you shortly.' 
+                              : 'Nhóm hỗ trợ riêng cho đơn này đang được tạo. Chúng tôi sẽ liên hệ bạn sớm.')}
+                          </span>
+                        );
+                      }
+
+                      return (
+                        <>
+                          {showWa && (
+                            <button 
+                              type="button"
+                              onClick={() => {
+                                if (showWaGroup) {
+                                  safeOpen(selectedOrder!.whatsappGroupUrl!, '_blank');
+                                } else {
+                                  const msg = isEn
+                                    ? `Hello DigiVisa, I need support for order ${selectedOrder?.id || ''}`
+                                    : `Xin chào DigiVisa, tôi cần hỗ trợ đơn ${selectedOrder?.id || ''}`;
+                                  const url = buildWhatsAppChatUrl(msg);
+                                  if (url) safeOpen(url, '_blank');
+                                }
+                              }}
+                              className="px-3 py-1.5 rounded-lg text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-150 hover:bg-emerald-100 cursor-pointer transition-all active:scale-95 flex items-center gap-1.5"
+                            >
+                              {showWaGroup 
+                                ? (isEn ? 'Order Support Group' : 'Nhóm hỗ trợ đơn hàng')
+                                : (isEn ? 'WhatsApp Chat' : 'Chat qua WhatsApp')}
+                            </button>
+                          )}
+                          {showZa && (
+                            <button 
+                              type="button"
+                              onClick={() => {
+                                if (showZaGroup) {
+                                  safeOpen(selectedOrder!.zaloGroupUrl!, '_blank');
+                                } else {
+                                  const url = buildZaloChatUrl();
+                                  if (url) safeOpen(url, '_blank');
+                                }
+                              }}
+                              className="px-3 py-1.5 rounded-lg text-xs font-bold text-sky-700 bg-sky-50 border border-sky-150 hover:bg-sky-100 cursor-pointer transition-all active:scale-95 flex items-center gap-1.5"
+                            >
+                              {showZaGroup 
+                                ? (isEn ? 'Order Support Group' : 'Nhóm hỗ trợ đơn hàng')
+                                : (isEn ? 'Zalo Chat' : 'Chat qua Zalo')}
+                            </button>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
                 </div>
-                <div className="flex gap-2 shrink-0">
-                  <button 
-                    onClick={() => safeOpen('https://wa.me/84999088888', '_blank')}
-                    className="px-3 py-1.5 rounded-lg text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-150 hover:bg-emerald-100 cursor-pointer transition-all active:scale-95"
-                  >
-                    WhatsApp Chat
-                  </button>
-                  <button 
-                    onClick={() => safeOpen('https://zalo.me/84999088888', '_blank')}
-                    className="px-3 py-1.5 rounded-lg text-xs font-bold text-sky-700 bg-sky-50 border border-sky-150 hover:bg-sky-100 cursor-pointer transition-all active:scale-95"
-                  >
-                    Zalo Chat
-                  </button>
-                </div>
+
+                {(selectedOrder?.whatsappGroupUrl || selectedOrder?.zaloGroupUrl) && (
+                  <div className="pt-2 border-t border-slate-100 text-[10.5px] text-slate-500 font-medium flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span>
+                      {isEn 
+                        ? 'Private group for this order, including the handling partner.' 
+                        : 'Nhóm riêng cho đơn này, có cả đối tác xử lý.'}
+                    </span>
+                  </div>
+                )}
               </div>
 
             </motion.div>
