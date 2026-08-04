@@ -40,12 +40,45 @@ export async function processInquireAndMarkPaid(
 
   const order = await getOrderFromFirestore(invoiceNo, env);
   if (!order.ok) {
+    if (order.reason === 'no-credentials') {
+      return jsonResponse({
+        success: false,
+        isPaid: false,
+        invoice_no: invoiceNo,
+        error: 'Server misconfigured: missing Firebase service account credentials',
+      }, 500);
+    }
+    if (order.reason === 'auth-failed') {
+      return jsonResponse({
+        success: false,
+        isPaid: false,
+        invoice_no: invoiceNo,
+        error: 'Firebase service account auth failed',
+      }, 500);
+    }
+    if (order.reason === 'forbidden') {
+      return jsonResponse({
+        success: false,
+        isPaid: false,
+        invoice_no: invoiceNo,
+        error: 'Firestore permission denied — check firestore.rules deployment or service account IAM role',
+      }, 500);
+    }
+    if (order.reason === 'not-found') {
+      return jsonResponse({
+        success: false,
+        isPaid: false,
+        invoice_no: invoiceNo,
+        error: 'Order not found',
+      }, 404);
+    }
     return jsonResponse({
       success: false,
       isPaid: false,
       invoice_no: invoiceNo,
-      error: 'Order not found',
-    }, 404);
+      error: 'Firestore read failed',
+      firestoreStatus: order.httpStatus,
+    }, 502);
   }
 
   if (order.fields.paymentStatus?.includes('Paid')) {
@@ -83,6 +116,21 @@ export async function processInquireAndMarkPaid(
   }
 
   const payload = normalizeInquirePayload(inquired.data);
+
+  // Note: description is intentionally not verified here because 9Pay reconciliation relies strictly on invoice_no.
+  const returnedInvoice = String(payload.invoice_no ?? '').trim();
+  if (returnedInvoice && returnedInvoice !== invoiceNo) {
+    console.error('[9Pay inquire] invoice_no mismatch', { requested: invoiceNo, returned: returnedInvoice });
+    return jsonResponse({
+      success: false,
+      isPaid: false,
+      invoice_no: invoiceNo,
+      error: 'invoice_no mismatch',
+      expected: invoiceNo,
+      received: returnedInvoice,
+    }, 409);
+  }
+
   const status = payload.status;
   const paidAmount = parseAmount(payload.amount);
   const errorCode = payload.error_code != null ? String(payload.error_code) : null;

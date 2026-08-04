@@ -53,13 +53,40 @@ function readNumberField(fields: any, key: string): number | undefined {
 export async function getOrderFromFirestore(
   orderId: string,
   env: Env
-): Promise<{ ok: boolean; fields: FirestoreOrderFields; raw?: any }> {
-  const token = await getAccessToken(env);
+): Promise<{
+  ok: boolean;
+  fields: FirestoreOrderFields;
+  raw?: any;
+  reason?: 'no-credentials' | 'auth-failed' | 'forbidden' | 'not-found' | 'error';
+  httpStatus?: number;
+}> {
+  if (!env.FIREBASE_CLIENT_EMAIL || !env.FIREBASE_PRIVATE_KEY) {
+    console.error('[Firestore] Missing FIREBASE_CLIENT_EMAIL / FIREBASE_PRIVATE_KEY — cannot read orders');
+    return { ok: false, fields: {}, reason: 'no-credentials' };
+  }
+
+  let token: string;
+  try {
+    token = await getAccessToken(env);
+  } catch (e) {
+    console.error('[Firestore] SA Auth failed:', e);
+    return { ok: false, fields: {}, reason: 'auth-failed' };
+  }
+
   const res = await fetch(firestoreDocUrl(projectId(env), orderId), {
     headers: { Authorization: `Bearer ${token}` },
   });
+
   if (!res.ok) {
-    return { ok: false, fields: {} };
+    const errorText = await res.text();
+    console.error('[Firestore] Read order failed:', res.status, errorText);
+    const reason =
+      res.status === 403
+        ? 'forbidden'
+        : res.status === 404
+        ? 'not-found'
+        : 'error';
+    return { ok: false, fields: {}, reason, httpStatus: res.status };
   }
   const data = await res.json() as any;
   const f = data?.fields || {};

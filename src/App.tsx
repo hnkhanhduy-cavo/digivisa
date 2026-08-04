@@ -607,7 +607,27 @@ export default function App() {
         try {
           if (unpaid.trackingToken) safeStorage.setItem(`digivisa_track_${unpaid.id}`, unpaid.trackingToken);
         } catch { /* ignore */ }
-        saveOrderToFirestore(unpaid).catch((err) => console.error('Firestore sync background err:', err));
+        saveOrderToFirestore(unpaid)
+          .then((saveRes) => {
+            if (saveRes && !saveRes.success) {
+              console.error('Firestore save failed (guest flow):', saveRes.error);
+              triggerToast(
+                language === 'VI'
+                  ? `Đơn ${unpaid.id} chưa lưu được lên máy chủ. Vui lòng chụp màn hình mã theo dõi trước khi thanh toán.`
+                  : `Order ${unpaid.id} could not be saved to the server. Please screenshot your tracking token before paying.`,
+                'error'
+              );
+            }
+          })
+          .catch((err) => {
+            console.error('Firestore sync background err:', err);
+            triggerToast(
+              language === 'VI'
+                ? `Đơn ${unpaid.id} chưa lưu được lên máy chủ. Vui lòng chụp màn hình mã theo dõi trước khi thanh toán.`
+                : `Order ${unpaid.id} could not be saved to the server. Please screenshot your tracking token before paying.`,
+              'error'
+            );
+          });
         return;
       }
 
@@ -631,7 +651,16 @@ export default function App() {
           navigator.clipboard.writeText(trackingToken).catch(() => {});
         }
       } catch { /* ignore */ }
-      await saveOrderToFirestore(orderWithUser);
+      const saveRes = await saveOrderToFirestore(orderWithUser);
+      if (saveRes && !saveRes.success) {
+        console.error('Firestore save failed (9Pay flow):', saveRes.error);
+        triggerToast(
+          language === 'VI'
+            ? `Đơn ${orderWithUser.id} chưa lưu được lên máy chủ. Vui lòng chụp màn hình mã theo dõi trước khi thanh toán.`
+            : `Order ${orderWithUser.id} could not be saved to the server. Please screenshot your tracking token before paying.`,
+          'error'
+        );
+      }
       setPostBookingOrder(null);
 
       triggerToast(

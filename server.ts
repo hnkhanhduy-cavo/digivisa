@@ -30,7 +30,7 @@ async function startServer() {
     }
 
     const hasBody = req.method !== "GET" && req.method !== "HEAD";
-    const body = hasBody && req.body && Object.keys(req.body).length > 0 ? JSON.stringify(req.body) : undefined;
+    const body = hasBody && req.body !== undefined ? JSON.stringify(req.body) : undefined;
 
     try {
       const upstream = await fetch(targetUrl, {

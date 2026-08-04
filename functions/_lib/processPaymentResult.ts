@@ -49,7 +49,45 @@ export async function processVerifiedPaymentResult(
 
   const order = await getOrderFromFirestore(invoiceNo, env);
   if (!order.ok) {
-    return jsonResponse({ success: false, error: 'Order not found', invoice_no: invoiceNo }, 404);
+    if (order.reason === 'no-credentials') {
+      return jsonResponse({
+        success: false,
+        isPaid: false,
+        invoice_no: invoiceNo,
+        error: 'Server misconfigured: missing Firebase service account credentials',
+      }, 500);
+    }
+    if (order.reason === 'auth-failed') {
+      return jsonResponse({
+        success: false,
+        isPaid: false,
+        invoice_no: invoiceNo,
+        error: 'Firebase service account auth failed',
+      }, 500);
+    }
+    if (order.reason === 'forbidden') {
+      return jsonResponse({
+        success: false,
+        isPaid: false,
+        invoice_no: invoiceNo,
+        error: 'Firestore permission denied — check firestore.rules deployment or service account IAM role',
+      }, 500);
+    }
+    if (order.reason === 'not-found') {
+      return jsonResponse({
+        success: false,
+        isPaid: false,
+        invoice_no: invoiceNo,
+        error: 'Order not found',
+      }, 404);
+    }
+    return jsonResponse({
+      success: false,
+      isPaid: false,
+      invoice_no: invoiceNo,
+      error: 'Firestore read failed',
+      firestoreStatus: order.httpStatus,
+    }, 502);
   }
 
   if (order.fields.paymentStatus?.includes('Paid')) {

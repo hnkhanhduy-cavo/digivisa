@@ -14,6 +14,7 @@ import {
   buildPaymentPortalUrl,
   type NinePayCreateParams,
 } from './_ninepay';
+import { getOrderFromFirestore } from '../_lib/firestore';
 
 export const onRequestPost: PagesFunction<Env> = async (context) => {
   try {
@@ -23,7 +24,6 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     };
 
     const orderId = (body.orderId || '').trim();
-    const amountVnd = Math.round(Number(body.amountVnd));
 
     if (!orderId) {
       return jsonResponse({ success: false, error: 'orderId is required' }, 400);
@@ -34,10 +34,63 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         error: `invoice_no must be ≤ 30 characters (got ${orderId.length})`,
       }, 400);
     }
+    if (!/^[A-Za-z0-9._-]{1,30}$/.test(orderId)) {
+      return jsonResponse({
+        success: false,
+        error: 'invoice_no contains invalid characters',
+      }, 400);
+    }
+
+    const order = await getOrderFromFirestore(orderId, context.env);
+    if (!order.ok) {
+      if (order.reason === 'no-credentials') {
+        return jsonResponse({
+          success: false,
+          error: 'Server misconfigured: missing Firebase service account credentials',
+        }, 500);
+      }
+      if (order.reason === 'auth-failed') {
+        return jsonResponse({
+          success: false,
+          error: 'Firebase service account auth failed',
+        }, 500);
+      }
+      if (order.reason === 'forbidden') {
+        return jsonResponse({
+          success: false,
+          error: 'Firestore permission denied — check firestore.rules deployment or service account IAM role',
+        }, 500);
+      }
+      if (order.reason === 'not-found') {
+        return jsonResponse({ success: false, error: 'Order not found' }, 404);
+      }
+      return jsonResponse({
+        success: false,
+        error: 'Firestore read failed',
+        firestoreStatus: order.httpStatus,
+      }, 502);
+    }
+    if (order.fields.amountVnd == null) {
+      return jsonResponse({ success: false, error: 'Order missing amountVnd' }, 409);
+    }
+    if (order.fields.paymentStatus?.includes('Paid')) {
+      return jsonResponse({ success: false, error: 'Order already paid' }, 409);
+    }
+
+    const amountVnd = Math.round(order.fields.amountVnd);
+
+    if (body.amountVnd !== undefined && body.amountVnd !== null && Number(body.amountVnd) !== amountVnd) {
+      console.warn('[9Pay create-payment] client amount mismatch', {
+        orderId,
+        client: body.amountVnd,
+        firestore: amountVnd,
+      });
+    }
+
     if (!Number.isFinite(amountVnd) || amountVnd < NINEPAY_MIN_AMOUNT) {
       return jsonResponse({
         success: false,
-        error: `amount must be ≥ ${NINEPAY_MIN_AMOUNT} VND (got ${body.amountVnd})`,
+        error: `amount must be ≥ ${NINEPAY_MIN_AMOUNT} VND (got ${amountVnd})`,
       }, 400);
     }
     if (amountVnd > NINEPAY_MAX_AMOUNT) {
@@ -57,8 +110,8 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       invoice_no: orderId,
       amount: amountVnd,
       description: `Thanh toan don hang ${orderId}`,
-      return_url: `${origin}/?payment=success&orderId=${orderId}`,
-      back_url: `${origin}/?payment=cancel&orderId=${orderId}`,
+      return_url: `${origin}/?payment=success&orderId=${encodeURIComponent(orderId)}`,
+      back_url: `${origin}/?payment=cancel&orderId=${encodeURIComponent(orderId)}`,
     };
 
     const paymentUrl = await buildPaymentPortalUrl(parameters, secretKey, endpoint);
