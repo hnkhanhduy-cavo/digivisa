@@ -6,6 +6,7 @@ import {
   parseAmount,
 } from '../api/_ninepay';
 import { getOrderFromFirestore, markOrderPaidInFirestore } from './firestore';
+import { notifyNewOrder } from './notify';
 
 export async function processVerifiedPaymentResult(
   env: Env,
@@ -133,6 +134,10 @@ export async function processVerifiedPaymentResult(
       error: 'Failed to update order in Firestore',
       firestoreStatus: write.status,
     }, 502);
+  }
+
+  if (write.ok) {
+    await notifyNewOrder(invoiceNo, env).catch(() => {});
   }
 
   return jsonResponse({

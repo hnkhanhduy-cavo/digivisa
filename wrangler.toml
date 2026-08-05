@@ -18,6 +18,12 @@ FIREBASE_PROJECT_ID = "digivisa"
 #   FIREBASE_CLIENT_EMAIL
 #   FIREBASE_PRIVATE_KEY   → wrangler pages secret put FIREBASE_PRIVATE_KEY
 #   SYNC_SECRET            → header X-Sync-Secret for POST /api/9pay-sync-unpaid
+#   LARK_APP_ID            → npx wrangler pages secret put LARK_APP_ID
+#   LARK_APP_SECRET        → npx wrangler pages secret put LARK_APP_SECRET
+#   LARK_BASE_APP_TOKEN    → npx wrangler pages secret put LARK_BASE_APP_TOKEN
+#   LARK_BASE_TABLE_ID     → npx wrangler pages secret put LARK_BASE_TABLE_ID
+#   LARK_CHAT_ID           → npx wrangler pages secret put LARK_CHAT_ID
+#   LARK_DOMAIN            → npx wrangler pages secret put LARK_DOMAIN
 #
 # Cron backstop (Pages has no native cron): schedule an external job every ~5m:
 #   POST /api/9pay-sync-unpaid  { "orderIds": ["DV-..."] }

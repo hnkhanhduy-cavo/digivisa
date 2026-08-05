@@ -30,6 +30,8 @@ export interface FirestoreOrderFields {
   whatsappGroupUrl?: string;
   zaloGroupUrl?: string;
   groupLinkUpdatedAt?: string;
+  larkRecordId?: string;
+  larkNotifiedAt?: string;
 }
 
 /** Safe fields for guest Tracker — never include passport / scans / contact PII. Includes group links when set. */
@@ -109,6 +111,8 @@ export async function getOrderFromFirestore(
       whatsappGroupUrl: readStringField(f, 'whatsappGroupUrl'),
       zaloGroupUrl: readStringField(f, 'zaloGroupUrl'),
       groupLinkUpdatedAt: readStringField(f, 'groupLinkUpdatedAt'),
+      larkRecordId: readStringField(f, 'larkRecordId'),
+      larkNotifiedAt: readStringField(f, 'larkNotifiedAt'),
     },
   };
 }
@@ -295,3 +299,35 @@ export async function setGroupLinksInFirestore(
   const body = await res.text();
   return { ok: res.ok, status: res.status, body, groupLinkUpdatedAt };
 }
+
+export async function setNotifyFlagInFirestore(
+  orderId: string,
+  data: { larkNotifiedAt: string; larkRecordId?: string },
+  env: Env
+): Promise<{ ok: boolean; status: number; body?: string }> {
+  const token = await getAccessToken(env);
+  const mask: string[] = ['larkNotifiedAt'];
+  const fields: Record<string, unknown> = {
+    larkNotifiedAt: { stringValue: data.larkNotifiedAt },
+  };
+
+  if (data.larkRecordId !== undefined) {
+    mask.push('larkRecordId');
+    fields.larkRecordId = { stringValue: data.larkRecordId };
+  }
+
+  const url = firestoreDocUrl(projectId(env), orderId, mask);
+
+  const res = await fetch(url, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ fields }),
+  });
+
+  const body = await res.text();
+  return { ok: res.ok, status: res.status, body };
+}
+

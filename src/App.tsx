@@ -36,8 +36,13 @@ interface SafeServiceBoundaryProps {
 }
 
 class SafeServiceBoundary extends React.Component<SafeServiceBoundaryProps, { hasError: boolean }> {
+  props!: SafeServiceBoundaryProps;
+  state: { hasError: boolean } = { hasError: false };
+  setState!: (state: { hasError: boolean }) => void;
+
   constructor(props: SafeServiceBoundaryProps) {
-    super(props);
+    super(props as any);
+    this.props = props;
     this.state = { hasError: false };
   }
 

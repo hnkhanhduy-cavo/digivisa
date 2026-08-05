@@ -123,6 +123,8 @@ export interface Order {
   zaloGroupUrl?: string;
   /** ISO timestamp lần cuối staff cập nhật link nhóm. */
   groupLinkUpdatedAt?: string;
+  larkRecordId?: string;
+  larkNotifiedAt?: string;
   userId?: string;
   userEmail?: string;
   details: VisaApplication | FastTrackBooking | AirportPickupBooking;

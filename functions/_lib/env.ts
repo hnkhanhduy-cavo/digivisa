@@ -8,6 +8,12 @@ export interface Env {
   FIREBASE_PRIVATE_KEY: string;
   SYNC_SECRET: string;
   APP_BASE_URL?: string;
+  LARK_APP_ID?: string;
+  LARK_APP_SECRET?: string;
+  LARK_BASE_APP_TOKEN?: string;
+  LARK_BASE_TABLE_ID?: string;
+  LARK_CHAT_ID?: string;
+  LARK_DOMAIN?: string;
 }
 
 export function requireNinePayEnv(env: Env): {
@@ -26,6 +32,17 @@ export function requireNinePayEnv(env: Env): {
   }
 
   return { merchantKey, secretKey, checksumKey, endpoint };
+}
+
+export function larkChannels(env: Env): string[] {
+  const channels: string[] = [];
+  if (env.LARK_APP_ID && env.LARK_APP_SECRET && env.LARK_BASE_APP_TOKEN && env.LARK_BASE_TABLE_ID) {
+    channels.push('bitable');
+  }
+  if (env.LARK_APP_ID && env.LARK_APP_SECRET && env.LARK_CHAT_ID) {
+    channels.push('im');
+  }
+  return channels;
 }
 
 export function jsonResponse(body: unknown, status = 200): Response {
