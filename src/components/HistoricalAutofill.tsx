@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, Users, Check, UserCheck, CheckCircle2 } from 'lucide-react';
+import { Sparkles, Users, Check, UserCheck, CheckCircle2, Search } from 'lucide-react';
 import { safeStorage, ordersStorageKey } from '../utils/storage';
 import { auth } from '../utils/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
@@ -36,6 +36,7 @@ export default function HistoricalAutofill({ onSelect, serviceType, language = '
   const [isOpen, setIsOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [userProfiles, setUserProfiles] = useState<UserProfile[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Listen to Auth State
   useEffect(() => {
@@ -117,6 +118,23 @@ export default function HistoricalAutofill({ onSelect, serviceType, language = '
 
   const selectedProfile = userProfiles.find((p) => p.id === selectedId);
 
+  const filteredProfiles = userProfiles.filter((p) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase().trim();
+    const name = (p.contactName || `${p.firstName || ''} ${p.lastName || ''}`).toLowerCase();
+    const email = (p.email || '').toLowerCase();
+    const passport = (p.passportNumber || '').toLowerCase();
+    const phone = (p.phone || '').toLowerCase();
+    const orderId = (p.orderId || '').toLowerCase();
+    return (
+      name.includes(q) ||
+      email.includes(q) ||
+      passport.includes(q) ||
+      phone.includes(q) ||
+      orderId.includes(q)
+    );
+  });
+
   return (
     <div className="bg-gradient-to-r from-emerald-50/90 via-indigo-50/70 to-blue-50/80 p-4 sm:p-5 rounded-2xl border border-indigo-150 shadow-xs space-y-3 mb-6" id="historical-autofill-banner">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -149,8 +167,8 @@ export default function HistoricalAutofill({ onSelect, serviceType, language = '
           <Users className="h-4 w-4" />
           <span>
             {isOpen 
-              ? (isEn ? 'Close List' : 'Đóng Danh Sách') 
-              : (isEn ? '⚡ Select Recent Order (Max 4)' : '⚡ Chọn Đơn Đăng Ký Thành Công')}
+              ? (isEn ? 'Close Profile Search' : 'Đóng tìm kiếm hồ sơ') 
+              : (isEn ? 'Select Customer Profile' : 'Chọn hồ sơ khách hàng')}
           </span>
         </button>
       </div>
@@ -162,67 +180,85 @@ export default function HistoricalAutofill({ onSelect, serviceType, language = '
               {isEn ? 'Select an order to auto-fill details below:' : 'Bấm vào đơn để tự động điền lại thông tin bên dưới:'}
             </span>
             <span className="text-[10px] font-semibold text-slate-500">
-              {isEn ? `Showing ${userProfiles.length} recent order(s)` : `Hiển thị ${userProfiles.length} đơn gần nhất`}
+              {isEn ? `Showing ${filteredProfiles.length} of ${userProfiles.length} order(s)` : `Hiển thị ${filteredProfiles.length}/${userProfiles.length} đơn`}
             </span>
           </div>
 
+          {/* Search bar */}
+          <div className="relative">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+            <input
+              type="text"
+              placeholder={isEn ? 'Search by full traveler name, email address or passport code...' : 'Tìm theo họ tên, email hoặc số hộ chiếu...'}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs font-semibold focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none transition-all"
+            />
+          </div>
+
           {/* Grid list of max 4 recent orders */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            {userProfiles.map((profile) => {
-              const isSelected = selectedId === profile.id;
-              return (
-                <div
-                  key={profile.id}
-                  onClick={() => handleSelect(profile)}
-                  className={`p-3 rounded-xl border text-xs cursor-pointer transition-all flex items-center justify-between ${
-                    isSelected
-                      ? 'border-emerald-600 bg-emerald-50/50 ring-2 ring-emerald-500 shadow-sm'
-                      : 'border-slate-200 hover:border-indigo-400 bg-white hover:bg-slate-50/80 shadow-2xs'
-                  }`}
-                >
-                  <div className="space-y-1 overflow-hidden pr-2">
-                    <div className="flex items-center space-x-2">
-                      <span className="font-bold text-slate-900 truncate">
-                        {profile.contactName || `${profile.firstName} ${profile.lastName}`}
-                      </span>
-                      {profile.orderId && (
-                        <span className="text-[9px] font-mono bg-slate-100 text-slate-700 px-1.5 rounded font-bold border border-slate-200 shrink-0">
-                          {profile.orderId}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[220px] overflow-y-auto pr-1">
+            {filteredProfiles.length === 0 ? (
+              <p className="text-xs text-slate-400 py-4 text-center col-span-2">
+                {isEn ? 'No matching profiles found in database' : 'Không tìm thấy hồ sơ phù hợp trong hệ thống'}
+              </p>
+            ) : (
+              filteredProfiles.map((profile) => {
+                const isSelected = selectedId === profile.id;
+                return (
+                  <div
+                    key={profile.id}
+                    onClick={() => handleSelect(profile)}
+                    className={`p-3 rounded-xl border text-xs cursor-pointer transition-all flex items-center justify-between ${
+                      isSelected
+                        ? 'border-emerald-600 bg-emerald-50/50 ring-2 ring-emerald-500 shadow-sm'
+                        : 'border-slate-200 hover:border-indigo-400 bg-white hover:bg-slate-50/80 shadow-2xs'
+                    }`}
+                  >
+                    <div className="space-y-1 overflow-hidden pr-2">
+                      <div className="flex items-center space-x-2">
+                        <span className="font-bold text-slate-900 truncate">
+                          {profile.contactName || `${profile.firstName} ${profile.lastName}`}
+                        </span>
+                        {profile.orderId && (
+                          <span className="text-[9px] font-mono bg-slate-100 text-slate-700 px-1.5 rounded font-bold border border-slate-200 shrink-0">
+                            {profile.orderId}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="text-[10px] text-slate-500 space-y-0.5">
+                        {profile.passportNumber && (
+                          <p>🛂 Hộ chiếu: <strong className="font-mono text-slate-700">{profile.passportNumber}</strong> ({profile.nationality})</p>
+                        )}
+                        {profile.email && <p className="truncate">✉️ Email: <strong className="text-slate-700">{profile.email}</strong></p>}
+                        {profile.phone && <p>📞 SĐT: <strong className="font-mono text-slate-700">{profile.phone}</strong></p>}
+                        {profile.flightNumber && <p>✈️ Chuyến bay: <strong className="font-mono text-slate-700">{profile.flightNumber}</strong> ({profile.airport || ''})</p>}
+                      </div>
+
+                      <div className="pt-1 flex items-center space-x-2">
+                        <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-full border border-emerald-200">
+                          <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600" />
+                          {isEn ? 'Registered / Paid' : 'Đã Đăng Ký / Thành Công'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-1 shrink-0 ml-1">
+                      {isSelected ? (
+                        <div className="h-6 w-6 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-xs">
+                          <Check className="h-3.5 w-3.5" />
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-indigo-700 bg-indigo-50 px-2.5 py-1.5 rounded-lg font-bold hover:bg-indigo-100 border border-indigo-200 transition-colors">
+                          {isEn ? 'USE THIS' : 'CHỌN ĐƠN NÀY'}
                         </span>
                       )}
                     </div>
-
-                    <div className="text-[10px] text-slate-500 space-y-0.5">
-                      {profile.passportNumber && (
-                        <p>🛂 Hộ chiếu: <strong className="font-mono text-slate-700">{profile.passportNumber}</strong> ({profile.nationality})</p>
-                      )}
-                      {profile.email && <p className="truncate">✉️ Email: <strong className="text-slate-700">{profile.email}</strong></p>}
-                      {profile.phone && <p>📞 SĐT: <strong className="font-mono text-slate-700">{profile.phone}</strong></p>}
-                      {profile.flightNumber && <p>✈️ Chuyến bay: <strong className="font-mono text-slate-700">{profile.flightNumber}</strong> ({profile.airport || ''})</p>}
-                    </div>
-
-                    <div className="pt-1 flex items-center space-x-2">
-                      <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-full border border-emerald-200">
-                        <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600" />
-                        {isEn ? 'Registered / Paid' : 'Đã Đăng Ký / Thành Công'}
-                      </span>
-                    </div>
                   </div>
-
-                  <div className="flex items-center space-x-1 shrink-0 ml-1">
-                    {isSelected ? (
-                      <div className="h-6 w-6 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-xs">
-                        <Check className="h-3.5 w-3.5" />
-                      </div>
-                    ) : (
-                      <span className="text-[10px] text-indigo-700 bg-indigo-50 px-2.5 py-1.5 rounded-lg font-bold hover:bg-indigo-100 border border-indigo-200 transition-colors">
-                        {isEn ? 'USE THIS' : 'CHỌN ĐƠN NÀY'}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </div>
       )}
