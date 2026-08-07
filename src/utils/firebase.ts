@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAnalytics, isSupported, Analytics, logEvent as firebaseLogEvent } from "firebase/analytics";
-import { getFirestore, doc, setDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { getFirestore, doc, setDoc, updateDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { 
   getAuth, 
   createUserWithEmailAndPassword, 
@@ -148,11 +148,39 @@ export const saveOrderToFirestore = async (order: any): Promise<{ success: boole
     await setDoc(orderRef, {
       ...cleanData,
       updatedAt: new Date().toISOString()
-    });
+    }, { merge: true });
     console.log("[Firebase Firestore] Order saved successfully to collection 'orders':", orderId);
     return { success: true };
   } catch (error: any) {
     console.error("[Firebase Firestore] Error saving order to Firestore:", error);
+    return { 
+      success: false, 
+      error: error?.message || error?.code || "Unknown Firebase error" 
+    };
+  }
+};
+
+/**
+ * Update specific fields of an order in Firebase Firestore collection 'orders'
+ */
+export const updateOrderFields = async (
+  orderId: string,
+  fields: Record<string, any>
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const orderRef = doc(collection(db, "orders"), orderId);
+    
+    // Clean data to avoid undefined values which Firestore rejects
+    const cleanData = JSON.parse(JSON.stringify(fields));
+    
+    await updateDoc(orderRef, {
+      ...cleanData,
+      updatedAt: new Date().toISOString()
+    });
+    console.log("[Firebase Firestore] Order fields updated successfully:", orderId, fields);
+    return { success: true };
+  } catch (error: any) {
+    console.error("[Firebase Firestore] Error updating order fields in Firestore:", error);
     return { 
       success: false, 
       error: error?.message || error?.code || "Unknown Firebase error" 

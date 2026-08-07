@@ -15,7 +15,7 @@ import { safeStorage, ordersStorageKey } from '../utils/storage';
 import { getSplitOrders } from '../utils/orderUtils';
 import { Language } from '../utils/translations';
 import { formatPhoneE164 } from '../utils/validation';
-import { saveOrderToFirestore } from '../utils/firebase';
+import { saveOrderToFirestore, updateOrderFields, auth } from '../utils/firebase';
 
 interface OMSProps {
   orders: Order[];
@@ -278,17 +278,19 @@ export default function OMS({ orders, setOrders, currency, language = 'EN' }: OM
     };
   });
 
-  // Local state for partner assignment & chat logs
-  const [assignedPartners, setAssignedPartners] = useState<Record<string, string>>(() => {
-    const saved = safeStorage.getItem('digivisa_assigned_partners');
-    return saved ? JSON.parse(saved) : {
-      'DV-774910': 'p_visa_1',
-      'DV-FT4015': 'p_ft_1',
-      'DV-VISA-88991': 'p_visa_1',
-      'DV-FAST-40112': 'p_ft_1',
-      'DV-PICK-33880': 'p_ap_1'
-    };
-  });
+  // Derived map for partner assignment directly from server orders list
+  const assignedPartners = React.useMemo(() => {
+    const map: Record<string, string> = {};
+    (orders || []).forEach((o: any) => {
+      if (o.assignedPartnerId) {
+        map[o.id] = o.assignedPartnerId;
+      }
+      if (o.assignedPartnerIdSecondary) {
+        map[o.id + '_secondary'] = o.assignedPartnerIdSecondary;
+      }
+    });
+    return map;
+  }, [orders]);
 
   const [discussions, setDiscussions] = useState<Record<string, Array<{ sender: 'digivisa' | 'partner' | 'system', text: string, timestamp: string }>>>(() => {
     const saved = safeStorage.getItem('digivisa_partner_chats');
@@ -305,11 +307,6 @@ export default function OMS({ orders, setOrders, currency, language = 'EN' }: OM
   });
 
   const [chatInput, setChatInput] = useState('');
-
-  // Persist helper states to local storage
-  useEffect(() => {
-    safeStorage.setItem('digivisa_assigned_partners', JSON.stringify(assignedPartners));
-  }, [assignedPartners]);
 
   useEffect(() => {
     safeStorage.setItem('digivisa_partner_chats', JSON.stringify(discussions));
@@ -705,12 +702,6 @@ export default function OMS({ orders, setOrders, currency, language = 'EN' }: OM
   };
 
   const handleDispatch = (orderId: string, partnerId: string) => {
-    // Assign partner
-    setAssignedPartners(prev => ({
-      ...prev,
-      [orderId]: partnerId
-    }));
-
     const isSec = orderId.endsWith('_secondary');
     const baseId = isSec ? orderId.replace('_secondary', '') : orderId;
 
@@ -719,8 +710,11 @@ export default function OMS({ orders, setOrders, currency, language = 'EN' }: OM
     if (!targetOrder) return;
     const orderType = targetOrder.type;
 
-    const partnerName = PARTNERS[orderType].find(p => p.id === partnerId)?.name || 'Partner';
-    
+    const partnerObj = PARTNERS[orderType]?.find(p => p.id === partnerId);
+    const partnerName = partnerObj?.name || 'Partner';
+    const nowIso = new Date().toISOString();
+    const staffEmail = auth.currentUser?.email || 'staff';
+
     // Add system message to chat log
     const systemMsg = {
       sender: 'system' as const,
@@ -733,32 +727,61 @@ export default function OMS({ orders, setOrders, currency, language = 'EN' }: OM
       [orderId]: [...(prev[orderId] || []), systemMsg]
     }));
 
-    // Update main order status to 'Processing' if it was 'Pending Review'
     if (isSec) {
-      if (targetOrder.status === 'Pending Review' || targetOrder.status === 'Confirmed') {
-        const updated = orders.map(o => o.id === baseId ? { ...o, secondaryStatus: 'Processing' } : o);
-        setOrders(updated);
-        safeStorage.setItem(ordersStorageKey(), JSON.stringify(updated));
-      }
+      const updated = orders.map(o => {
+        if (o.id === baseId) {
+          return {
+            ...o,
+            assignedPartnerIdSecondary: partnerId,
+            assignedPartnerNameSecondary: partnerName,
+            assignedPartnerAtSecondary: nowIso,
+            assignedPartnerBySecondary: staffEmail,
+          };
+        }
+        return o;
+      });
+      setOrders(updated);
+      safeStorage.setItem(ordersStorageKey(auth.currentUser?.uid), JSON.stringify(updated));
+
+      updateOrderFields(baseId, {
+        assignedPartnerIdSecondary: partnerId,
+        assignedPartnerNameSecondary: partnerName,
+        assignedPartnerAtSecondary: nowIso,
+        assignedPartnerBySecondary: staffEmail,
+      });
     } else {
-      if (targetOrder.status === 'Pending Review' || targetOrder.status === 'Confirmed') {
-        const updated = orders.map(o => o.id === baseId ? { ...o, status: 'Processing' } : o);
-        setOrders(updated);
-        safeStorage.setItem(ordersStorageKey(), JSON.stringify(updated));
-      }
+      const updated = orders.map(o => {
+        if (o.id === baseId) {
+          return {
+            ...o,
+            assignedPartnerId: partnerId,
+            assignedPartnerName: partnerName,
+            assignedPartnerAt: nowIso,
+            assignedPartnerBy: staffEmail,
+          };
+        }
+        return o;
+      });
+      setOrders(updated);
+      safeStorage.setItem(ordersStorageKey(auth.currentUser?.uid), JSON.stringify(updated));
+
+      updateOrderFields(baseId, {
+        assignedPartnerId: partnerId,
+        assignedPartnerName: partnerName,
+        assignedPartnerAt: nowIso,
+        assignedPartnerBy: staffEmail,
+      });
     }
   };
 
   const handleSecondaryDispatch = (orderId: string, partnerId: string) => {
-    setAssignedPartners(prev => ({
-      ...prev,
-      [orderId + '_secondary']: partnerId
-    }));
-
     const targetOrder = orders.find(o => o.id === orderId);
     if (!targetOrder) return;
     const secondaryType = targetOrder.type === 'FastTrack' ? 'AirportPickup' : 'FastTrack';
-    const partnerName = PARTNERS[secondaryType].find(p => p.id === partnerId)?.name || 'Secondary Partner';
+    const partnerObj = PARTNERS[secondaryType]?.find(p => p.id === partnerId);
+    const partnerName = partnerObj?.name || 'Secondary Partner';
+    const nowIso = new Date().toISOString();
+    const staffEmail = auth.currentUser?.email || 'staff';
 
     const systemMsg = {
       sender: 'system' as const,
@@ -771,6 +794,116 @@ export default function OMS({ orders, setOrders, currency, language = 'EN' }: OM
       [orderId]: [...(prev[orderId] || []), systemMsg],
       [orderId + '_secondary']: [...(prev[orderId + '_secondary'] || []), systemMsg]
     }));
+
+    const updated = orders.map(o => {
+      if (o.id === orderId) {
+        return {
+          ...o,
+          assignedPartnerIdSecondary: partnerId,
+          assignedPartnerNameSecondary: partnerName,
+          assignedPartnerAtSecondary: nowIso,
+          assignedPartnerBySecondary: staffEmail,
+        };
+      }
+      return o;
+    });
+    setOrders(updated);
+    safeStorage.setItem(ordersStorageKey(auth.currentUser?.uid), JSON.stringify(updated));
+
+    updateOrderFields(orderId, {
+      assignedPartnerIdSecondary: partnerId,
+      assignedPartnerNameSecondary: partnerName,
+      assignedPartnerAtSecondary: nowIso,
+      assignedPartnerBySecondary: staffEmail,
+    });
+  };
+
+  const handleUnassign = (targetKey: string) => {
+    const isSec = targetKey.endsWith('_secondary');
+    const baseId = isSec ? targetKey.replace('_secondary', '') : targetKey;
+
+    const isEn = language === 'EN';
+    const confirmMsg = isEn 
+      ? 'Are you sure you want to unassign this partner?' 
+      : 'Bạn có chắc chắn muốn huỷ phân công đối tác này?';
+
+    if (!window.confirm(confirmMsg)) return;
+
+    if (isSec) {
+      const updated = orders.map(o => {
+        if (o.id === baseId) {
+          return {
+            ...o,
+            assignedPartnerIdSecondary: null,
+            assignedPartnerNameSecondary: null,
+            assignedPartnerAtSecondary: null,
+            assignedPartnerBySecondary: null
+          };
+        }
+        return o;
+      });
+      setOrders(updated);
+      safeStorage.setItem(ordersStorageKey(auth.currentUser?.uid), JSON.stringify(updated));
+
+      updateOrderFields(baseId, {
+        assignedPartnerIdSecondary: null,
+        assignedPartnerNameSecondary: null,
+        assignedPartnerAtSecondary: null,
+        assignedPartnerBySecondary: null
+      });
+    } else {
+      const updated = orders.map(o => {
+        if (o.id === baseId) {
+          return {
+            ...o,
+            assignedPartnerId: null,
+            assignedPartnerName: null,
+            assignedPartnerAt: null,
+            assignedPartnerBy: null
+          };
+        }
+        return o;
+      });
+      setOrders(updated);
+      safeStorage.setItem(ordersStorageKey(auth.currentUser?.uid), JSON.stringify(updated));
+
+      updateOrderFields(baseId, {
+        assignedPartnerId: null,
+        assignedPartnerName: null,
+        assignedPartnerAt: null,
+        assignedPartnerBy: null
+      });
+    }
+  };
+
+  const setAssignedPartners = (action: any) => {
+    let newObj: Record<string, string> = {};
+    if (typeof action === 'function') {
+      newObj = action(assignedPartners);
+    } else {
+      newObj = action;
+    }
+
+    const isEn = language === 'EN';
+
+    Object.keys(newObj).forEach(key => {
+      const pId = newObj[key];
+      if (pId && assignedPartners[key] !== pId) {
+        if (assignedPartners[key]) {
+          alert(isEn 
+            ? 'This order already has a partner. Unassign before reassigning.'
+            : 'Đơn này đã có đối tác. Hãy huỷ phân công trước khi giao cho bên khác.'
+          );
+          return;
+        }
+
+        if (key.endsWith('_secondary')) {
+          handleSecondaryDispatch(key.replace('_secondary', ''), pId);
+        } else {
+          handleDispatch(key, pId);
+        }
+      }
+    });
   };
 
   const handlePostMessage = (orderId: string) => {
@@ -907,7 +1040,7 @@ export default function OMS({ orders, setOrders, currency, language = 'EN' }: OM
       return o;
     });
     setOrders(updated);
-    safeStorage.setItem(ordersStorageKey(), JSON.stringify(updated));
+    safeStorage.setItem(ordersStorageKey(auth.currentUser?.uid), JSON.stringify(updated));
   };
 
   const updateOrderSubStatus = (orderId: string, subStatus: string) => {
@@ -925,7 +1058,7 @@ export default function OMS({ orders, setOrders, currency, language = 'EN' }: OM
       return o;
     });
     setOrders(updated);
-    safeStorage.setItem(ordersStorageKey(), JSON.stringify(updated));
+    safeStorage.setItem(ordersStorageKey(auth.currentUser?.uid), JSON.stringify(updated));
   };
 
   const getTimelineSteps = (type: 'Visa' | 'FastTrack' | 'AirportPickup', currentStatus: string, order?: Order) => {
@@ -1833,7 +1966,7 @@ export default function OMS({ orders, setOrders, currency, language = 'EN' }: OM
                                 onChange={(e) => {
                                   const updated = orders.map(o => o.id === order.id ? { ...o, paymentStatus: e.target.value as any } : o);
                                   setOrders(updated);
-                                  safeStorage.setItem(ordersStorageKey(), JSON.stringify(updated));
+                                  safeStorage.setItem(ordersStorageKey(auth.currentUser?.uid), JSON.stringify(updated));
                                 }}
                                 className={`text-[10px] font-bold rounded-lg px-2.5 py-1.5 border focus:outline-none focus:ring-2 focus:ring-indigo-500/15 cursor-pointer font-sans transition-all ${
                                   order.paymentStatus.startsWith('Paid')
@@ -2380,16 +2513,32 @@ Trạng thái thanh toán: ${selectedOrder.paymentStatus || 'Pending'}
                                 </span>
                               )}
                               {selectedOrderPartner ? (
-                                <div className="space-y-1.5">
+                                <div className="space-y-1.5 font-sans">
                                   <div className="bg-white border p-3 rounded-xl shadow-sm border-slate-200">
-                                    <span className="text-[11px] font-black text-[#1E293B] flex items-center">
-                                      <Building className="h-3.5 w-3.5 text-indigo-600 mr-1.5" />
-                                      {selectedOrderPartner.name}
-                                    </span>
-                                    <div className="flex justify-between text-[11px] text-slate-500 font-medium">
+                                    <div className="flex justify-between items-start">
+                                      <span className="text-[11px] font-black text-[#1E293B] flex items-center">
+                                        <Building className="h-3.5 w-3.5 text-indigo-600 mr-1.5" />
+                                        {selectedOrderPartner.name}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleUnassign(selectedOrder.id)}
+                                        className="text-[10px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-2 py-0.5 rounded border border-rose-200 transition-colors cursor-pointer shrink-0"
+                                      >
+                                        {language === 'EN' ? 'Unassign' : 'Huỷ phân công'}
+                                      </button>
+                                    </div>
+                                    <div className="flex justify-between text-[11px] text-slate-500 font-medium mt-1">
                                       <span>Liaison: &nbsp;{selectedOrderPartner.contact}</span>
                                       <span className="text-amber-605 font-bold">★ {selectedOrderPartner.rating} Rating</span>
                                     </div>
+                                    {((selectedOrder as any).assignedPartnerBy || (selectedOrder as any).assignedPartnerAt) && (
+                                      <div className="mt-2 pt-2 border-t border-slate-100 text-[10px] text-slate-500">
+                                        {language === 'EN' 
+                                          ? `Assigned by ${(selectedOrder as any).assignedPartnerBy || 'staff'}${(selectedOrder as any).assignedPartnerAt ? ` at ${new Date((selectedOrder as any).assignedPartnerAt).toLocaleString()}` : ''}`
+                                          : `Đã giao bởi ${(selectedOrder as any).assignedPartnerBy || 'nhân viên'}${(selectedOrder as any).assignedPartnerAt ? ` lúc ${new Date((selectedOrder as any).assignedPartnerAt).toLocaleString()}` : ''}`}
+                                      </div>
+                                    )}
                                   </div>
                                   {!isOrderCombo && (
                                     <div className="flex items-center gap-1.5 pt-1 text-[10px] text-slate-400 font-mono">
@@ -2431,16 +2580,32 @@ Trạng thái thanh toán: ${selectedOrder.paymentStatus || 'Pending'}
                                   [Combo Fulfillment] {secondaryPartnerType === 'FastTrack' ? 'Fast-Track Airport Liaison' : 'VIP Chauffeur Pickup'}
                                 </span>
                                 {secondaryPartnerDetails ? (
-                                  <div className="space-y-1">
+                                  <div className="space-y-1 font-sans">
                                     <div className="bg-white border p-3 rounded-xl shadow-sm border-purple-200">
-                                      <span className="text-[11px] font-black text-purple-900 flex items-center">
-                                        <Building className="h-3.5 w-3.5 text-purple-600 mr-1.5" />
-                                        {secondaryPartnerDetails.name}
-                                      </span>
-                                      <div className="flex justify-between text-[11px] text-slate-500 font-medium">
+                                      <div className="flex justify-between items-start">
+                                        <span className="text-[11px] font-black text-purple-900 flex items-center">
+                                          <Building className="h-3.5 w-3.5 text-purple-600 mr-1.5" />
+                                          {secondaryPartnerDetails.name}
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleUnassign(selectedOrder.id + '_secondary')}
+                                          className="text-[10px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-2 py-0.5 rounded border border-rose-200 transition-colors cursor-pointer shrink-0"
+                                        >
+                                          {language === 'EN' ? 'Unassign' : 'Huỷ phân công'}
+                                        </button>
+                                      </div>
+                                      <div className="flex justify-between text-[11px] text-slate-500 font-medium mt-1">
                                         <span>Liaison: &nbsp;{secondaryPartnerDetails.contact}</span>
                                         <span className="text-purple-600 font-bold">★ {secondaryPartnerDetails.rating} Rating</span>
                                       </div>
+                                      {((selectedOrder as any).assignedPartnerBySecondary || (selectedOrder as any).assignedPartnerAtSecondary) && (
+                                        <div className="mt-2 pt-2 border-t border-purple-100 text-[10px] text-slate-500">
+                                          {language === 'EN' 
+                                            ? `Assigned by ${(selectedOrder as any).assignedPartnerBySecondary || 'staff'}${(selectedOrder as any).assignedPartnerAtSecondary ? ` at ${new Date((selectedOrder as any).assignedPartnerAtSecondary).toLocaleString()}` : ''}`
+                                            : `Đã giao bởi ${(selectedOrder as any).assignedPartnerBySecondary || 'nhân viên'}${(selectedOrder as any).assignedPartnerAtSecondary ? ` lúc ${new Date((selectedOrder as any).assignedPartnerAtSecondary).toLocaleString()}` : ''}`}
+                                        </div>
+                                      )}
                                     </div>
                                     <div className="flex items-center gap-1.5 pt-1 text-[10px] text-slate-400 font-mono">
                                       <div className="w-2 h-2 bg-purple-500 rounded-full animate-ping" />
@@ -2883,6 +3048,7 @@ Trạng thái thanh toán: ${selectedOrder.paymentStatus || 'Pending'}
           setAssignedPartners={setAssignedPartners}
           PARTNERS={PARTNERS}
           initialSelectedOrderId={selectedOrderId}
+          language={language}
           onSelectOrder={(orderId, tab) => {
             setPartnerServiceTab(tab);
             setSelectedOrderId(orderId);
