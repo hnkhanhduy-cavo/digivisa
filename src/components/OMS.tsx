@@ -307,6 +307,11 @@ export default function OMS({ orders, setOrders, currency, language = 'EN' }: OM
   });
 
   const [chatInput, setChatInput] = useState('');
+  const [saveState, setSaveState] = useState<{
+    field: string | null;
+    status: 'saving' | 'saved' | 'error' | null;
+    message?: string;
+  }>({ field: null, status: null });
 
   useEffect(() => {
     safeStorage.setItem('digivisa_partner_chats', JSON.stringify(discussions));
@@ -2108,17 +2113,54 @@ export default function OMS({ orders, setOrders, currency, language = 'EN' }: OM
                       <div className="flex flex-col gap-2 w-full font-sans">
                         {/* Main Status Dropdown */}
                         <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase">Primary Status:</label>
+                          <div className="flex justify-between items-center">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase">Primary Status:</label>
+                            {saveState.field === 'status' && saveState.status && (
+                              <span className={`text-[10px] font-bold ${
+                                saveState.status === 'saving' ? 'text-slate-400 animate-pulse' :
+                                saveState.status === 'saved' ? 'text-emerald-600' : 'text-rose-600'
+                              }`}>
+                                {saveState.status === 'saving' && (language === 'EN' ? 'Saving…' : 'Đang lưu…')}
+                                {saveState.status === 'saved' && (language === 'EN' ? '✓ Saved' : '✓ Đã lưu')}
+                                {saveState.status === 'error' && (language === 'EN' ? '✕ Save failed' : '✕ Lưu thất bại')}
+                              </span>
+                            )}
+                          </div>
                           <select
                             value={selectedOrder.status}
-                            onChange={(e) => {
+                            disabled={saveState.field === 'status' && saveState.status === 'saving'}
+                            onChange={async (e) => {
                               const newStatus = e.target.value as any;
+                              const oldStatus = selectedOrder.status;
+
                               const updated = orders.map(o => o.id === selectedOrder.id ? { ...o, status: newStatus } : o);
                               setOrders(updated);
+                              safeStorage.setItem(ordersStorageKey(auth.currentUser?.uid), JSON.stringify(updated));
+
                               const updatedOrder = { ...selectedOrder, status: newStatus };
-                              saveOrderToFirestore(updatedOrder);
+                              setSaveState({ field: 'status', status: 'saving' });
+
+                              try {
+                                const res = await saveOrderToFirestore(updatedOrder);
+                                if (res && res.success) {
+                                  setSaveState({ field: 'status', status: 'saved' });
+                                  setTimeout(() => {
+                                    setSaveState(prev => prev.field === 'status' && prev.status === 'saved' ? { field: null, status: null } : prev);
+                                  }, 2000);
+                                } else {
+                                  const reverted = orders.map(o => o.id === selectedOrder.id ? { ...o, status: oldStatus } : o);
+                                  setOrders(reverted);
+                                  safeStorage.setItem(ordersStorageKey(auth.currentUser?.uid), JSON.stringify(reverted));
+                                  setSaveState({ field: 'status', status: 'error', message: res?.error || (language === 'EN' ? 'Server rejected update' : 'Máy chủ từ chối cập nhật') });
+                                }
+                              } catch (err: any) {
+                                const reverted = orders.map(o => o.id === selectedOrder.id ? { ...o, status: oldStatus } : o);
+                                setOrders(reverted);
+                                safeStorage.setItem(ordersStorageKey(auth.currentUser?.uid), JSON.stringify(reverted));
+                                setSaveState({ field: 'status', status: 'error', message: err?.message || (language === 'EN' ? 'Network error' : 'Lỗi kết nối mạng') });
+                              }
                             }}
-                            className="w-full text-xs font-bold rounded-xl px-3 py-2 border border-indigo-200 bg-indigo-50/50 text-indigo-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                            className="w-full text-xs font-bold rounded-xl px-3 py-2 border border-indigo-200 bg-indigo-50/50 text-indigo-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer disabled:opacity-50"
                           >
                             <option value="Submitted">1. Submitted (Pending Review)</option>
                             <option value="Processing">2. Processing (In Progress)</option>
@@ -2127,53 +2169,102 @@ export default function OMS({ orders, setOrders, currency, language = 'EN' }: OM
                             <option value="Completed">5. Completed (Done)</option>
                             <option value="Cancelled">6. Cancelled</option>
                           </select>
+                          {saveState.field === 'status' && saveState.status === 'error' && saveState.message && (
+                            <div className="text-[10px] text-rose-600 bg-rose-50 border border-rose-200 p-1.5 rounded-lg font-medium mt-1">
+                              ⚠️ {saveState.message}
+                            </div>
+                          )}
                         </div>
 
                         {/* Visa Sub-status Dropdown */}
                         {selectedOrder.type === 'Visa' && (
                           <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase">Visa Sub-Status:</label>
+                            <div className="flex justify-between items-center">
+                              <label className="text-[10px] font-bold text-slate-500 uppercase">Visa Sub-Status:</label>
+                              {saveState.field === 'subStatus' && saveState.status && (
+                                <span className={`text-[10px] font-bold ${
+                                  saveState.status === 'saving' ? 'text-slate-400 animate-pulse' :
+                                  saveState.status === 'saved' ? 'text-emerald-600' : 'text-rose-600'
+                                }`}>
+                                  {saveState.status === 'saving' && (language === 'EN' ? 'Saving…' : 'Đang lưu…')}
+                                  {saveState.status === 'saved' && (language === 'EN' ? '✓ Saved' : '✓ Đã lưu')}
+                                  {saveState.status === 'error' && (language === 'EN' ? '✕ Save failed' : '✕ Lưu thất bại')}
+                                </span>
+                              )}
+                            </div>
                             <select
                               value={selectedOrder.subStatus || 'Standard Review'}
-                              onChange={(e) => {
+                              disabled={saveState.field === 'subStatus' && saveState.status === 'saving'}
+                              onChange={async (e) => {
                                 const newSub = e.target.value;
+                                const oldSub = selectedOrder.subStatus || 'Standard Review';
+
                                 const updated = orders.map(o => o.id === selectedOrder.id ? { ...o, subStatus: newSub } : o);
                                 setOrders(updated);
+                                safeStorage.setItem(ordersStorageKey(auth.currentUser?.uid), JSON.stringify(updated));
+
                                 const updatedOrder = { ...selectedOrder, subStatus: newSub };
-                                saveOrderToFirestore(updatedOrder);
+                                setSaveState({ field: 'subStatus', status: 'saving' });
+
+                                try {
+                                  const res = await saveOrderToFirestore(updatedOrder);
+                                  if (res && res.success) {
+                                    setSaveState({ field: 'subStatus', status: 'saved' });
+                                    setTimeout(() => {
+                                      setSaveState(prev => prev.field === 'subStatus' && prev.status === 'saved' ? { field: null, status: null } : prev);
+                                    }, 2000);
+                                  } else {
+                                    const reverted = orders.map(o => o.id === selectedOrder.id ? { ...o, subStatus: oldSub } : o);
+                                    setOrders(reverted);
+                                    safeStorage.setItem(ordersStorageKey(auth.currentUser?.uid), JSON.stringify(reverted));
+                                    setSaveState({ field: 'subStatus', status: 'error', message: res?.error || (language === 'EN' ? 'Server rejected update' : 'Máy chủ từ chối cập nhật') });
+                                  }
+                                } catch (err: any) {
+                                  const reverted = orders.map(o => o.id === selectedOrder.id ? { ...o, subStatus: oldSub } : o);
+                                  setOrders(reverted);
+                                  safeStorage.setItem(ordersStorageKey(auth.currentUser?.uid), JSON.stringify(reverted));
+                                  setSaveState({ field: 'subStatus', status: 'error', message: err?.message || (language === 'EN' ? 'Network error' : 'Lỗi kết nối mạng') });
+                                }
                               }}
-                              className="w-full text-xs font-semibold rounded-xl px-3 py-2 border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                              className="w-full text-xs font-semibold rounded-xl px-3 py-2 border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer disabled:opacity-50"
                             >
                               <option value="Standard Review">Standard Review</option>
                               <option value="Awaiting Paperwork">⚠️ More Docs Required</option>
                               <option value="Approved">Approved & Issued</option>
                               <option value="Declined">Declined / Rejected</option>
                             </select>
+                            {saveState.field === 'subStatus' && saveState.status === 'error' && saveState.message && (
+                              <div className="text-[10px] text-rose-600 bg-rose-50 border border-rose-200 p-1.5 rounded-lg font-medium mt-1">
+                                ⚠️ {saveState.message}
+                              </div>
+                            )}
                           </div>
                         )}
 
-                        {/* Payment Status Dropdown */}
+                        {/* Payment Status (Read-Only) */}
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-slate-500 uppercase">Payment Status:</label>
-                          <select
-                            value={selectedOrder.paymentStatus || 'Pending'}
-                            onChange={(e) => {
-                              const newPay = e.target.value as any;
-                              const updated = orders.map(o => o.id === selectedOrder.id ? { ...o, paymentStatus: newPay } : o);
-                              setOrders(updated);
-                              const updatedOrder = { ...selectedOrder, paymentStatus: newPay };
-                              saveOrderToFirestore(updatedOrder);
-                            }}
-                            className={`w-full text-xs font-bold rounded-xl px-3 py-2 border focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer ${
-                              selectedOrder.paymentStatus?.startsWith('Paid')
-                                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                          <div className={`w-full text-xs font-bold rounded-xl px-3 py-2 border flex items-center justify-between ${
+                            selectedOrder.paymentStatus?.startsWith('Paid')
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                              : selectedOrder.paymentStatus === 'Refunded'
+                                ? 'bg-rose-50 text-rose-800 border-rose-200'
                                 : 'bg-amber-50 text-amber-800 border-amber-200'
-                            }`}
-                          >
-                            <option value="Pending">⏳ Pending Payment</option>
-                            <option value="Paid">✅ Paid (Completed)</option>
-                            <option value="Refunded">↩️ Refunded</option>
-                          </select>
+                          }`}>
+                            <span>
+                              {selectedOrder.paymentStatus?.startsWith('Paid') ? '✅ Paid (Completed)' :
+                               selectedOrder.paymentStatus === 'Refunded' ? '↩️ Refunded' :
+                               '⏳ Pending Payment'}
+                            </span>
+                            <span className="text-[9px] font-extrabold uppercase bg-white/70 px-1.5 py-0.5 rounded border border-current opacity-75">
+                              Auto Sync
+                            </span>
+                          </div>
+                          <p className="text-[9.5px] text-slate-400 font-medium italic leading-tight">
+                            {language === 'EN'
+                              ? 'Payment status is set automatically by 9Pay and cannot be edited here.'
+                              : 'Trạng thái thanh toán do hệ thống 9Pay tự cập nhật, không sửa tay được.'}
+                          </p>
                         </div>
                       </div>
                     </div>

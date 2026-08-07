@@ -21,7 +21,7 @@ import AirportPickupForm from './components/AirportPickupForm';
 import OrderTracker from './components/OrderTracker';
 import Faqs from './components/Faqs';
 import OMS from './components/OMS';
-import { fetchOrdersForUser, fetchAllOrdersFromFirestore, saveOrderToFirestore, auth, onAuthStateChanged, logoutUser, currentUserHasStaffClaim } from './utils/firebase';
+import { fetchOrdersForUser, fetchAllOrdersFromFirestore, saveOrderToFirestore, subscribeAllOrders, subscribeOrdersForUser, auth, onAuthStateChanged, logoutUser, currentUserHasStaffClaim } from './utils/firebase';
 import { generateOrderId, generateTrackingToken } from './utils/orderIds';
 import PostBookingAuthModal from './components/PostBookingAuthModal';
 import UserAuthModal from './components/UserAuthModal';
@@ -117,6 +117,10 @@ export default function App() {
   };
 
   const [orders, setOrders] = useState<Order[]>([]);
+  const ordersRef = useRef<Order[]>(orders);
+  useEffect(() => {
+    ordersRef.current = orders;
+  }, [orders]);
 
   const [isUserAuthOpen, setIsUserAuthOpen] = useState(false);
   const [isAdminLoginOpen, setIsAdminLoginOpen] = useState(false);
@@ -179,6 +183,8 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false;
+    let unsubSubscription: (() => void) | null = null;
+    let isFirstSnapshot = true;
 
     if (safeStorage.getItem('digivisa_orders')) {
       safeStorage.removeItem('digivisa_orders');
@@ -208,36 +214,79 @@ export default function App() {
       }
     }
 
+    const handleNewServerOrders = (serverOrders: any[]) => {
+      if (cancelled) return;
+      if (!serverOrders) return;
+
+      const sanitized = serverOrders.map(sanitizeOrder);
+
+      // Compare 5 fields with current memory orders if not first snapshot
+      if (!isFirstSnapshot) {
+        const currentOrders = ordersRef.current || [];
+        const currentMap = new Map(currentOrders.map(o => [o.id, o]));
+        const updatedOrderIds: string[] = [];
+
+        sanitized.forEach(newOrder => {
+          const existing = currentMap.get(newOrder.id);
+          if (existing) {
+            const exAny = existing as any;
+            const newAny = newOrder as any;
+            const hasChanged = 
+              exAny.status !== newAny.status ||
+              exAny.subStatus !== newAny.subStatus ||
+              exAny.paymentStatus !== newAny.paymentStatus ||
+              exAny.assignedPartnerId !== newAny.assignedPartnerId ||
+              exAny.assignedPartnerIdSecondary !== newAny.assignedPartnerIdSecondary;
+
+            if (hasChanged) {
+              updatedOrderIds.push(newOrder.id);
+            }
+          }
+        });
+
+        if (updatedOrderIds.length > 0) {
+          const isEn = language === 'EN';
+          if (updatedOrderIds.length === 1) {
+            const msg = isEn
+              ? `Order ${updatedOrderIds[0]} was just updated by someone else.`
+              : `Đơn ${updatedOrderIds[0]} vừa được người khác cập nhật.`;
+            triggerToast(msg, 'info');
+          } else {
+            const msg = isEn
+              ? `${updatedOrderIds.length} orders were just updated by someone else.`
+              : `${updatedOrderIds.length} đơn vừa được người khác cập nhật.`;
+            triggerToast(msg, 'info');
+          }
+        }
+      }
+
+      isFirstSnapshot = false;
+      setOrders(sanitized);
+      safeStorage.setItem(ordersStorageKey(uid), JSON.stringify(sanitized));
+    };
+
     if (uid) {
       if (userRole === 'staff') {
-        fetchAllOrdersFromFirestore()
-          .then((userOrders) => {
-            if (cancelled) return;
-            if (userOrders) {
-              const sanitized = userOrders.map(sanitizeOrder);
-              setOrders(sanitized);
-              safeStorage.setItem(ordersStorageKey(uid), JSON.stringify(sanitized));
-            }
-          })
-          .catch((e) => console.error("Error loading staff orders:", e));
+        unsubSubscription = subscribeAllOrders(
+          handleNewServerOrders,
+          (err) => console.error("Error in staff real-time order subscription:", err)
+        );
       } else {
-        fetchOrdersForUser(uid, currentUser?.email || undefined)
-          .then((userOrders) => {
-            if (cancelled) return;
-            if (userOrders) {
-              const sanitized = userOrders.map(sanitizeOrder);
-              setOrders(sanitized);
-              safeStorage.setItem(ordersStorageKey(uid), JSON.stringify(sanitized));
-            }
-          })
-          .catch((e) => console.error("Error loading orders for user:", e));
+        unsubSubscription = subscribeOrdersForUser(
+          uid,
+          handleNewServerOrders,
+          (err) => console.error("Error in user real-time order subscription:", err)
+        );
       }
     }
 
     return () => {
       cancelled = true;
+      if (unsubSubscription) {
+        unsubSubscription();
+      }
     };
-  }, [currentUser?.uid, userRole]);
+  }, [currentUser?.uid, userRole, language]);
 
   const [postBookingOrder, setPostBookingOrder] = useState<Order | null>(null);
   const [pendingCheckoutOrder, setPendingCheckoutOrder] = useState<Order | null>(null);

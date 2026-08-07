@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAnalytics, isSupported, Analytics, logEvent as firebaseLogEvent } from "firebase/analytics";
-import { getFirestore, doc, setDoc, updateDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { getFirestore, doc, setDoc, updateDoc, collection, query, where, getDocs, onSnapshot } from "firebase/firestore";
 import { 
   getAuth, 
   createUserWithEmailAndPassword, 
@@ -241,4 +241,97 @@ export const currentUserHasStaffClaim = async (): Promise<boolean> => {
   if (!user) return false;
   const token = await user.getIdTokenResult(true);
   return token.claims.staff === true;
+};
+
+/**
+ * Real-time subscription to all orders for OMS — requires Firebase Auth custom claim staff:true.
+ * Returns an unsubscribe cleanup function.
+ */
+export const subscribeAllOrders = (
+  onChange: (orders: any[]) => void,
+  onError?: (e: any) => void
+): (() => void) => {
+  let unsubOnSnapshot: (() => void) | null = null;
+  let isCancelled = false;
+
+  const user = auth.currentUser;
+  if (!user) {
+    console.error("[Firebase Firestore] subscribeAllOrders requires signed-in staff");
+    if (onError) onError(new Error("Requires signed-in staff"));
+    return () => {};
+  }
+
+  user.getIdTokenResult()
+    .then((token) => {
+      if (isCancelled) return;
+      if (token.claims.staff !== true) {
+        console.error("[Firebase Firestore] subscribeAllOrders denied — missing staff claim");
+        if (onError) onError(new Error("Missing staff claim"));
+        return;
+      }
+
+      unsubOnSnapshot = onSnapshot(
+        collection(db, "orders"),
+        (snapshot) => {
+          if (isCancelled) return;
+          const orders: any[] = [];
+          snapshot.forEach((d) => {
+            orders.push(d.data());
+          });
+          onChange(orders);
+        },
+        (error) => {
+          console.error("[Firebase Firestore] Error in subscribeAllOrders snapshot:", error);
+          if (onError) onError(error);
+        }
+      );
+    })
+    .catch((error) => {
+      console.error("[Firebase Firestore] Error checking staff claim for subscribeAllOrders:", error);
+      if (onError) onError(error);
+    });
+
+  return () => {
+    isCancelled = true;
+    if (unsubOnSnapshot) {
+      unsubOnSnapshot();
+    }
+  };
+};
+
+/**
+ * Real-time subscription to user orders (rules: userId == auth.uid).
+ * Returns an unsubscribe cleanup function.
+ */
+export const subscribeOrdersForUser = (
+  userId: string,
+  onChange: (orders: any[]) => void,
+  onError?: (e: any) => void
+): (() => void) => {
+  if (!userId) {
+    return () => {};
+  }
+
+  try {
+    const q = query(collection(db, "orders"), where("userId", "==", userId));
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        const orders: any[] = [];
+        snapshot.forEach((d) => {
+          orders.push(d.data());
+        });
+        onChange(orders);
+      },
+      (error) => {
+        console.error("[Firebase Firestore] Error in subscribeOrdersForUser snapshot:", error);
+        if (onError) onError(error);
+      }
+    );
+    return unsub;
+  } catch (error) {
+    console.error("[Firebase Firestore] Error subscribing user orders:", error);
+    if (onError) onError(error);
+    return () => {};
+  }
 };
