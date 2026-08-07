@@ -8,10 +8,10 @@ import {
   ChevronRight, Building, ShieldAlert, CheckSquare2
 } from 'lucide-react';
 import { Order, Currency, CURRENCY_SYMBOLS } from '../types';
-import { safeStorage, ordersStorageKey } from '../utils/storage';
+import { safeStorage } from '../utils/storage';
 import { getSplitOrders } from '../utils/orderUtils';
 import { formatPhoneE164 } from '../utils/validation';
-import { auth, updateOrderFields } from '../utils/firebase';
+import { auth } from '../utils/firebase';
 
 interface OMSAgencyCommsProps {
   orders: Order[];
@@ -25,6 +25,7 @@ interface OMSAgencyCommsProps {
   onSelectOrder: (orderId: string, tab: 'All' | 'Visa' | 'FastTrack' | 'AirportPickup') => void;
   initialSelectedOrderId?: string | null;
   language?: string;
+  onUpdateOrder?: (orderId: string, fields: Record<string, any>) => Promise<{ success: boolean; error?: string }>;
 }
 
 const getCustomerName = (order: Order) => {
@@ -71,7 +72,8 @@ export default function OMSAgencyComms({
   PARTNERS,
   onSelectOrder,
   initialSelectedOrderId,
-  language = 'EN'
+  language = 'EN',
+  onUpdateOrder
 }: OMSAgencyCommsProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'All' | 'Visa' | 'FastTrack' | 'AirportPickup'>('All');
@@ -263,7 +265,6 @@ export default function OMSAgencyComms({
       });
 
       setOrders(updated);
-      safeStorage.setItem(ordersStorageKey(auth.currentUser?.uid), JSON.stringify(updated));
       setGroupLinkSuccess('Cập nhật link nhóm chat thành công!');
     } catch (err: any) {
       setGroupLinkError(err.message || 'Lỗi kết nối máy chủ');
@@ -343,37 +344,29 @@ export default function OMSAgencyComms({
   };
 
   // Quick Action: Change Order Status & record log
-  const handleUpdateStatus = (newStatus: string) => {
+  const handleUpdateStatus = async (newStatus: string) => {
     if (!selectedOrder) return;
 
     const isSec = selectedOrder.id.endsWith('_secondary');
     const baseId = isSec ? selectedOrder.id.replace('_secondary', '') : selectedOrder.id;
 
-    // 1. Update the order in state and local storage
-    const updated = orders.map(o => {
-      if (o.id === baseId) {
-        if (isSec) {
-          return { ...o, secondaryStatus: newStatus, secondarySubStatus: undefined };
+    if (isSec) {
+      await onUpdateOrder?.(baseId, { secondaryStatus: newStatus, secondarySubStatus: null });
+    } else {
+      let subStatus: string | null | undefined = selectedOrder.subStatus;
+      if (selectedOrder.type === 'Visa') {
+        if (newStatus === 'Agency Review') {
+          subStatus = 'Standard Review';
+        } else if (newStatus === 'Submitted to Embassy') {
+          subStatus = 'Standard processing';
+        } else if (newStatus === 'Completed') {
+          subStatus = 'Approved';
         } else {
-          let subStatus = o.subStatus;
-          if (o.type === 'Visa') {
-            if (newStatus === 'Agency Review') {
-              subStatus = 'Standard Review';
-            } else if (newStatus === 'Submitted to Embassy') {
-              subStatus = 'Standard processing';
-            } else if (newStatus === 'Completed') {
-              subStatus = 'Approved';
-            } else {
-              subStatus = undefined;
-            }
-          }
-          return { ...o, status: newStatus, subStatus };
+          subStatus = null;
         }
       }
-      return o;
-    });
-    setOrders(updated);
-    safeStorage.setItem(ordersStorageKey(auth.currentUser?.uid), JSON.stringify(updated));
+      await onUpdateOrder?.(baseId, { status: newStatus, subStatus });
+    }
 
     // 2. Add discussion record representing the update
     const legLabel = isSec ? 'Secondary Combo Leg' : 'Primary Leg';
@@ -393,24 +386,17 @@ export default function OMSAgencyComms({
   };
 
   // Quick Action: Change Order Sub-Status & record log
-  const handleUpdateSubStatus = (newSubStatus: string) => {
+  const handleUpdateSubStatus = async (newSubStatus: string) => {
     if (!selectedOrder) return;
 
     const isSec = selectedOrder.id.endsWith('_secondary');
     const baseId = isSec ? selectedOrder.id.replace('_secondary', '') : selectedOrder.id;
 
-    const updated = orders.map(o => {
-      if (o.id === baseId) {
-        if (isSec) {
-          return { ...o, secondarySubStatus: newSubStatus };
-        } else {
-          return { ...o, subStatus: newSubStatus };
-        }
-      }
-      return o;
-    });
-    setOrders(updated);
-    safeStorage.setItem(ordersStorageKey(auth.currentUser?.uid), JSON.stringify(updated));
+    if (isSec) {
+      await onUpdateOrder?.(baseId, { secondarySubStatus: newSubStatus });
+    } else {
+      await onUpdateOrder?.(baseId, { subStatus: newSubStatus });
+    }
 
     const legLabel = isSec ? 'Secondary Combo Leg' : 'Primary Leg';
     const noteText = `🔄 [Bridge Sub-Status Update] Sub-status set to "${newSubStatus}" for ${legLabel} (${activeServiceType}).`;
@@ -427,7 +413,7 @@ export default function OMSAgencyComms({
   };
 
   // Quick Action: Update Staff or Vehicle dispatch details
-  const handleUpdateStaffOrVehicle = (field: string, value: string) => {
+  const handleUpdateStaffOrVehicle = async (field: string, value: string) => {
     if (!selectedOrder) return;
     const isSec = selectedOrder.id.endsWith('_secondary');
     const baseId = isSec ? selectedOrder.id.replace('_secondary', '') : selectedOrder.id;
@@ -442,22 +428,15 @@ export default function OMSAgencyComms({
       else if (field === 'carPhoto') targetField = 'secondaryCarPhoto';
     }
 
-    const updated = orders.map(o => {
-      if (o.id === baseId) {
-        if (isSec) {
-          const currentStatus = o.secondaryStatus || 'Confirmed';
-          const nextStatus = currentStatus === 'Confirmed' ? 'Staff Assigned' : currentStatus;
-          return { ...o, [targetField]: value, secondaryStatus: nextStatus };
-        } else {
-          const currentStatus = o.status || 'Confirmed';
-          const nextStatus = currentStatus === 'Confirmed' ? 'Staff Assigned' : currentStatus;
-          return { ...o, [targetField]: value, status: nextStatus };
-        }
-      }
-      return o;
-    });
-    setOrders(updated);
-    safeStorage.setItem(ordersStorageKey(auth.currentUser?.uid), JSON.stringify(updated));
+    if (isSec) {
+      const currentStatus = (selectedOrder as any).secondaryStatus || 'Confirmed';
+      const nextStatus = currentStatus === 'Confirmed' ? 'Staff Assigned' : currentStatus;
+      await onUpdateOrder?.(baseId, { [targetField]: value, secondaryStatus: nextStatus });
+    } else {
+      const currentStatus = selectedOrder.status || 'Confirmed';
+      const nextStatus = currentStatus === 'Confirmed' ? 'Staff Assigned' : currentStatus;
+      await onUpdateOrder?.(baseId, { [targetField]: value, status: nextStatus });
+    }
   };
 
   // Quick Action: Add manual liaison discussion note
@@ -481,39 +460,9 @@ export default function OMSAgencyComms({
       [selectedOrder.id]: [...(prev[selectedOrder.id] || []), newDisc]
     }));
 
-    // Update order's internal special requests or notes
-    const updated = orders.map(o => {
-      if (o.id === selectedOrder.id) {
-        const details = o.details as any;
-        if (o.type === 'AirportPickup') {
-          return {
-            ...o,
-            details: {
-              ...details,
-              optionalNote: details.optionalNote 
-                ? `${details.optionalNote}\n[Liaison Log]: ${liaisonNote}`
-                : `[Liaison Log]: ${liaisonNote}`
-            }
-          };
-        } else {
-          return {
-            ...o,
-            details: {
-              ...details,
-              specialRequests: details.specialRequests
-                ? `${details.specialRequests}\n[Liaison Log]: ${liaisonNote}`
-                : `[Liaison Log]: ${liaisonNote}`
-            }
-          };
-        }
-      }
-      return o;
-    });
-    setOrders(updated);
-    safeStorage.setItem(ordersStorageKey(auth.currentUser?.uid), JSON.stringify(updated));
-
     setLiaisonNote('');
-    alert(`📝 Note logged for ${legLabel}! It will appear across tracking panels and operational histories.`);
+    const isEn = language === 'EN';
+    alert(isEn ? 'Note saved. Visible to internal staff only.' : 'Đã ghi chú. Chỉ nhân viên nội bộ nhìn thấy.');
   };
 
   // Helper to copy text templates to clipboard
@@ -611,44 +560,14 @@ export default function OMSAgencyComms({
     const baseId = isSecondaryLeg ? orderId.replace('_secondary', '') : orderId;
 
     if (isSecondaryLeg) {
-      const updated = orders.map(o => {
-        if (o.id === baseId) {
-          return {
-            ...o,
-            assignedPartnerIdSecondary: null,
-            assignedPartnerNameSecondary: null,
-            assignedPartnerAtSecondary: null,
-            assignedPartnerBySecondary: null
-          };
-        }
-        return o;
-      });
-      setOrders(updated);
-      safeStorage.setItem(ordersStorageKey(auth.currentUser?.uid), JSON.stringify(updated));
-
-      await updateOrderFields(baseId, {
+      await onUpdateOrder?.(baseId, {
         assignedPartnerIdSecondary: null,
         assignedPartnerNameSecondary: null,
         assignedPartnerAtSecondary: null,
         assignedPartnerBySecondary: null
       });
     } else {
-      const updated = orders.map(o => {
-        if (o.id === baseId) {
-          return {
-            ...o,
-            assignedPartnerId: null,
-            assignedPartnerName: null,
-            assignedPartnerAt: null,
-            assignedPartnerBy: null
-          };
-        }
-        return o;
-      });
-      setOrders(updated);
-      safeStorage.setItem(ordersStorageKey(auth.currentUser?.uid), JSON.stringify(updated));
-
-      await updateOrderFields(baseId, {
+      await onUpdateOrder?.(baseId, {
         assignedPartnerId: null,
         assignedPartnerName: null,
         assignedPartnerAt: null,

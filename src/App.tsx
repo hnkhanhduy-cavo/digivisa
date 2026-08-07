@@ -21,7 +21,7 @@ import AirportPickupForm from './components/AirportPickupForm';
 import OrderTracker from './components/OrderTracker';
 import Faqs from './components/Faqs';
 import OMS from './components/OMS';
-import { fetchOrdersForUser, fetchAllOrdersFromFirestore, saveOrderToFirestore, subscribeAllOrders, subscribeOrdersForUser, auth, onAuthStateChanged, logoutUser, currentUserHasStaffClaim } from './utils/firebase';
+import { fetchOrdersForUser, fetchAllOrdersFromFirestore, saveOrderToFirestore, updateOrderFields, subscribeAllOrders, subscribeOrdersForUser, auth, onAuthStateChanged, logoutUser, currentUserHasStaffClaim } from './utils/firebase';
 import { generateOrderId, generateTrackingToken } from './utils/orderIds';
 import PostBookingAuthModal from './components/PostBookingAuthModal';
 import UserAuthModal from './components/UserAuthModal';
@@ -121,6 +121,11 @@ export default function App() {
   useEffect(() => {
     ordersRef.current = orders;
   }, [orders]);
+
+  const languageRef = useRef<Language>(language);
+  useEffect(() => {
+    languageRef.current = language;
+  }, [language]);
 
   const [isUserAuthOpen, setIsUserAuthOpen] = useState(false);
   const [isAdminLoginOpen, setIsAdminLoginOpen] = useState(false);
@@ -245,7 +250,7 @@ export default function App() {
         });
 
         if (updatedOrderIds.length > 0) {
-          const isEn = language === 'EN';
+          const isEn = languageRef.current === 'EN';
           if (updatedOrderIds.length === 1) {
             const msg = isEn
               ? `Order ${updatedOrderIds[0]} was just updated by someone else.`
@@ -286,7 +291,50 @@ export default function App() {
         unsubSubscription();
       }
     };
-  }, [currentUser?.uid, userRole, language]);
+  }, [currentUser?.uid, userRole]);
+
+  const updateOrderAndSave = async (
+    orderId: string,
+    fields: Record<string, any>
+  ): Promise<{ success: boolean; error?: string }> => {
+    const isEn = languageRef.current === 'EN';
+    const uid = currentUser?.uid;
+
+    const oldOrders = ordersRef.current || [];
+    const targetOrder = oldOrders.find(o => o.id === orderId);
+    if (!targetOrder) {
+      return { success: false, error: 'Order not found' };
+    }
+
+    const updatedOrders = oldOrders.map(o => o.id === orderId ? { ...o, ...fields } : o);
+    setOrders(updatedOrders);
+    safeStorage.setItem(ordersStorageKey(uid), JSON.stringify(updatedOrders));
+
+    try {
+      const res = await updateOrderFields(orderId, fields);
+      if (res && res.success) {
+        return { success: true };
+      } else {
+        setOrders(oldOrders);
+        safeStorage.setItem(ordersStorageKey(uid), JSON.stringify(oldOrders));
+        const reason = res?.error || (isEn ? 'Server error' : 'Lỗi máy chủ');
+        const errorMsg = isEn
+          ? `Could not save changes to order ${orderId}: ${reason}`
+          : `Không lưu được thay đổi cho đơn ${orderId}: ${reason}`;
+        triggerToast(errorMsg, 'error');
+        return { success: false, error: reason };
+      }
+    } catch (err: any) {
+      setOrders(oldOrders);
+      safeStorage.setItem(ordersStorageKey(uid), JSON.stringify(oldOrders));
+      const reason = err?.message || (isEn ? 'Network error' : 'Lỗi kết nối mạng');
+      const errorMsg = isEn
+        ? `Could not save changes to order ${orderId}: ${reason}`
+        : `Không lưu được thay đổi cho đơn ${orderId}: ${reason}`;
+      triggerToast(errorMsg, 'error');
+      return { success: false, error: reason };
+    }
+  };
 
   const [postBookingOrder, setPostBookingOrder] = useState<Order | null>(null);
   const [pendingCheckoutOrder, setPendingCheckoutOrder] = useState<Order | null>(null);
@@ -1060,7 +1108,7 @@ export default function App() {
 
             {activeTab === 'oms' && (
               <motion.div key="oms" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -15 }}>
-                <OMS orders={orders} setOrders={saveOrders} currency={currency} language={language} />
+                <OMS orders={orders} setOrders={saveOrders} currency={currency} language={language} onUpdateOrder={updateOrderAndSave} />
               </motion.div>
             )}
 

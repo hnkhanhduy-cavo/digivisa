@@ -11,17 +11,18 @@ import { Order, Currency, CURRENCY_SYMBOLS, EXCHANGE_RATES } from '../types';
 import { getVietnamPricing } from '../utils/pricing';
 import OMSAlertsBoard from './OMSAlertsBoard';
 import OMSAgencyComms from './OMSAgencyComms';
-import { safeStorage, ordersStorageKey } from '../utils/storage';
+import { safeStorage } from '../utils/storage';
 import { getSplitOrders } from '../utils/orderUtils';
 import { Language } from '../utils/translations';
 import { formatPhoneE164 } from '../utils/validation';
-import { saveOrderToFirestore, updateOrderFields, auth } from '../utils/firebase';
+import { auth } from '../utils/firebase';
 
 interface OMSProps {
   orders: Order[];
   setOrders: (orders: Order[]) => void;
   currency: Currency;
   language?: Language;
+  onUpdateOrder?: (orderId: string, fields: Record<string, any>) => Promise<{ success: boolean; error?: string }>;
 }
 
 // Separate partners specialized in exactly ONE service
@@ -257,7 +258,7 @@ const getServiceStatusOptions = (order: Order): string[] => {
   return ['Agency Review', 'Processing', 'Completed'];
 };
 
-export default function OMS({ orders, setOrders, currency, language = 'EN' }: OMSProps) {
+export default function OMS({ orders, setOrders, currency, language = 'EN', onUpdateOrder }: OMSProps) {
   // Master navigation subpage: fulfillment queue vs. urgent alerts board vs. agency comms sync
   const [omsSubPage, setOmsSubPage] = useState<'fulfillment' | 'alerts_board' | 'agency_comms'>('fulfillment');
 
@@ -706,7 +707,7 @@ export default function OMS({ orders, setOrders, currency, language = 'EN' }: OM
     }
   };
 
-  const handleDispatch = (orderId: string, partnerId: string) => {
+  const handleDispatch = async (orderId: string, partnerId: string) => {
     const isSec = orderId.endsWith('_secondary');
     const baseId = isSec ? orderId.replace('_secondary', '') : orderId;
 
@@ -733,44 +734,14 @@ export default function OMS({ orders, setOrders, currency, language = 'EN' }: OM
     }));
 
     if (isSec) {
-      const updated = orders.map(o => {
-        if (o.id === baseId) {
-          return {
-            ...o,
-            assignedPartnerIdSecondary: partnerId,
-            assignedPartnerNameSecondary: partnerName,
-            assignedPartnerAtSecondary: nowIso,
-            assignedPartnerBySecondary: staffEmail,
-          };
-        }
-        return o;
-      });
-      setOrders(updated);
-      safeStorage.setItem(ordersStorageKey(auth.currentUser?.uid), JSON.stringify(updated));
-
-      updateOrderFields(baseId, {
+      await onUpdateOrder?.(baseId, {
         assignedPartnerIdSecondary: partnerId,
         assignedPartnerNameSecondary: partnerName,
         assignedPartnerAtSecondary: nowIso,
         assignedPartnerBySecondary: staffEmail,
       });
     } else {
-      const updated = orders.map(o => {
-        if (o.id === baseId) {
-          return {
-            ...o,
-            assignedPartnerId: partnerId,
-            assignedPartnerName: partnerName,
-            assignedPartnerAt: nowIso,
-            assignedPartnerBy: staffEmail,
-          };
-        }
-        return o;
-      });
-      setOrders(updated);
-      safeStorage.setItem(ordersStorageKey(auth.currentUser?.uid), JSON.stringify(updated));
-
-      updateOrderFields(baseId, {
+      await onUpdateOrder?.(baseId, {
         assignedPartnerId: partnerId,
         assignedPartnerName: partnerName,
         assignedPartnerAt: nowIso,
@@ -779,7 +750,7 @@ export default function OMS({ orders, setOrders, currency, language = 'EN' }: OM
     }
   };
 
-  const handleSecondaryDispatch = (orderId: string, partnerId: string) => {
+  const handleSecondaryDispatch = async (orderId: string, partnerId: string) => {
     const targetOrder = orders.find(o => o.id === orderId);
     if (!targetOrder) return;
     const secondaryType = targetOrder.type === 'FastTrack' ? 'AirportPickup' : 'FastTrack';
@@ -800,22 +771,7 @@ export default function OMS({ orders, setOrders, currency, language = 'EN' }: OM
       [orderId + '_secondary']: [...(prev[orderId + '_secondary'] || []), systemMsg]
     }));
 
-    const updated = orders.map(o => {
-      if (o.id === orderId) {
-        return {
-          ...o,
-          assignedPartnerIdSecondary: partnerId,
-          assignedPartnerNameSecondary: partnerName,
-          assignedPartnerAtSecondary: nowIso,
-          assignedPartnerBySecondary: staffEmail,
-        };
-      }
-      return o;
-    });
-    setOrders(updated);
-    safeStorage.setItem(ordersStorageKey(auth.currentUser?.uid), JSON.stringify(updated));
-
-    updateOrderFields(orderId, {
+    await onUpdateOrder?.(orderId, {
       assignedPartnerIdSecondary: partnerId,
       assignedPartnerNameSecondary: partnerName,
       assignedPartnerAtSecondary: nowIso,
@@ -823,7 +779,7 @@ export default function OMS({ orders, setOrders, currency, language = 'EN' }: OM
     });
   };
 
-  const handleUnassign = (targetKey: string) => {
+  const handleUnassign = async (targetKey: string) => {
     const isSec = targetKey.endsWith('_secondary');
     const baseId = isSec ? targetKey.replace('_secondary', '') : targetKey;
 
@@ -835,44 +791,14 @@ export default function OMS({ orders, setOrders, currency, language = 'EN' }: OM
     if (!window.confirm(confirmMsg)) return;
 
     if (isSec) {
-      const updated = orders.map(o => {
-        if (o.id === baseId) {
-          return {
-            ...o,
-            assignedPartnerIdSecondary: null,
-            assignedPartnerNameSecondary: null,
-            assignedPartnerAtSecondary: null,
-            assignedPartnerBySecondary: null
-          };
-        }
-        return o;
-      });
-      setOrders(updated);
-      safeStorage.setItem(ordersStorageKey(auth.currentUser?.uid), JSON.stringify(updated));
-
-      updateOrderFields(baseId, {
+      await onUpdateOrder?.(baseId, {
         assignedPartnerIdSecondary: null,
         assignedPartnerNameSecondary: null,
         assignedPartnerAtSecondary: null,
         assignedPartnerBySecondary: null
       });
     } else {
-      const updated = orders.map(o => {
-        if (o.id === baseId) {
-          return {
-            ...o,
-            assignedPartnerId: null,
-            assignedPartnerName: null,
-            assignedPartnerAt: null,
-            assignedPartnerBy: null
-          };
-        }
-        return o;
-      });
-      setOrders(updated);
-      safeStorage.setItem(ordersStorageKey(auth.currentUser?.uid), JSON.stringify(updated));
-
-      updateOrderFields(baseId, {
+      await onUpdateOrder?.(baseId, {
         assignedPartnerId: null,
         assignedPartnerName: null,
         assignedPartnerAt: null,
@@ -1016,7 +942,7 @@ export default function OMS({ orders, setOrders, currency, language = 'EN' }: OM
     });
   };
 
-  const updateOrderStatus = (orderId: string, newStatus: Order['status']) => {
+  const updateOrderStatus = async (orderId: string, newStatus: Order['status']) => {
     let statusToSet = newStatus;
     if (newStatus === 'Delay / On Time') {
       statusToSet = 'On Time';
@@ -1024,46 +950,36 @@ export default function OMS({ orders, setOrders, currency, language = 'EN' }: OM
     const isSec = orderId.endsWith('_secondary');
     const baseId = isSec ? orderId.replace('_secondary', '') : orderId;
 
-    const updated = orders.map(o => {
-      if (o.id === baseId) {
-        if (isSec) {
-          return { ...o, secondaryStatus: statusToSet };
+    if (isSec) {
+      await onUpdateOrder?.(baseId, { secondaryStatus: statusToSet });
+    } else {
+      let subStatus: string | null = null;
+      const targetOrder = orders.find(o => o.id === baseId);
+      if (targetOrder && targetOrder.type === 'Visa') {
+        if (statusToSet === 'Processing') {
+          subStatus = targetOrder.subStatus || 'Standard processing';
+        } else if (statusToSet === 'Completed') {
+          subStatus = targetOrder.subStatus || 'Approved';
         } else {
-          let subStatus = o.subStatus;
-          if (o.type === 'Visa') {
-            if (statusToSet === 'Processing') {
-              subStatus = subStatus || 'Standard processing';
-            } else if (statusToSet === 'Completed') {
-              subStatus = subStatus || 'Approved';
-            } else {
-              subStatus = undefined;
-            }
-          }
-          return { ...o, status: statusToSet, subStatus };
+          subStatus = null;
         }
       }
-      return o;
-    });
-    setOrders(updated);
-    safeStorage.setItem(ordersStorageKey(auth.currentUser?.uid), JSON.stringify(updated));
+      await onUpdateOrder?.(baseId, {
+        status: statusToSet,
+        subStatus
+      });
+    }
   };
 
-  const updateOrderSubStatus = (orderId: string, subStatus: string) => {
+  const updateOrderSubStatus = async (orderId: string, subStatus: string) => {
     const isSec = orderId.endsWith('_secondary');
     const baseId = isSec ? orderId.replace('_secondary', '') : orderId;
 
-    const updated = orders.map(o => {
-      if (o.id === baseId) {
-        if (isSec) {
-          return { ...o, secondarySubStatus: subStatus };
-        } else {
-          return { ...o, subStatus };
-        }
-      }
-      return o;
-    });
-    setOrders(updated);
-    safeStorage.setItem(ordersStorageKey(auth.currentUser?.uid), JSON.stringify(updated));
+    if (isSec) {
+      await onUpdateOrder?.(baseId, { secondarySubStatus: subStatus });
+    } else {
+      await onUpdateOrder?.(baseId, { subStatus });
+    }
   };
 
   const getTimelineSteps = (type: 'Visa' | 'FastTrack' | 'AirportPickup', currentStatus: string, order?: Order) => {
@@ -1966,26 +1882,17 @@ export default function OMS({ orders, setOrders, currency, language = 'EN' }: OM
 
                             {/* Payment */}
                             <td className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
-                              <select
-                                value={order.paymentStatus}
-                                onChange={(e) => {
-                                  const updated = orders.map(o => o.id === order.id ? { ...o, paymentStatus: e.target.value as any } : o);
-                                  setOrders(updated);
-                                  safeStorage.setItem(ordersStorageKey(auth.currentUser?.uid), JSON.stringify(updated));
-                                }}
-                                className={`text-[10px] font-bold rounded-lg px-2.5 py-1.5 border focus:outline-none focus:ring-2 focus:ring-indigo-500/15 cursor-pointer font-sans transition-all ${
-                                  order.paymentStatus.startsWith('Paid')
-                                    ? 'bg-emerald-50 text-emerald-800 border-emerald-250'
-                                    : order.paymentStatus === 'Refunded'
-                                      ? 'bg-rose-50 text-rose-805 border-rose-200'
-                                      : 'bg-amber-50 text-amber-805 border-amber-250'
-                                }`}
-                              >
-                                <option value="Paid (Bank Transfer)" className="bg-white text-slate-800 font-medium">Paid (Bank Transfer)</option>
-                                <option value="Paid (9Pay)" className="bg-white text-slate-800 font-medium">Paid (9Pay)</option>
-                                <option value="Pending" className="bg-white text-slate-800 font-medium">Pending</option>
-                                <option value="Refunded" className="bg-white text-slate-850 font-medium">Refunded</option>
-                              </select>
+                              <span className={`inline-block text-[10px] font-bold rounded-lg px-2.5 py-1.5 border font-sans ${
+                                order.paymentStatus?.startsWith('Paid')
+                                  ? 'bg-emerald-50 text-emerald-800 border-emerald-250'
+                                  : order.paymentStatus === 'Refunded'
+                                    ? 'bg-rose-50 text-rose-805 border-rose-200'
+                                    : 'bg-amber-50 text-amber-805 border-amber-250'
+                              }`}>
+                                {order.paymentStatus?.startsWith('Paid') ? '✅ ' + order.paymentStatus :
+                                 order.paymentStatus === 'Refunded' ? '↩️ Refunded' :
+                                 '⏳ Pending'}
+                              </span>
                             </td>
 
                             {/* Progress */}
@@ -2131,33 +2038,15 @@ export default function OMS({ orders, setOrders, currency, language = 'EN' }: OM
                             disabled={saveState.field === 'status' && saveState.status === 'saving'}
                             onChange={async (e) => {
                               const newStatus = e.target.value as any;
-                              const oldStatus = selectedOrder.status;
-
-                              const updated = orders.map(o => o.id === selectedOrder.id ? { ...o, status: newStatus } : o);
-                              setOrders(updated);
-                              safeStorage.setItem(ordersStorageKey(auth.currentUser?.uid), JSON.stringify(updated));
-
-                              const updatedOrder = { ...selectedOrder, status: newStatus };
                               setSaveState({ field: 'status', status: 'saving' });
-
-                              try {
-                                const res = await saveOrderToFirestore(updatedOrder);
-                                if (res && res.success) {
-                                  setSaveState({ field: 'status', status: 'saved' });
-                                  setTimeout(() => {
-                                    setSaveState(prev => prev.field === 'status' && prev.status === 'saved' ? { field: null, status: null } : prev);
-                                  }, 2000);
-                                } else {
-                                  const reverted = orders.map(o => o.id === selectedOrder.id ? { ...o, status: oldStatus } : o);
-                                  setOrders(reverted);
-                                  safeStorage.setItem(ordersStorageKey(auth.currentUser?.uid), JSON.stringify(reverted));
-                                  setSaveState({ field: 'status', status: 'error', message: res?.error || (language === 'EN' ? 'Server rejected update' : 'Máy chủ từ chối cập nhật') });
-                                }
-                              } catch (err: any) {
-                                const reverted = orders.map(o => o.id === selectedOrder.id ? { ...o, status: oldStatus } : o);
-                                setOrders(reverted);
-                                safeStorage.setItem(ordersStorageKey(auth.currentUser?.uid), JSON.stringify(reverted));
-                                setSaveState({ field: 'status', status: 'error', message: err?.message || (language === 'EN' ? 'Network error' : 'Lỗi kết nối mạng') });
+                              const res = await onUpdateOrder?.(selectedOrder.id, { status: newStatus });
+                              if (res && res.success) {
+                                setSaveState({ field: 'status', status: 'saved' });
+                                setTimeout(() => {
+                                  setSaveState(prev => prev.field === 'status' && prev.status === 'saved' ? { field: null, status: null } : prev);
+                                }, 2000);
+                              } else {
+                                setSaveState({ field: 'status', status: 'error', message: res?.error || (language === 'EN' ? 'Server rejected update' : 'Máy chủ từ chối cập nhật') });
                               }
                             }}
                             className="w-full text-xs font-bold rounded-xl px-3 py-2 border border-indigo-200 bg-indigo-50/50 text-indigo-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer disabled:opacity-50"
@@ -2197,33 +2086,15 @@ export default function OMS({ orders, setOrders, currency, language = 'EN' }: OM
                               disabled={saveState.field === 'subStatus' && saveState.status === 'saving'}
                               onChange={async (e) => {
                                 const newSub = e.target.value;
-                                const oldSub = selectedOrder.subStatus || 'Standard Review';
-
-                                const updated = orders.map(o => o.id === selectedOrder.id ? { ...o, subStatus: newSub } : o);
-                                setOrders(updated);
-                                safeStorage.setItem(ordersStorageKey(auth.currentUser?.uid), JSON.stringify(updated));
-
-                                const updatedOrder = { ...selectedOrder, subStatus: newSub };
                                 setSaveState({ field: 'subStatus', status: 'saving' });
-
-                                try {
-                                  const res = await saveOrderToFirestore(updatedOrder);
-                                  if (res && res.success) {
-                                    setSaveState({ field: 'subStatus', status: 'saved' });
-                                    setTimeout(() => {
-                                      setSaveState(prev => prev.field === 'subStatus' && prev.status === 'saved' ? { field: null, status: null } : prev);
-                                    }, 2000);
-                                  } else {
-                                    const reverted = orders.map(o => o.id === selectedOrder.id ? { ...o, subStatus: oldSub } : o);
-                                    setOrders(reverted);
-                                    safeStorage.setItem(ordersStorageKey(auth.currentUser?.uid), JSON.stringify(reverted));
-                                    setSaveState({ field: 'subStatus', status: 'error', message: res?.error || (language === 'EN' ? 'Server rejected update' : 'Máy chủ từ chối cập nhật') });
-                                  }
-                                } catch (err: any) {
-                                  const reverted = orders.map(o => o.id === selectedOrder.id ? { ...o, subStatus: oldSub } : o);
-                                  setOrders(reverted);
-                                  safeStorage.setItem(ordersStorageKey(auth.currentUser?.uid), JSON.stringify(reverted));
-                                  setSaveState({ field: 'subStatus', status: 'error', message: err?.message || (language === 'EN' ? 'Network error' : 'Lỗi kết nối mạng') });
+                                const res = await onUpdateOrder?.(selectedOrder.id, { subStatus: newSub });
+                                if (res && res.success) {
+                                  setSaveState({ field: 'subStatus', status: 'saved' });
+                                  setTimeout(() => {
+                                    setSaveState(prev => prev.field === 'subStatus' && prev.status === 'saved' ? { field: null, status: null } : prev);
+                                  }, 2000);
+                                } else {
+                                  setSaveState({ field: 'subStatus', status: 'error', message: res?.error || (language === 'EN' ? 'Server rejected update' : 'Máy chủ từ chối cập nhật') });
                                 }
                               }}
                               className="w-full text-xs font-semibold rounded-xl px-3 py-2 border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer disabled:opacity-50"
@@ -3140,6 +3011,7 @@ Trạng thái thanh toán: ${selectedOrder.paymentStatus || 'Pending'}
           PARTNERS={PARTNERS}
           initialSelectedOrderId={selectedOrderId}
           language={language}
+          onUpdateOrder={onUpdateOrder}
           onSelectOrder={(orderId, tab) => {
             setPartnerServiceTab(tab);
             setSelectedOrderId(orderId);
