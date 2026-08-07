@@ -296,7 +296,7 @@ export default function FastTrackForm({ currency, onSuccess, onCancel, language 
       let converted = val * EXCHANGE_RATES[currency];
       return `${converted.toLocaleString('en-US')} ₫`;
     }
-    return `$ ${val.toFixed(2)}`;
+    return `$ ${Math.round(val).toLocaleString('en-US')}`;
   };
  
 
@@ -343,6 +343,16 @@ export default function FastTrackForm({ currency, onSuccess, onCancel, language 
           ? `${formData.arrivalDate}T${formData.arrivalTime}` 
           : `${formData.arrivalDate}T23:59:59`;
         
+        const arrivalDateObj = new Date(arrivalDateTimeStr);
+        const now = new Date();
+        const differenceMs = arrivalDateObj.getTime() - now.getTime();
+        const twentyFourHoursMs = 24 * 60 * 60 * 1000;
+
+        if (differenceMs < twentyFourHoursMs) {
+          freshErrors.arrivalDate = isEn
+            ? 'Fast Track service must be ordered at least 24 hours in advance.'
+            : 'Dịch vụ Fast Track cần được đặt trước ít nhất 24 giờ.';
+        }
       }
     }
 

@@ -294,7 +294,7 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
       let converted = val * EXCHANGE_RATES[currency];
       return `${converted.toLocaleString('en-US')} ₫`;
     }
-    return `$ ${val.toFixed(2)}`;
+    return `$ ${Math.round(val).toLocaleString('en-US')}`;
   };
 
   const validate = () => {
