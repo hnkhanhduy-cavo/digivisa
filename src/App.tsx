@@ -229,39 +229,126 @@ export default function App() {
       if (!isFirstSnapshot) {
         const currentOrders = ordersRef.current || [];
         const currentMap = new Map(currentOrders.map(o => [o.id, o]));
-        const updatedOrderIds: string[] = [];
+        const isEn = languageRef.current === 'EN';
+
+        const formatVal = (val: any) => {
+          if (val === null || val === undefined || String(val).trim() === '') {
+            return isEn ? '(cleared)' : '(xoá)';
+          }
+          return String(val);
+        };
+
+        interface FieldChange {
+          label: string;
+          oldVal: string;
+          newVal: string;
+        }
+
+        interface ChangedOrder {
+          id: string;
+          lastUpdatedBy?: string;
+          changes: FieldChange[];
+        }
+
+        const changedOrders: ChangedOrder[] = [];
 
         sanitized.forEach(newOrder => {
           const existing = currentMap.get(newOrder.id);
           if (existing) {
             const exAny = existing as any;
             const newAny = newOrder as any;
-            const hasChanged = 
-              exAny.status !== newAny.status ||
-              exAny.subStatus !== newAny.subStatus ||
-              exAny.paymentStatus !== newAny.paymentStatus ||
-              exAny.assignedPartnerId !== newAny.assignedPartnerId ||
-              exAny.assignedPartnerIdSecondary !== newAny.assignedPartnerIdSecondary;
+            const changes: FieldChange[] = [];
 
-            if (hasChanged) {
-              updatedOrderIds.push(newOrder.id);
+            if (exAny.status !== newAny.status) {
+              changes.push({
+                label: isEn ? 'Status' : 'Trạng thái',
+                oldVal: formatVal(exAny.status),
+                newVal: formatVal(newAny.status),
+              });
+            }
+
+            if (exAny.subStatus !== newAny.subStatus) {
+              changes.push({
+                label: isEn ? 'Sub-status' : 'Trạng thái chi tiết',
+                oldVal: formatVal(exAny.subStatus),
+                newVal: formatVal(newAny.subStatus),
+              });
+            }
+
+            if (exAny.paymentStatus !== newAny.paymentStatus) {
+              changes.push({
+                label: isEn ? 'Payment' : 'Thanh toán',
+                oldVal: formatVal(exAny.paymentStatus),
+                newVal: formatVal(newAny.paymentStatus),
+              });
+            }
+
+            if (exAny.assignedPartnerId !== newAny.assignedPartnerId) {
+              changes.push({
+                label: isEn ? 'Partner' : 'Đối tác',
+                oldVal: formatVal(exAny.assignedPartnerName),
+                newVal: formatVal(newAny.assignedPartnerName),
+              });
+            }
+
+            if (exAny.assignedPartnerIdSecondary !== newAny.assignedPartnerIdSecondary) {
+              changes.push({
+                label: isEn ? 'Secondary partner' : 'Đối tác chặng phụ',
+                oldVal: formatVal(exAny.assignedPartnerNameSecondary),
+                newVal: formatVal(newAny.assignedPartnerNameSecondary),
+              });
+            }
+
+            if (changes.length > 0) {
+              changedOrders.push({
+                id: newOrder.id,
+                lastUpdatedBy: newAny.lastUpdatedBy,
+                changes
+              });
             }
           }
         });
 
-        if (updatedOrderIds.length > 0) {
-          const isEn = languageRef.current === 'EN';
-          if (updatedOrderIds.length === 1) {
-            const msg = isEn
-              ? `Order ${updatedOrderIds[0]} was just updated by someone else.`
-              : `Đơn ${updatedOrderIds[0]} vừa được người khác cập nhật.`;
-            triggerToast(msg, 'info');
+        if (changedOrders.length === 1) {
+          const orderInfo = changedOrders[0];
+          const updaterEmail = orderInfo.lastUpdatedBy ? String(orderInfo.lastUpdatedBy).trim() : '';
+
+          const header = isEn ? `Order ${orderInfo.id}` : `Đơn ${orderInfo.id}`;
+          const actionLine = updaterEmail
+            ? (isEn ? `${updaterEmail} just changed:` : `${updaterEmail} vừa đổi:`)
+            : (isEn ? `was just updated:` : `vừa được cập nhật:`);
+
+          const changeLines = orderInfo.changes.map(c => `  ${c.label}: ${c.oldVal} → ${c.newVal}`).join('\n');
+          const msg = `${header}\n${actionLine}\n${changeLines}`;
+
+          triggerToast(msg, 'info', 7000);
+        } else if (changedOrders.length > 1) {
+          const emails = changedOrders.map(o => o.lastUpdatedBy ? String(o.lastUpdatedBy).trim() : '').filter(Boolean);
+          const uniqueEmails = Array.from(new Set(emails));
+
+          let updaterText = '';
+          if (uniqueEmails.length === 1 && emails.length === changedOrders.length) {
+            updaterText = uniqueEmails[0];
           } else {
-            const msg = isEn
-              ? `${updatedOrderIds.length} orders were just updated by someone else.`
-              : `${updatedOrderIds.length} đơn vừa được người khác cập nhật.`;
-            triggerToast(msg, 'info');
+            updaterText = isEn ? 'someone else' : 'người khác';
           }
+
+          const header = isEn
+            ? `${changedOrders.length} orders were just updated by ${updaterText}`
+            : `${changedOrders.length} đơn vừa được ${updaterText} cập nhật`;
+
+          const ids = changedOrders.map(o => o.id);
+          let idsText = '';
+          if (ids.length <= 5) {
+            idsText = ids.join(', ');
+          } else {
+            const first5 = ids.slice(0, 5).join(', ');
+            const remainingCount = ids.length - 5;
+            idsText = isEn ? `${first5} … and ${remainingCount} more` : `${first5} … và ${remainingCount} đơn khác`;
+          }
+
+          const msg = `${header}\n${idsText}`;
+          triggerToast(msg, 'info', 7000);
         }
       }
 
@@ -306,12 +393,18 @@ export default function App() {
       return { success: false, error: 'Order not found' };
     }
 
-    const updatedOrders = oldOrders.map(o => o.id === orderId ? { ...o, ...fields } : o);
+    const payloadWithAudit = {
+      ...fields,
+      lastUpdatedBy: auth.currentUser?.email || 'staff',
+      lastUpdatedAt: new Date().toISOString()
+    };
+
+    const updatedOrders = oldOrders.map(o => o.id === orderId ? { ...o, ...payloadWithAudit } : o);
     setOrders(updatedOrders);
     safeStorage.setItem(ordersStorageKey(uid), JSON.stringify(updatedOrders));
 
     try {
-      const res = await updateOrderFields(orderId, fields);
+      const res = await updateOrderFields(orderId, payloadWithAudit);
       if (res && res.success) {
         return { success: true };
       } else {
@@ -517,12 +610,12 @@ export default function App() {
     triggerToast("All applications cleared! Pristine production view activated.", "info");
   };
 
-  const triggerToast = (msg: string, type: 'success' | 'info' | 'error' = 'success') => {
+  const triggerToast = (msg: string, type: 'success' | 'info' | 'error' = 'success', duration: number = 4500) => {
     setToastMessage(msg);
     setToastType(type);
     setTimeout(() => {
       setToastMessage(null);
-    }, 4500);
+    }, duration);
   };
 
   const getConvertedPrice = (usdAmount: any) => {
@@ -850,7 +943,7 @@ export default function App() {
                 <p className={`text-xs font-bold font-sans uppercase tracking-widest mb-0.5 ${
                   toastType === 'error' ? 'text-rose-400' : 'text-[#10B981]'
                 }`}>Notification dispatch</p>
-                <p className="text-xs text-slate-200">{toastMessage}</p>
+                <p className="text-xs text-slate-200 whitespace-pre-line leading-relaxed">{toastMessage}</p>
               </div>
               <button 
                 onClick={() => setToastMessage(null)}
