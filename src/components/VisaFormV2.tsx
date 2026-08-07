@@ -322,30 +322,27 @@ export default function VisaFormV2({
             <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
               {isEn ? 'Destination Country' : 'Quốc gia điểm đến'}
             </label>
-            <div className="relative">
-              <Globe className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-              <select
-                value={formData.destinationCountry || 'Vietnam'}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setFormData((prev) => ({
-                    ...prev,
-                    destinationCountry: val,
-                    nationality: val === 'Vietnam' ? 'Korea' : val,
-                    visaType: val === 'Vietnam' ? 'Single eVisa' : 'Tourist (30 Days)',
-                    resultsOption: val === 'Vietnam' ? 'within_2_days' : '',
-                    submissionTiming: val === 'Vietnam' ? 'before_3pm' : '',
-                  }));
-                }}
-                className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2.5 text-slate-800 text-xs font-semibold focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none transition-all cursor-pointer"
-              >
-                <option value="Vietnam">{isEn ? 'Vietnam (eVisa)' : 'Việt Nam (eVisa)'}</option>
-                <option value="Korea">{isEn ? 'Korea' : 'Hàn Quốc'}</option>
-                <option value="Japan">{isEn ? 'Japan' : 'Nhật Bản'}</option>
-                <option value="Taiwan">{isEn ? 'Taiwan' : 'Đài Loan'}</option>
-                <option value="China">{isEn ? 'China' : 'Trung Quốc'}</option>
-              </select>
-            </div>
+            <select
+              value={formData.destinationCountry || 'Vietnam'}
+              onChange={(e) => {
+                const val = e.target.value;
+                setFormData((prev) => ({
+                  ...prev,
+                  destinationCountry: val,
+                  nationality: val === 'Vietnam' ? 'Korea' : val,
+                  visaType: val === 'Vietnam' ? 'Single eVisa' : 'Tourist (30 Days)',
+                  resultsOption: val === 'Vietnam' ? 'within_2_days' : '',
+                  submissionTiming: val === 'Vietnam' ? 'before_3pm' : '',
+                }));
+              }}
+              className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800 text-xs font-semibold focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none transition-all cursor-pointer"
+            >
+              <option value="Vietnam">{isEn ? 'Vietnam (eVisa)' : 'Việt Nam (eVisa)'}</option>
+              <option value="Korea">{isEn ? 'Korea' : 'Hàn Quốc'}</option>
+              <option value="Japan">{isEn ? 'Japan' : 'Nhật Bản'}</option>
+              <option value="Taiwan">{isEn ? 'Taiwan' : 'Đài Loan'}</option>
+              <option value="China">{isEn ? 'China' : 'Trung Quốc'}</option>
+            </select>
           </div>
 
           {/* Visa Type dropdown selection */}
