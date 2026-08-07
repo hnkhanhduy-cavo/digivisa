@@ -28,6 +28,7 @@ import PostBookingAuthModal from './components/PostBookingAuthModal';
 import UserAuthModal from './components/UserAuthModal';
 import AdminLoginModal from './components/AdminLoginModal';
 import PaymentSuccessModal from './components/PaymentSuccessModal';
+import PaymentFailedModal from './components/PaymentFailedModal';
 
 interface SafeServiceBoundaryProps {
   children: React.ReactNode;
@@ -128,6 +129,13 @@ export default function App() {
     order: Order | null;
     transactionId: string;
   }>({ isOpen: false, order: null, transactionId: '' });
+
+  const [retryingOrderId, setRetryingOrderId] = useState<string | null>(null);
+  const [paymentFailedState, setPaymentFailedState] = useState<{
+    isOpen: boolean;
+    orderId: string | null;
+    reason: 'cancelled' | 'unconfirmed' | 'error';
+  }>({ isOpen: false, orderId: null, reason: 'unconfirmed' });
 
   // Firebase auth state listener — staff role only from custom claim, never localStorage
   useEffect(() => {
@@ -498,6 +506,87 @@ export default function App() {
     );
   };
 
+  const startPaymentForOrder = async (
+    orderId: string,
+    options?: { skipVerify?: boolean }
+  ): Promise<void> => {
+    let isRedirecting = false;
+    setRetryingOrderId(orderId);
+    try {
+      if (!options?.skipVerify) {
+        const verifyData = await verifyOrderPayment(orderId, { force: true });
+        if (verifyData.isPaid) {
+          setPaymentFailedState((prev) => ({ ...prev, isOpen: false }));
+          applyPaidOrderLocally(orderId, verifyData.payment_no || '', { showSuccessModal: true });
+          triggerToast(
+            language === 'VI'
+              ? 'Đơn này đã được thanh toán rồi.'
+              : 'This order has already been paid.',
+            'success'
+          );
+          return;
+        }
+      }
+
+      const res = await fetch('/api/9pay-create-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId }),
+      });
+
+      const data = (await res.json().catch(() => ({}))) as {
+        success?: boolean;
+        paymentUrl?: string;
+        error?: string;
+      };
+
+      if (res.ok && data.success && data.paymentUrl) {
+        isRedirecting = true;
+        window.location.href = data.paymentUrl;
+        return;
+      }
+
+      if (res.status === 409) {
+        if (data.error && data.error.toLowerCase().includes('already paid')) {
+          const verifyData = await verifyOrderPayment(orderId, { force: true });
+          setPaymentFailedState((prev) => ({ ...prev, isOpen: false }));
+          applyPaidOrderLocally(orderId, verifyData.payment_no || '', { showSuccessModal: true });
+          triggerToast(
+            language === 'VI'
+              ? 'Đơn này đã được thanh toán rồi.'
+              : 'This order has already been paid.',
+            'success'
+          );
+          return;
+        }
+        triggerToast(
+          language === 'VI'
+            ? `Không tạo được liên kết 9Pay: ${data.error || 'Xung đột thông tin'}.`
+            : `Failed to create 9Pay link: ${data.error || 'Conflict error'}.`,
+          'error'
+        );
+        return;
+      }
+
+      triggerToast(
+        language === 'VI'
+          ? `Không tạo được liên kết 9Pay: ${data.error || res.statusText}. Đơn ${orderId} vẫn chưa thanh toán.`
+          : `Failed to create 9Pay link: ${data.error || res.statusText}. Order ${orderId} remains unpaid.`,
+        'error'
+      );
+    } catch (e) {
+      console.error('[DigiVisa 9Pay] startPaymentForOrder error:', e);
+      triggerToast(
+        language === 'VI'
+          ? `Lỗi khởi tạo thanh toán: ${e instanceof Error ? e.message : String(e)}. Đơn vẫn chưa thanh toán.`
+          : `Payment init error: ${e instanceof Error ? e.message : String(e)}. Order remains unpaid.`,
+        'error'
+      );
+    } finally {
+      if (!isRedirecting) setRetryingOrderId(null);
+    }
+  };
+
   // return_url is UX-only: never trust query params to set Paid. Inquire decides.
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -529,6 +618,7 @@ export default function App() {
           : `Payment for order ${orderId} was cancelled. Your order remains unpaid.`,
         'info'
       );
+      setPaymentFailedState({ isOpen: true, orderId, reason: 'cancelled' });
       return;
     }
 
@@ -547,12 +637,7 @@ export default function App() {
           if (data.isPaid) {
             applyPaidOrderLocally(orderId, data.payment_no || '', { showSuccessModal: true });
           } else {
-            triggerToast(
-              language === 'VI'
-                ? `Chưa xác nhận được thanh toán cho ${orderId}. Đơn vẫn chưa thanh toán.`
-                : `Payment for ${orderId} not confirmed yet. Order remains unpaid.`,
-              'info'
-            );
+            setPaymentFailedState({ isOpen: true, orderId, reason: 'unconfirmed' });
           }
         } catch {
           if (cancelled) return;
@@ -563,6 +648,7 @@ export default function App() {
               : 'Could not reach payment verification server. Order remains unpaid.',
             'error'
           );
+          setPaymentFailedState({ isOpen: true, orderId, reason: 'error' });
         } finally {
           if (!cancelled) setIsVerifyingPayment(false);
         }
@@ -684,32 +770,7 @@ export default function App() {
         'success'
       );
 
-      const res = await fetch('/api/9pay-create-payment', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderId: orderWithUser.id,
-          amountVnd,
-        }),
-      });
-
-      const data = (await res.json().catch(() => ({}))) as {
-        success?: boolean;
-        paymentUrl?: string;
-        error?: string;
-      };
-
-      if (res.ok && data.success && data.paymentUrl) {
-        window.location.href = data.paymentUrl;
-        return;
-      }
-
-      triggerToast(
-        language === 'VI'
-          ? `Không tạo được liên kết 9Pay: ${data.error || res.statusText}. Đơn ${orderWithUser.id} vẫn chưa thanh toán.`
-          : `Failed to create 9Pay link: ${data.error || res.statusText}. Order ${orderWithUser.id} remains unpaid.`,
-        'error'
-      );
+      await startPaymentForOrder(orderWithUser.id, { skipVerify: true });
     } catch (e) {
       console.error('[DigiVisa 9Pay] handleBookingSuccess execution error:', e);
       triggerToast(
@@ -1096,6 +1157,8 @@ export default function App() {
                   language={language}
                   currentUser={currentUser}
                   userRole={userRole}
+                  onRetryPayment={startPaymentForOrder}
+                  retryingOrderId={retryingOrderId}
                 />
               </motion.div>
             )}
@@ -1208,6 +1271,20 @@ export default function App() {
           setPaymentSuccessState(prev => ({ ...prev, isOpen: false }));
           setActiveTab('tracker');
         }}
+        language={language}
+      />
+
+      {/* Payment Failed / Unconfirmed / Cancelled Modal */}
+      <PaymentFailedModal
+        isOpen={paymentFailedState.isOpen}
+        order={orders.find((o) => o.id === paymentFailedState.orderId) || null}
+        orderId={paymentFailedState.orderId || undefined}
+        reason={paymentFailedState.reason}
+        isRetrying={retryingOrderId === paymentFailedState.orderId}
+        onRetry={() => {
+          if (paymentFailedState.orderId) startPaymentForOrder(paymentFailedState.orderId);
+        }}
+        onDismiss={() => setPaymentFailedState((prev) => ({ ...prev, isOpen: false }))}
         language={language}
       />
     </div>

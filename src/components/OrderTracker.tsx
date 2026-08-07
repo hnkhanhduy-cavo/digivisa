@@ -24,6 +24,8 @@ interface OrderTrackerProps {
   language?: Language;
   currentUser?: { email?: string | null; displayName?: string | null; uid?: string } | null;
   userRole?: 'customer' | 'staff';
+  onRetryPayment?: (orderId: string) => void | Promise<void>;
+  retryingOrderId?: string | null;
 }
 
 function publicSummaryToOrder(summary: PublicOrderSummary): Order {
@@ -42,6 +44,12 @@ function isPublicLookupOrder(order: Order | null | undefined): boolean {
   return !!(order && (order.details as any)?.__publicLookup === true);
 }
 
+function isUnpaidOrder(o: Order | null | undefined): boolean {
+  if (!o) return false;
+  const s = o.paymentStatus || '';
+  return !s.includes('Paid') && s !== 'Refunded';
+}
+
 export default function OrderTracker({
   orders,
   setOrders,
@@ -52,6 +60,8 @@ export default function OrderTracker({
   language = 'EN',
   currentUser,
   userRole = 'customer',
+  onRetryPayment,
+  retryingOrderId,
 }: OrderTrackerProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
@@ -61,6 +71,42 @@ export default function OrderTracker({
   const autoClaimDoneForUid = useRef<string | null>(null);
 
   const isEn = language === 'EN';
+
+  const renderRetryPaymentCard = (order: Order | null | undefined) => {
+    if (!order || !onRetryPayment || !isUnpaidOrder(order)) return null;
+    return (
+      <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 space-y-3 mt-4">
+        <div>
+          <h4 className="text-xs font-bold text-rose-900">
+            {isEn ? 'This order is not paid yet' : 'Đơn hàng chưa được thanh toán'}
+          </h4>
+          <p className="text-[11px] text-rose-700 mt-0.5">
+            {isEn
+              ? 'Processing starts only after payment is completed.'
+              : 'Dịch vụ chỉ bắt đầu xử lý sau khi thanh toán thành công.'}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => onRetryPayment(order.id)}
+          disabled={retryingOrderId === order.id}
+          className="w-full py-2.5 px-4 bg-rose-600 hover:bg-rose-700 disabled:bg-rose-400 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center space-x-2 cursor-pointer disabled:cursor-not-allowed"
+        >
+          {retryingOrderId === order.id ? (
+            <>
+              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+              <span>{isEn ? 'Redirecting…' : 'Đang chuyển sang 9Pay…'}</span>
+            </>
+          ) : (
+            <>
+              <CreditCard className="h-3.5 w-3.5" />
+              <span>{isEn ? 'Pay now' : 'Thanh toán lại'}</span>
+            </>
+          )}
+        </button>
+      </div>
+    );
+  };
 
   // Auto-claim guest orders when a signed-in user still has digivisa_track_* tokens (once per uid, debounced).
   useEffect(() => {
@@ -967,9 +1013,15 @@ export default function OrderTracker({
                             ? new Date(order.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
                             : '—'}
                         </p>
-                        <p className="text-[9px] font-bold text-slate-500 mt-0.5">
-                          {order.paymentStatus}
-                        </p>
+                        {isUnpaidOrder(order) ? (
+                          <span className="inline-block text-[9px] font-bold text-rose-700 bg-rose-100 border border-rose-200 px-2 py-0.5 rounded-full mt-0.5">
+                            {isEn ? 'Unpaid' : 'Chưa thanh toán'}
+                          </span>
+                        ) : (
+                          <p className="text-[9px] font-bold text-slate-500 mt-0.5">
+                            {order.paymentStatus}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1019,6 +1071,7 @@ export default function OrderTracker({
                   ? 'Passport, date of birth, and document scans are never returned by this lookup.'
                   : 'Passport, ngày sinh và ảnh scan không bao giờ được trả về qua tra cứu này.'}
               </p>
+              {renderRetryPaymentCard(selectedOrder)}
             </motion.div>
           ) : selectedOrder ? (
             <motion.div
@@ -1632,10 +1685,17 @@ export default function OrderTracker({
                     <div className="space-y-4">
                       <div className="space-y-1">
                         <span className="text-[10px] text-slate-400 uppercase font-bold block tracking-wider">Transaction Receipt</span>
-                        <div className="inline-flex items-center space-x-1.5 bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full text-[11px] font-bold border border-emerald-100">
-                          <CheckCircle className="h-3.5 w-3.5" />
-                          <span>Payment Confirmed</span>
-                        </div>
+                        {isUnpaidOrder(selectedOrder) ? (
+                          <div className="inline-flex items-center space-x-1.5 bg-rose-50 text-rose-700 px-2.5 py-1 rounded-full text-[11px] font-bold border border-rose-200">
+                            <AlertTriangle className="h-3.5 w-3.5" />
+                            <span>{isEn ? 'Payment pending' : 'Chưa thanh toán'}</span>
+                          </div>
+                        ) : (
+                          <div className="inline-flex items-center space-x-1.5 bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full text-[11px] font-bold border border-emerald-100">
+                            <CheckCircle className="h-3.5 w-3.5" />
+                            <span>Payment Confirmed</span>
+                          </div>
+                        )}
                       </div>
 
                       <div className="space-y-2 text-xs">
@@ -1645,7 +1705,7 @@ export default function OrderTracker({
                         </div>
                         <div>
                           <span className="text-slate-400 block text-[9px] uppercase font-semibold">Gateway / Status</span>
-                          <span className="font-medium text-slate-700">{selectedOrder.paymentStatus || 'Paid (9Pay Secure)'}</span>
+                          <span className="font-medium text-slate-700">{selectedOrder.paymentStatus || 'Pending'}</span>
                         </div>
                         <div>
                           <span className="text-slate-400 block text-[9px] uppercase font-semibold">Authorized Date</span>
@@ -1659,15 +1719,21 @@ export default function OrderTracker({
                         </div>
                       </div>
 
-
                     </div>
 
                     <div className="mt-6 pt-4 border-t border-slate-200/60 w-full text-xs">
                       <div className="flex justify-between items-center bg-slate-100 rounded-xl p-3">
-                        <span className="text-slate-500 font-medium">Authorized Fee Paid:</span>
+                        <span className="text-slate-500 font-medium">
+                          {isUnpaidOrder(selectedOrder)
+                            ? (isEn ? 'Amount due:' : 'Số tiền cần thanh toán:')
+                            : (isEn ? 'Authorized Fee Paid:' : 'Số tiền đã thanh toán:')}
+                        </span>
                         <strong className="text-slate-900 font-extrabold font-display text-sm">{formatCharge((selectedOrder.details as any).totalFee, selectedOrder)}</strong>
                       </div>
                     </div>
+
+                    {/* Retry payment callout card for unpaid orders */}
+                    {renderRetryPaymentCard(selectedOrder)}
                   </div>
 
                 </div>
