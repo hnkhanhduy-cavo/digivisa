@@ -32,6 +32,8 @@ export interface FirestoreOrderFields {
   groupLinkUpdatedAt?: string;
   larkRecordId?: string;
   larkNotifiedAt?: string;
+  paymentAttempt?: number;
+  ninepayInvoiceNos?: string[];
 }
 
 /** Safe fields for guest Tracker — never include passport / scans / contact PII. Includes group links when set. */
@@ -55,6 +57,18 @@ function readNumberField(fields: any, key: string): number | undefined {
   const dv = fields?.[key]?.doubleValue;
   if (dv !== undefined) return Number(dv);
   return undefined;
+}
+
+function readStringArrayField(fields: any, key: string): string[] | undefined {
+  const values = fields?.[key]?.arrayValue?.values;
+  if (!Array.isArray(values)) return undefined;
+  const result: string[] = [];
+  for (const v of values) {
+    if (v && typeof v === 'object' && typeof v.stringValue === 'string') {
+      result.push(v.stringValue);
+    }
+  }
+  return result;
 }
 
 export async function getOrderFromFirestore(
@@ -113,6 +127,8 @@ export async function getOrderFromFirestore(
       groupLinkUpdatedAt: readStringField(f, 'groupLinkUpdatedAt'),
       larkRecordId: readStringField(f, 'larkRecordId'),
       larkNotifiedAt: readStringField(f, 'larkNotifiedAt'),
+      paymentAttempt: readNumberField(f, 'paymentAttempt'),
+      ninepayInvoiceNos: readStringArrayField(f, 'ninepayInvoiceNos'),
     },
   };
 }
@@ -325,6 +341,38 @@ export async function setNotifyFlagInFirestore(
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({ fields }),
+  });
+
+  const body = await res.text();
+  return { ok: res.ok, status: res.status, body };
+}
+
+export async function setPaymentAttemptInFirestore(
+  orderId: string,
+  attempt: number,
+  invoiceNos: string[],
+  env: Env
+): Promise<{ ok: boolean; status: number; body?: string }> {
+  const token = await getAccessToken(env);
+  const mask = ['paymentAttempt', 'ninepayInvoiceNos'];
+  const url = firestoreDocUrl(projectId(env), orderId, mask);
+
+  const res = await fetch(url, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      fields: {
+        paymentAttempt: { integerValue: String(attempt) },
+        ninepayInvoiceNos: {
+          arrayValue: {
+            values: invoiceNos.map((no) => ({ stringValue: no })),
+          },
+        },
+      },
+    }),
   });
 
   const body = await res.text();

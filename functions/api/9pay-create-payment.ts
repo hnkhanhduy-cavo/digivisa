@@ -14,7 +14,7 @@ import {
   buildPaymentPortalUrl,
   type NinePayCreateParams,
 } from './_ninepay';
-import { getOrderFromFirestore } from '../_lib/firestore';
+import { getOrderFromFirestore, setPaymentAttemptInFirestore } from '../_lib/firestore';
 
 export const onRequestPost: PagesFunction<Env> = async (context) => {
   try {
@@ -31,13 +31,13 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     if (orderId.length > 30) {
       return jsonResponse({
         success: false,
-        error: `invoice_no must be ≤ 30 characters (got ${orderId.length})`,
+        error: `orderId must be ≤ 30 characters (got ${orderId.length})`,
       }, 400);
     }
     if (!/^[A-Za-z0-9._-]{1,30}$/.test(orderId)) {
       return jsonResponse({
         success: false,
-        error: 'invoice_no contains invalid characters',
+        error: 'orderId contains invalid characters',
       }, 400);
     }
 
@@ -77,6 +77,25 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       return jsonResponse({ success: false, error: 'Order already paid' }, 409);
     }
 
+    // Compute payment attempt & invoice_no
+    const currentAttempt = order.fields.paymentAttempt || 0;
+    const attempt = currentAttempt + 1;
+    const invoiceNo = attempt === 1 ? orderId : `${orderId}-R${attempt}`;
+
+    // 9Pay invoice_no length constraint check (≤ 30 characters)
+    if (invoiceNo.length > 30) {
+      return jsonResponse({
+        success: false,
+        error: `invoice_no exceeds maximum length of 30 characters (generated "${invoiceNo}" with length ${invoiceNo.length})`,
+      }, 400);
+    }
+    if (!/^[A-Za-z0-9._-]{1,30}$/.test(invoiceNo)) {
+      return jsonResponse({
+        success: false,
+        error: `invoice_no "${invoiceNo}" contains invalid characters`,
+      }, 400);
+    }
+
     const amountVnd = Math.round(order.fields.amountVnd);
 
     if (body.amountVnd !== undefined && body.amountVnd !== null && Number(body.amountVnd) !== amountVnd) {
@@ -107,7 +126,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     const parameters: NinePayCreateParams = {
       merchantKey,
       time,
-      invoice_no: orderId,
+      invoice_no: invoiceNo,
       amount: amountVnd,
       description: `Thanh toan don hang ${orderId}`,
       return_url: `${origin}/?payment=success&orderId=${encodeURIComponent(orderId)}`,
@@ -115,6 +134,25 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     };
 
     const paymentUrl = await buildPaymentPortalUrl(parameters, secretKey, endpoint);
+
+    // Update paymentAttempt & ninepayInvoiceNos in Firestore ONLY AFTER paymentUrl is built successfully
+    const existingNos = order.fields.ninepayInvoiceNos || [];
+    const updatedInvoiceNos = [...existingNos, invoiceNo];
+
+    const patchResult = await setPaymentAttemptInFirestore(
+      orderId,
+      attempt,
+      updatedInvoiceNos,
+      context.env
+    );
+    if (!patchResult.ok) {
+      console.error('[9Pay create-payment] Failed to save payment attempt in Firestore:', patchResult.status, patchResult.body);
+      return jsonResponse({
+        success: false,
+        error: 'Failed to record payment attempt in database',
+        firestoreStatus: patchResult.status,
+      }, 502);
+    }
 
     return jsonResponse({
       success: true,

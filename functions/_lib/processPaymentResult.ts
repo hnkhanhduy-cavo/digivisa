@@ -48,7 +48,10 @@ export async function processVerifiedPaymentResult(
     return jsonResponse({ success: false, error: 'Invalid amount in result' }, 400);
   }
 
-  const order = await getOrderFromFirestore(invoiceNo, env);
+  // Strip attempt suffix (e.g. DV-123-R2 -> DV-123) to look up original order document ID in Firestore
+  const orderId = String(invoiceNo).replace(/-R\d+$/, '');
+
+  const order = await getOrderFromFirestore(orderId, env);
   if (!order.ok) {
     if (order.reason === 'no-credentials') {
       return jsonResponse({
@@ -122,7 +125,7 @@ export async function processVerifiedPaymentResult(
 
   const paymentNo = String(payload.payment_no ?? '');
   const write = await markOrderPaidInFirestore(
-    invoiceNo,
+    orderId,
     paymentNo,
     Math.round(expectedAmount),
     env
@@ -132,12 +135,13 @@ export async function processVerifiedPaymentResult(
     return jsonResponse({
       success: false,
       error: 'Failed to update order in Firestore',
+      invoice_no: invoiceNo,
       firestoreStatus: write.status,
     }, 502);
   }
 
   if (write.ok) {
-    await notifyNewOrder(invoiceNo, env).catch(() => {});
+    await notifyNewOrder(orderId, env).catch(() => {});
   }
 
   return jsonResponse({

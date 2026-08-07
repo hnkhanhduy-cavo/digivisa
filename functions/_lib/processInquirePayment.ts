@@ -18,15 +18,15 @@ export async function processInquireAndMarkPaid(
   env: Env,
   orderId: string
 ): Promise<Response> {
-  const invoiceNo = orderId.trim();
-  if (!invoiceNo) {
+  const cleanOrderId = orderId.trim();
+  if (!cleanOrderId) {
     return jsonResponse({ success: false, isPaid: false, error: 'orderId is required' }, 400);
   }
-  if (invoiceNo.length > 30) {
+  if (cleanOrderId.length > 30) {
     return jsonResponse({
       success: false,
       isPaid: false,
-      error: 'invoice_no must be ≤ 30 characters',
+      error: 'orderId must be ≤ 30 characters',
     }, 400);
   }
 
@@ -39,13 +39,13 @@ export async function processInquireAndMarkPaid(
     return jsonResponse({ success: false, isPaid: false, error: e?.message || 'Config error' }, 500);
   }
 
-  const order = await getOrderFromFirestore(invoiceNo, env);
+  const order = await getOrderFromFirestore(cleanOrderId, env);
   if (!order.ok) {
     if (order.reason === 'no-credentials') {
       return jsonResponse({
         success: false,
         isPaid: false,
-        invoice_no: invoiceNo,
+        invoice_no: cleanOrderId,
         error: 'Server misconfigured: missing Firebase service account credentials',
       }, 500);
     }
@@ -53,7 +53,7 @@ export async function processInquireAndMarkPaid(
       return jsonResponse({
         success: false,
         isPaid: false,
-        invoice_no: invoiceNo,
+        invoice_no: cleanOrderId,
         error: 'Firebase service account auth failed',
       }, 500);
     }
@@ -61,7 +61,7 @@ export async function processInquireAndMarkPaid(
       return jsonResponse({
         success: false,
         isPaid: false,
-        invoice_no: invoiceNo,
+        invoice_no: cleanOrderId,
         error: 'Firestore permission denied — check firestore.rules deployment or service account IAM role',
       }, 500);
     }
@@ -69,14 +69,14 @@ export async function processInquireAndMarkPaid(
       return jsonResponse({
         success: false,
         isPaid: false,
-        invoice_no: invoiceNo,
+        invoice_no: cleanOrderId,
         error: 'Order not found',
       }, 404);
     }
     return jsonResponse({
       success: false,
       isPaid: false,
-      invoice_no: invoiceNo,
+      invoice_no: cleanOrderId,
       error: 'Firestore read failed',
       firestoreStatus: order.httpStatus,
     }, 502);
@@ -86,7 +86,7 @@ export async function processInquireAndMarkPaid(
     return jsonResponse({
       success: true,
       isPaid: true,
-      invoice_no: invoiceNo,
+      invoice_no: cleanOrderId,
       payment_no: order.fields.ninepayPaymentNo || null,
       alreadyProcessed: true,
     });
@@ -97,53 +97,78 @@ export async function processInquireAndMarkPaid(
     return jsonResponse({
       success: false,
       isPaid: false,
-      invoice_no: invoiceNo,
+      invoice_no: cleanOrderId,
       error: 'Order missing amountVnd; cannot verify payment amount',
     }, 409);
   }
 
-  const inquired = await inquirePayment(invoiceNo, merchantKey, secretKey, endpoint);
-  // hasPayload = parseable JSON with `status`. HTTP 503 + status 6 is a business
-  // answer ("transaction not found"), not infrastructure failure.
-  if (!inquired.hasPayload) {
-    return jsonResponse({
-      success: false,
-      isPaid: false,
-      invoice_no: invoiceNo,
-      error: '9Pay inquire failed',
-      httpStatus: inquired.status,
-      data: inquired.data,
-    }, 502);
+  // Build list of payment attempt invoice_nos to inquire (latest first)
+  const candidates = order.fields.ninepayInvoiceNos?.length
+    ? [...order.fields.ninepayInvoiceNos].reverse()
+    : [cleanOrderId];
+
+  let successfulPayload: any = null;
+  let successfulCandidate: string | null = null;
+  let latestInquired: any = null;
+
+  for (const candidate of candidates) {
+    if (!candidate || candidate.length > 30) continue;
+
+    const inquired = await inquirePayment(candidate, merchantKey, secretKey, endpoint);
+    if (candidate === candidates[0]) {
+      latestInquired = inquired;
+    }
+
+    if (!inquired.hasPayload) {
+      continue;
+    }
+
+    const payload = normalizeInquirePayload(inquired.data);
+    const returnedInvoice = String(payload.invoice_no ?? '').trim();
+
+    // Verify returned invoice_no matches the candidate currently being inquired
+    if (returnedInvoice && returnedInvoice !== candidate) {
+      console.error('[9Pay inquire] invoice_no mismatch', { requested: candidate, returned: returnedInvoice });
+      continue;
+    }
+
+    const status = payload.status;
+    if (isPaymentSuccessStatus(status)) {
+      successfulPayload = payload;
+      successfulCandidate = candidate;
+      break; // Found successful payment! Stop checking other candidates.
+    }
   }
 
-  const payload = normalizeInquirePayload(inquired.data);
+  // If no successful paid candidate was found, return unpaid response using latest candidate result
+  if (!successfulPayload) {
+    const latestCandidate = candidates[0];
+    let inquired = latestInquired;
+    if (!inquired) {
+      inquired = await inquirePayment(latestCandidate, merchantKey, secretKey, endpoint);
+    }
 
-  // Note: description is intentionally not verified here because 9Pay reconciliation relies strictly on invoice_no.
-  const returnedInvoice = String(payload.invoice_no ?? '').trim();
-  if (returnedInvoice && returnedInvoice !== invoiceNo) {
-    console.error('[9Pay inquire] invoice_no mismatch', { requested: invoiceNo, returned: returnedInvoice });
-    return jsonResponse({
-      success: false,
-      isPaid: false,
-      invoice_no: invoiceNo,
-      error: 'invoice_no mismatch',
-      expected: invoiceNo,
-      received: returnedInvoice,
-    }, 409);
-  }
+    if (!inquired?.hasPayload) {
+      return jsonResponse({
+        success: false,
+        isPaid: false,
+        invoice_no: cleanOrderId,
+        error: '9Pay inquire failed',
+        httpStatus: inquired?.status,
+        data: inquired?.data,
+      }, 502);
+    }
 
-  const status = payload.status;
-  const paidAmount = parseAmount(payload.amount);
-  const errorCode = payload.error_code != null ? String(payload.error_code) : null;
-  const isNotFound =
-    Number(status) === 6 || errorCode === '221';
+    const payload = normalizeInquirePayload(inquired.data);
+    const status = payload.status;
+    const paidAmount = parseAmount(payload.amount);
+    const errorCode = payload.error_code != null ? String(payload.error_code) : null;
+    const isNotFound = Number(status) === 6 || errorCode === '221';
 
-  // Only status === 5 AND amount match → Paid. Everything else stays Unpaid.
-  if (!isPaymentSuccessStatus(status)) {
     return jsonResponse({
       success: true,
       isPaid: false,
-      invoice_no: invoiceNo,
+      invoice_no: cleanOrderId,
       status: status ?? null,
       error_code: errorCode,
       amount: Number.isFinite(paidAmount) ? paidAmount : null,
@@ -155,11 +180,16 @@ export async function processInquireAndMarkPaid(
     });
   }
 
+  // A successful payment was found! Validate amount and mark order Paid in Firestore using orderId
+  const payload = successfulPayload;
+  const matchedInvoiceNo = successfulCandidate!;
+  const paidAmount = parseAmount(payload.amount);
+
   if (!Number.isFinite(paidAmount)) {
     return jsonResponse({
       success: false,
       isPaid: false,
-      invoice_no: invoiceNo,
+      invoice_no: matchedInvoiceNo,
       error: 'Invalid amount in inquire response',
     }, 400);
   }
@@ -168,7 +198,7 @@ export async function processInquireAndMarkPaid(
     return jsonResponse({
       success: false,
       isPaid: false,
-      invoice_no: invoiceNo,
+      invoice_no: matchedInvoiceNo,
       error: 'Amount mismatch',
       expected: expectedAmount,
       received: paidAmount,
@@ -177,7 +207,7 @@ export async function processInquireAndMarkPaid(
 
   const paymentNo = String(payload.payment_no ?? '');
   const write = await markOrderPaidInFirestore(
-    invoiceNo,
+    cleanOrderId, // Document ID in Firestore is ALWAYS cleanOrderId
     paymentNo,
     Math.round(expectedAmount),
     env
@@ -187,20 +217,21 @@ export async function processInquireAndMarkPaid(
     return jsonResponse({
       success: false,
       isPaid: false,
-      invoice_no: invoiceNo,
+      invoice_no: matchedInvoiceNo,
       error: 'Failed to update order in Firestore',
       firestoreStatus: write.status,
     }, 502);
   }
 
   if (write.ok) {
-    await notifyNewOrder(invoiceNo, env).catch(() => {});
+    await notifyNewOrder(cleanOrderId, env).catch(() => {});
   }
 
   return jsonResponse({
     success: true,
     isPaid: true,
-    invoice_no: invoiceNo,
+    invoice_no: cleanOrderId,
+    matched_invoice_no: matchedInvoiceNo,
     payment_no: paymentNo,
     amount: paidAmount,
     status: 5,
