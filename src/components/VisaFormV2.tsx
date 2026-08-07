@@ -3,7 +3,7 @@ import {
   Globe, FileUser, CreditCard, Upload, Calendar, FileText, Check, ShieldAlert, BadgeCheck, Clock, Sparkles, Zap, AlertTriangle, Timer, Lock,
   Trash2, RefreshCw, Eye, X, CheckCircle
 } from 'lucide-react';
-import { VisaApplication, Currency, NATIONALITIES } from '../types';
+import { VisaApplication, Currency, NATIONALITIES, Order } from '../types';
 import { Language } from '../utils/translations';
 import { getVietnamPricing } from '../utils/pricing';
 import { sanitizePassportInput, isValidInternationalPhone, isValidTaxCode, isValidEmail } from '../utils/validation';
@@ -45,6 +45,7 @@ interface VisaFormV2Props {
   formatCharge: (usdAmount: number, type?: 'base' | 'speed' | 'tax' | 'total') => string;
   handleSubmit: (e: React.FormEvent) => void;
   VISA_PRICES: Record<string, number>;
+  orders?: Order[];
 }
 
 export default function VisaFormV2({
@@ -53,6 +54,7 @@ export default function VisaFormV2({
   formData,
   setFormData,
   errors,
+  orders,
   setErrors,
   wantsInvoice,
   setWantsInvoice,
@@ -814,6 +816,7 @@ export default function VisaFormV2({
         <HistoricalAutofill
           serviceType="Visa"
           language={language}
+          orders={orders}
           onSelect={(profile: any) => {
             setFormData((prev) => ({
               ...prev,

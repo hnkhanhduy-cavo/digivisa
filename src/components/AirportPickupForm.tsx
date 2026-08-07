@@ -24,9 +24,10 @@ interface AirportPickupFormProps {
   language: Language;
   onSuccess: (newOrder: Order) => Promise<boolean | void> | boolean | void;
   onCancel: () => void;
+  orders?: Order[];
 }
 
-export default function AirportPickupForm({ currency, language, onSuccess, onCancel }: AirportPickupFormProps) {
+export default function AirportPickupForm({ currency, language, onSuccess, onCancel, orders }: AirportPickupFormProps) {
   const isEn = language === 'EN';
 
   const initialDraft = React.useMemo(() => {
@@ -543,6 +544,7 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
           <HistoricalAutofill
             serviceType="AirportPickup"
             language={language}
+            orders={orders}
             onSelect={(profile: any) => {
               const nameCandidate = (profile.firstName || profile.lastName) 
                 ? `${profile.firstName || ''} ${profile.lastName || ''}`.trim() 

@@ -18,9 +18,10 @@ interface VisaFormProps {
   currency: Currency;
   onSuccess: (newOrder: Order) => Promise<boolean | void> | boolean | void;
   onCancel: () => void;
+  orders?: Order[];
 }
 
-export default function VisaForm({ language, currency, onSuccess, onCancel }: VisaFormProps) {
+export default function VisaForm({ language, currency, onSuccess, onCancel, orders }: VisaFormProps) {
   const isEn = language === 'EN';
   const initialDraft = React.useMemo(() => {
     try {
@@ -642,6 +643,7 @@ export default function VisaForm({ language, currency, onSuccess, onCancel }: Vi
 
           <div className="p-6 sm:p-10">
             <VisaFormV2
+              orders={orders}
               language={language}
               currency={currency}
               formData={formData}

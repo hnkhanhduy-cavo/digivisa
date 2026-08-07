@@ -1151,6 +1151,7 @@ export default function App() {
                         onSuccess={handleBookingSuccess}
                         onCancel={() => setActiveService(null)}
                         language={language}
+                        orders={orders}
                       />
                     )}
                     {activeService === 'fasttrack' && (
@@ -1159,6 +1160,7 @@ export default function App() {
                         onSuccess={handleBookingSuccess}
                         onCancel={() => setActiveService(null)}
                         language={language}
+                        orders={orders}
                       />
                     )}
                     {activeService === 'pickup' && (
@@ -1167,6 +1169,7 @@ export default function App() {
                         onSuccess={handleBookingSuccess}
                         onCancel={() => setActiveService(null)}
                         language={language}
+                        orders={orders}
                       />
                     )}
                   </div>

@@ -18,9 +18,10 @@ interface FastTrackFormProps {
   onSuccess: (newOrder: Order) => Promise<boolean | void> | boolean | void;
   onCancel: () => void;
   language?: Language;
+  orders?: Order[];
 }
 
-export default function FastTrackForm({ currency, onSuccess, onCancel, language = 'EN' }: FastTrackFormProps) {
+export default function FastTrackForm({ currency, onSuccess, onCancel, language = 'EN', orders }: FastTrackFormProps) {
   const isEn = language === 'EN';
 
   const initialDraft = React.useMemo(() => {
@@ -567,6 +568,7 @@ export default function FastTrackForm({ currency, onSuccess, onCancel, language 
           <HistoricalAutofill
             serviceType="FastTrack"
             language={language}
+            orders={orders}
             onSelect={(profile: any) => {
               const nameCandidate = (profile.firstName || profile.lastName) 
                 ? `${profile.firstName || ''} ${profile.lastName || ''}`.trim() 

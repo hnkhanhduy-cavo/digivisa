@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Sparkles, Users, Check, UserCheck, CheckCircle2, Search } from 'lucide-react';
-import { safeStorage, ordersStorageKey } from '../utils/storage';
 import { auth } from '../utils/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
+import { Order } from '../types';
 
 export interface UserProfile {
   id: string;
@@ -28,9 +28,10 @@ interface HistoricalAutofillProps {
   onSelect: (profile: UserProfile) => void;
   serviceType: 'Visa' | 'FastTrack' | 'AirportPickup';
   language?: 'EN' | 'VI';
+  orders?: Order[];
 }
 
-export default function HistoricalAutofill({ onSelect, serviceType, language = 'VI' }: HistoricalAutofillProps) {
+export default function HistoricalAutofill({ onSelect, serviceType, language = 'VI', orders }: HistoricalAutofillProps) {
   const isEn = language === 'EN';
   const [currentUser, setCurrentUser] = useState<User | null>(auth.currentUser);
   const [isOpen, setIsOpen] = useState(false);
@@ -49,62 +50,63 @@ export default function HistoricalAutofill({ onSelect, serviceType, language = '
   // Load max 4 recent successful registered profiles from past orders
   useEffect(() => {
     try {
-      const savedOrdersRaw = safeStorage.getItem(ordersStorageKey(currentUser?.uid));
-      if (savedOrdersRaw) {
-        const orders = JSON.parse(savedOrdersRaw);
-        if (Array.isArray(orders)) {
-          const profileMap = new Map<string, UserProfile>();
+      const uid = currentUser?.uid;
+      const ownOrders = uid ? (orders || []).filter((o: any) => o.userId === uid) : [];
 
-          // Sort orders by createdAt descending (most recent first)
-          const sortedOrders = [...orders].sort((a, b) => {
-            const timeA = new Date(a.createdAt || 0).getTime();
-            const timeB = new Date(b.createdAt || 0).getTime();
-            return timeB - timeA;
-          });
+      if (ownOrders.length > 0) {
+        const profileMap = new Map<string, UserProfile>();
 
-          sortedOrders.forEach((ord: any) => {
-            const d = ord.details || {};
-            const passport = d.passportNumber || d.passportNo || '';
-            const cName = d.contactName || d.passengerName || (d.firstName ? `${d.firstName} ${d.lastName || ''}`.trim() : '');
-            const fName = d.firstName || (cName ? cName.split(' ')[0] : '');
-            const lName = d.lastName || (cName ? cName.split(' ').slice(1).join(' ') : '');
+        // Sort orders by createdAt descending (most recent first)
+        const sortedOrders = [...ownOrders].sort((a: any, b: any) => {
+          const timeA = new Date(a.createdAt || 0).getTime();
+          const timeB = new Date(b.createdAt || 0).getTime();
+          return timeB - timeA;
+        });
 
-            const key = passport.trim().toUpperCase() || cName.trim().toUpperCase() || ord.id;
+        sortedOrders.forEach((ord: any) => {
+          const d = ord.details || {};
+          const passport = d.passportNumber || d.passportNo || '';
+          const cName = d.contactName || d.passengerName || (d.firstName ? `${d.firstName} ${d.lastName || ''}`.trim() : '');
+          const fName = d.firstName || (cName ? cName.split(' ')[0] : '');
+          const lName = d.lastName || (cName ? cName.split(' ').slice(1).join(' ') : '');
 
-            if (key && (fName || cName)) {
-              if (!profileMap.has(key)) {
-                profileMap.set(key, {
-                  id: ord.id || `PROFILE-${profileMap.size + 1}`,
-                  orderId: ord.id,
-                  contactName: cName || `${fName} ${lName}`.trim(),
-                  firstName: fName,
-                  lastName: lName,
-                  passportNumber: passport,
-                  passportExpiry: d.passportExpiry || '',
-                  nationality: d.nationality || 'United States',
-                  dateOfBirth: d.dateOfBirth || '',
-                  email: d.email || d.contactEmail || d.passengerEmail || currentUser?.email || '',
-                  phone: d.phone || d.contactPhone || d.passengerPhone || '',
-                  flightNumber: d.flightNumber || '',
-                  airlineName: d.airlineName || '',
-                  airport: d.airport || '',
-                  pickupDestination: d.pickupDestination || '',
-                  createdAt: ord.createdAt || new Date().toISOString(),
-                  paymentStatus: ord.paymentStatus || 'Paid',
-                });
-              }
+          const key = passport.trim().toUpperCase() || cName.trim().toUpperCase() || ord.id;
+
+          if (key && (fName || cName)) {
+            if (!profileMap.has(key)) {
+              profileMap.set(key, {
+                id: ord.id || `PROFILE-${profileMap.size + 1}`,
+                orderId: ord.id,
+                contactName: cName || `${fName} ${lName}`.trim(),
+                firstName: fName,
+                lastName: lName,
+                passportNumber: passport,
+                passportExpiry: d.passportExpiry || '',
+                nationality: d.nationality || 'United States',
+                dateOfBirth: d.dateOfBirth || '',
+                email: d.email || d.contactEmail || d.passengerEmail || currentUser?.email || '',
+                phone: d.phone || d.contactPhone || d.passengerPhone || '',
+                flightNumber: d.flightNumber || '',
+                airlineName: d.airlineName || '',
+                airport: d.airport || '',
+                pickupDestination: d.pickupDestination || '',
+                createdAt: ord.createdAt || new Date().toISOString(),
+                paymentStatus: ord.paymentStatus || 'Paid',
+              });
             }
-          });
+          }
+        });
 
-          // Take MAX 4 MOST RECENT PROFILES
-          const list = Array.from(profileMap.values()).slice(0, 4);
-          setUserProfiles(list);
-        }
+        // Take MAX 4 MOST RECENT PROFILES
+        const list = Array.from(profileMap.values()).slice(0, 4);
+        setUserProfiles(list);
+      } else {
+        setUserProfiles([]);
       }
     } catch (e) {
       console.error('Error reading user profiles:', e);
     }
-  }, [currentUser]);
+  }, [currentUser, orders]);
 
   if (userProfiles.length === 0) {
     return null;
