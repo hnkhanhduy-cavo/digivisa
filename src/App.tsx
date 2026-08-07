@@ -790,31 +790,7 @@ export default function App() {
       <main className="flex-1 py-8 sm:py-12 bg-gradient-to-b from-teal-500/[0.02] to-slate-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           
-          {isDemoMode && orders.length === 0 && (
-            <motion.div 
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mb-8 p-4 sm:p-5 bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white rounded-2xl border border-indigo-500/20 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4"
-            >
-              <div className="flex items-center space-x-3.5 text-center sm:text-left">
-                <span className="px-2.5 py-1 bg-indigo-500 text-slate-950 rounded-lg text-[10px] font-black tracking-wider uppercase shrink-0 select-none">
-                  DEMO WORKSPACE
-                </span>
-                <div>
-                  <p className="text-xs font-bold text-white">Pristine Production Environment Active</p>
-                  <p className="text-[11px] text-slate-300 mt-0.5 max-w-2xl leading-relaxed">
-                    The Order Tracker & Staff OMS views are currently empty. Click "Load Demo Data" to instantly seed 3 high-fidelity records.
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={loadDemoData}
-                className="w-full sm:w-auto px-4 py-2 bg-gradient-to-r from-teal-400 to-emerald-400 hover:from-teal-300 hover:to-emerald-300 text-slate-950 text-xs font-bold rounded-xl shadow-md shadow-teal-500/10 transition-all duration-200 cursor-pointer transform active:scale-95 shrink-0"
-              >
-                ✨ Load Demo Data
-              </button>
-            </motion.div>
-          )}
+
 
           <AnimatePresence mode="wait">
             
@@ -836,34 +812,18 @@ export default function App() {
                       <span className="inline-block px-3 py-1 bg-indigo-50 text-indigo-600 text-[10px] font-bold uppercase tracking-widest rounded-full mb-2">
                         {language === 'EN' ? 'Simplifying Global Mobility' : 'Đơn giản hóa hành trình quốc tế'}
                       </span>
-                      <h1 className="font-display font-extrabold text-slate-900 text-3.5xl sm:text-5xl tracking-tight leading-tight">
+                      <h1 className="font-display font-black text-slate-950 text-xl sm:text-3xl md:text-4.5xl tracking-tight whitespace-nowrap">
                         {language === 'EN' ? (
-                          <>Your journey begins <span className="text-indigo-600">seamlessly.</span></>
+                          <>Begin your journey <span className="text-indigo-600 bg-indigo-50/70 px-2 py-0.5 rounded-lg border border-indigo-100/50">seamlessly</span></>
                         ) : (
-                          <>Hành trình của bạn bắt đầu <span className="text-indigo-600">suôn sẻ.</span></>
+                          <>Khởi đầu hành trình <span className="text-indigo-600 bg-indigo-50/70 px-2 py-0.5 rounded-lg border border-indigo-100/50">thật suôn sẻ</span></>
                         )}
                       </h1>
-                      <p className="text-slate-500 text-sm sm:text-base max-w-2xl mx-auto leading-relaxed">
+                      <p className="text-slate-500 text-sm sm:text-base max-w-3xl mx-auto leading-relaxed">
                         {language === 'EN'
-                          ? 'Expert visa processing, fast-track arrival services, and premium airport logistics consolidated into one intelligent platform.'
-                          : 'Hỗ trợ cấp visa chuyên nghiệp, dịch vụ nhập cảnh nhanh và xe đón tiễn sân bay cao cấp được hợp nhất trên một nền tảng thông minh.'}
+                          ? 'Professional visa assistance, priority immigration, and airport transfers, delivered fast and seamlessly.'
+                          : 'Hỗ trợ cấp visa chuyên nghiệp, dịch vụ nhập cảnh ưu tiên và xe đón tiễn sân bay một cách nhanh chóng và tiện lợi'}
                       </p>
-                      
-                      {/* Interactive Trust Indicators */}
-                      <div className="flex flex-wrap items-center justify-center gap-3 pt-4 text-xs font-medium text-slate-500">
-                        <div className="flex items-center space-x-1.5 px-3 py-1 bg-slate-50 border border-slate-200 rounded-full">
-                          <ShieldCheck className="h-4 w-4 text-indigo-600" />
-                          <span>{language === 'EN' ? '100% Authorized Portal' : 'Cổng thông tin ủy quyền 100%'}</span>
-                        </div>
-                        <div className="flex items-center space-x-1.5 px-3 py-1 bg-slate-50 border border-slate-200 rounded-full">
-                          <Clock className="h-4 w-4 text-indigo-600" />
-                          <span>{language === 'EN' ? '4-Hour Rush Processing Available' : 'Xử lý Khẩn cấp trong 4 Giờ'}</span>
-                        </div>
-                        <div className="flex items-center space-x-1.5 px-3 py-1 bg-slate-50 border border-slate-200 rounded-full">
-                          <ShieldCheck className="h-4 w-4 text-indigo-500" />
-                          <span>{language === 'EN' ? 'AES-256 Encrypted Vault' : 'Mã hóa Bảo mật AES-256'}</span>
-                        </div>
-                      </div>
                     </div>
 
                     {/* Services section */}
@@ -889,21 +849,10 @@ export default function App() {
                             <p className="text-slate-500 text-xs leading-relaxed mb-5">
                               {TRANSLATIONS[language].visaBentoDesc}
                             </p>
-                            <ul className="space-y-2 mb-6">
-                              <li className="flex items-center text-xs text-slate-600">
-                                <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full mr-2"></span>
-                                {TRANSLATIONS[language].touristBusinessClasses}
-                              </li>
-                              <li className="flex items-center text-xs text-slate-600">
-                                <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full mr-2"></span>
-                                {TRANSLATIONS[language].guaranteedEntryCodes}
-                              </li>
-                            </ul>
                           </div>
 
                           <div className="pt-5 border-t border-slate-100 flex items-center justify-between mt-6">
                             <div>
-                              <span className="text-[9px] text-[#94A3B8] uppercase block font-bold">{TRANSLATIONS[language].standardRates}</span>
                               <span className="font-display font-extrabold text-slate-900 text-sm tracking-tight">
                                 from {getConvertedPrice(66)}
                               </span>
@@ -952,7 +901,6 @@ export default function App() {
 
                           <div className="pt-6 border-t border-slate-800 flex items-center justify-between mt-6">
                             <div>
-                              <span className="text-[9px] text-[#94A3B8] uppercase block font-bold">{TRANSLATIONS[language].vipUpgradePrice}</span>
                               <span className="font-display font-extrabold text-[#F1F5F9] text-sm">
                                 from {getConvertedPrice(45)}
                               </span>
@@ -981,21 +929,10 @@ export default function App() {
                             <p className="text-slate-500 text-xs leading-relaxed mb-5">
                               {TRANSLATIONS[language].pickupBentoDesc}
                             </p>
-                            <ul className="space-y-2 mb-6">
-                              <li className="flex items-center text-xs text-slate-600">
-                                <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full mr-2"></span>
-                                {TRANSLATIONS[language].compWaitTime}
-                              </li>
-                              <li className="flex items-center text-xs text-slate-600">
-                                <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full mr-2"></span>
-                                {TRANSLATIONS[language].luxuryFleet}
-                              </li>
-                            </ul>
                           </div>
 
                           <div className="pt-6 border-t border-slate-100 flex items-center justify-between mt-6">
                             <div>
-                              <span className="text-[9px] text-[#94A3B8] uppercase block font-bold">{TRANSLATIONS[language].chauffeurRates}</span>
                               <span className="font-display font-extrabold text-slate-900 text-sm">
                                 from {getConvertedPrice(27)}
                               </span>
@@ -1011,29 +948,6 @@ export default function App() {
                           </div>
                         </div>
 
-                      </div>
-                    </div>
-
-                    {/* Security Seals Trust badges row */}
-                    <div className="bg-slate-50 border border-slate-200/50 rounded-3xl p-6 flex flex-col sm:flex-row items-center justify-between gap-6">
-                      <div className="space-y-1 text-center sm:text-left">
-                        <span className="text-[10px] font-mono font-bold text-indigo-600 uppercase tracking-widest block bg-indigo-50 px-2.5 py-0.5 rounded-full w-fit">
-                          Authorized Secure Clearing Standards
-                        </span>
-                        <h4 className="text-sm font-bold text-slate-950">Are you a tourism operator or travel manager?</h4>
-                        <p className="text-xs text-slate-500 leading-relaxed">
-                          Connect our automated flight clearing APIs to submit bulk group e-visas directly from passenger manifest logs.
-                        </p>
-                      </div>
-                      <div className="flex items-center space-x-4 shrink-0 justify-center">
-                        <div className="bg-white border border-slate-200 rounded-2xl p-3 flex flex-col items-center justify-center font-bold text-[10px] text-zinc-600 shadow-sm w-24">
-                          <Award className="h-4.5 w-4.5 text-indigo-600 mb-1" />
-                          <span>ISO 27001</span>
-                        </div>
-                        <div className="bg-white border border-slate-200 rounded-2xl p-3 flex flex-col items-center justify-center font-bold text-[10px] text-zinc-600 shadow-sm w-24">
-                          <PhoneCall className="h-4.5 w-4.5 text-indigo-600 mb-1" />
-                          <span>24/7 Desk Help</span>
-                        </div>
                       </div>
                     </div>
 

@@ -126,7 +126,7 @@ export default function Header({
           </nav>
 
           {/* Right Action Bar */}
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2.5">
             
             {/* Customer Login / Register Button */}
             {currentUser ? (
@@ -182,8 +182,8 @@ export default function Header({
                 onChange={(e) => setLanguage(e.target.value as Language)}
                 className="bg-transparent border-none text-slate-700 text-xs sm:text-sm font-semibold focus:ring-0 focus:outline-none cursor-pointer pr-1"
               >
-                <option value="EN" className="bg-white text-slate-800">EN</option>
-                <option value="VI" className="bg-white text-slate-800">VI</option>
+                <option value="EN" className="bg-white text-slate-800">EN (English)</option>
+                <option value="VI" className="bg-white text-slate-800">VI (Tiếng Việt)</option>
               </select>
             </div>
 

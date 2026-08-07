@@ -30,11 +30,6 @@ export default function Footer({ language }: FooterProps) {
                 PORTAL
               </span>
             </div>
-            <p className="text-xs text-slate-500 max-w-sm leading-relaxed">
-              {isEn 
-                ? 'Official digital travel authorization and VIP airport clearance hub. Secure 256-Bit SSL protection.'
-                : 'Cổng thông tin ủy quyền du lịch số và đón tiễn sân bay VIP chính thức. Bảo mật SSL 256-Bit.'}
-            </p>
           </div>
 
           {/* Quick legal/Policies & Chat support */}
@@ -91,12 +86,6 @@ export default function Footer({ language }: FooterProps) {
         {/* Divider */}
         <div className="pt-6 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between text-[11px] text-slate-400 font-sans">
           <p>{isEn ? '© 2026 DigiVisa Global Partners. Independent clearing agency.' : '© 2026 DigiVisa Global Partners. Đại lý ủy thác độc lập.'}</p>
-          <div className="flex items-center space-x-4 mt-2 sm:mt-0">
-            <div className="flex items-center space-x-1 text-emerald-600 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span>{isEn ? 'Direct Embassy API Connection Active' : 'Kết nối API Trực tiếp tới Cục XNC Hoạt động'}</span>
-            </div>
-          </div>
         </div>
       </div>
     </footer>
