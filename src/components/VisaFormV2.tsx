@@ -216,7 +216,7 @@ export default function VisaFormV2({
 
   React.useEffect(() => {
     if (formData.destinationCountry === 'Vietnam') {
-      const allowed = ['Single eVisa', 'Multiple eVisa'];
+      const allowed = ['Single eVisa', 'Multiple eVisa', 'Vietnam approval letter on arrival'];
       if (!allowed.includes(formData.visaType)) {
         setFormData((prev) => ({ ...prev, visaType: 'Single eVisa' }));
       }
@@ -251,6 +251,7 @@ export default function VisaFormV2({
   const translateVisaType = (type: string) => {
     if (type === 'Single eVisa') return isEn ? 'Single' : '1 Lần';
     if (type === 'Multiple eVisa') return isEn ? 'Multiple' : 'Nhiều Lần';
+    if (type === 'Vietnam approval letter on arrival') return isEn ? 'Approval Letter on Arrival' : 'Công văn nhập cảnh tại sân bay';
     if (isKoreaOrJapan) {
       if (type === 'Tourist (30 Days)') {
         return isEn ? 'Single' : 'Thị thực 1 lần';
@@ -352,15 +353,19 @@ export default function VisaFormV2({
             </label>
             <select
               value={
-                formData.visaType === 'Multiple eVisa' || formData.visaType === 'Tourist (90 Days)' || formData.visaType === 'Multiple' 
-                  ? 'Multiple' 
-                  : 'Single'
+                formData.visaType === 'Vietnam approval letter on arrival'
+                  ? 'Vietnam approval letter on arrival'
+                  : (formData.visaType === 'Multiple eVisa' || formData.visaType === 'Tourist (90 Days)' || formData.visaType === 'Multiple' 
+                    ? 'Multiple' 
+                    : 'Single')
               }
               onChange={(e) => {
                 const val = e.target.value;
-                const mappedType = formData.destinationCountry === 'Vietnam'
-                  ? (val === 'Multiple' ? 'Multiple eVisa' : 'Single eVisa')
-                  : (val === 'Multiple' ? 'Tourist (90 Days)' : 'Tourist (30 Days)');
+                const mappedType = val === 'Vietnam approval letter on arrival'
+                  ? 'Vietnam approval letter on arrival'
+                  : (formData.destinationCountry === 'Vietnam'
+                    ? (val === 'Multiple' ? 'Multiple eVisa' : 'Single eVisa')
+                    : (val === 'Multiple' ? 'Tourist (90 Days)' : 'Tourist (30 Days)'));
                 setFormData((prev) => ({ ...prev, visaType: mappedType as any }));
               }}
               className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-slate-800 text-xs font-semibold focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none transition-all cursor-pointer"
@@ -371,6 +376,11 @@ export default function VisaFormV2({
               <option value="Multiple">
                 {isEn ? 'Multiple' : 'Nhiều Lần'}
               </option>
+              {formData.destinationCountry === 'Vietnam' && (
+                <option value="Vietnam approval letter on arrival">
+                  {isEn ? 'Approval Letter on Arrival' : 'Công văn nhập cảnh tại sân bay'}
+                </option>
+              )}
             </select>
           </div>
         </div>
