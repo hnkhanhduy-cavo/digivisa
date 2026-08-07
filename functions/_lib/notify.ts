@@ -39,11 +39,20 @@ export function buildTicketPayload(orderId: string, rawDoc: any): TicketPayload 
   let airport: string | undefined = undefined;
   let serviceLabel = 'Visa';
 
+  const firstName = getRawString(detailsFields.firstName) || '';
+  const lastName = getRawString(detailsFields.lastName) || '';
+  const combinedName = `${firstName} ${lastName}`.trim();
+  const genericName =
+    getRawString(detailsFields.contactName) ||
+    getRawString(detailsFields.passengerName) ||
+    getRawString(detailsFields.fullName) ||
+    combinedName;
+
   if (type === 'FastTrack') {
     serviceLabel = 'Fast Track';
-    customerName = getRawString(detailsFields.contactName) || '';
-    customerPhone = getRawString(detailsFields.contactPhone) || '';
-    customerEmail = getRawString(detailsFields.contactEmail) || '';
+    customerName = genericName;
+    customerPhone = getRawString(detailsFields.contactPhone) || getRawString(detailsFields.phone) || '';
+    customerEmail = getRawString(detailsFields.contactEmail) || getRawString(detailsFields.email) || '';
     flightNumber = getRawString(detailsFields.flightNumber);
     airport = getRawString(detailsFields.airport);
     const arrDate = getRawString(detailsFields.arrivalDate) || '';
@@ -51,9 +60,9 @@ export function buildTicketPayload(orderId: string, rawDoc: any): TicketPayload 
     serviceDate = arrTime ? `${arrDate} (${arrTime})` : arrDate;
   } else if (type === 'AirportPickup') {
     serviceLabel = 'Đưa đón sân bay';
-    customerName = getRawString(detailsFields.passengerName) || '';
-    customerPhone = getRawString(detailsFields.passengerPhone) || '';
-    customerEmail = getRawString(detailsFields.passengerEmail) || '';
+    customerName = genericName;
+    customerPhone = getRawString(detailsFields.passengerPhone) || getRawString(detailsFields.phone) || '';
+    customerEmail = getRawString(detailsFields.passengerEmail) || getRawString(detailsFields.email) || '';
     flightNumber = getRawString(detailsFields.flightNumber);
     airport = getRawString(detailsFields.airport);
     const pickDate = getRawString(detailsFields.pickupDate) || '';
@@ -62,10 +71,18 @@ export function buildTicketPayload(orderId: string, rawDoc: any): TicketPayload 
   } else {
     // Visa
     serviceLabel = 'Visa';
-    customerName = getRawString(detailsFields.fullName) || '';
-    customerPhone = getRawString(detailsFields.phone) || '';
-    customerEmail = getRawString(detailsFields.email) || '';
+    customerName = genericName;
+    customerPhone = getRawString(detailsFields.phone) || getRawString(detailsFields.contactPhone) || '';
+    customerEmail = getRawString(detailsFields.email) || getRawString(detailsFields.contactEmail) || '';
     serviceDate = getRawString(detailsFields.arrivalDate) || '';
+  }
+
+  // Deduplicate repeated (WhatsApp) / (Zalo) suffixes in phone string
+  if (customerPhone) {
+    customerPhone = customerPhone
+      .replace(/(\(WhatsApp\)\s*)+/gi, '(WhatsApp) ')
+      .replace(/(\(Zalo\)\s*)+/gi, '(Zalo) ')
+      .trim();
   }
 
   const isCombo =
