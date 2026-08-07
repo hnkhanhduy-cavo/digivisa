@@ -814,7 +814,7 @@ export default function OrderTracker({
       </div>
 
       {/* Tracker Grid layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pt-6">
         
         {/* Left Column: Order list & lookup */}
         <div className="lg:col-span-1 space-y-6">
@@ -834,7 +834,7 @@ export default function OrderTracker({
                 placeholder={isEn ? 'Filter by Order ID or Service...' : 'Tìm theo mã đơn hoặc dịch vụ...'}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2.5 text-xs focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:outline-none transition-all font-medium font-mono"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2.5 text-xs focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:outline-none transition-all font-medium"
               />
             </div>
           </div>
@@ -873,6 +873,8 @@ export default function OrderTracker({
                 const paxName = order.type === 'Visa'
                   ? `${details.firstName || ''} ${details.lastName || ''}`.trim() || '—'
                   : details.contactName || details.passengerName || '—';
+                const isOrderCombo = (order.type === 'FastTrack' && (order.details as any)?.addAirportPickup) ||
+                                     (order.type === 'AirportPickup' && (order.details as any)?.addFastTrack);
 
                 return (
                   <div
@@ -885,7 +887,14 @@ export default function OrderTracker({
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
-                      <span className="font-mono text-[10px] font-bold text-slate-400">{order.id}</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-[10px] font-bold text-slate-400">{order.id}</span>
+                        {isOrderCombo && (
+                          <span className="text-[9px] font-black bg-gradient-to-r from-amber-500 to-orange-500 text-white px-1.5 py-0.5 rounded shadow-xs uppercase tracking-wider">
+                            ⚡🚖 Combo
+                          </span>
+                        )}
+                      </div>
                       <span className={`text-[9px] font-bold border px-2 py-0.5 rounded-full ${getStatusColor(order.status)}`}>
                         {order.status}
                       </span>
@@ -939,7 +948,14 @@ export default function OrderTracker({
             >
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
                 <div>
-                  <span className="text-[10px] font-mono text-slate-400 uppercase font-black">Authorized Tracking Ticket</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-mono text-slate-400 uppercase font-black">Authorized Tracking Ticket</span>
+                    {isCombo && (
+                      <span className="text-[10px] font-black bg-gradient-to-r from-amber-500 to-orange-500 text-white px-2 py-0.5 rounded-md shadow-xs flex items-center gap-1 uppercase tracking-wider">
+                        {isEn ? '⚡🚖 COMBO PACKAGE (FT + Airport Transfer)' : '⚡🚖 GÓI COMBO (Fast Track + Đưa đón)'}
+                      </span>
+                    )}
+                  </div>
                   <div className="flex items-center space-x-2 mt-1">
                     <h2 className="font-display font-bold text-2xl text-slate-900">{selectedOrder.id}</h2>
                     <span className={`text-xs font-mono font-bold px-3 py-1 border rounded-lg ${getStatusColor(trackingOrder.status)}`}>
