@@ -8,7 +8,7 @@ import {
   ChevronRight, Building, ShieldAlert, CheckSquare2
 } from 'lucide-react';
 import { Order, Currency, CURRENCY_SYMBOLS } from '../types';
-import { safeStorage } from '../utils/storage';
+import { safeStorage, ordersStorageKey } from '../utils/storage';
 import { getSplitOrders } from '../utils/orderUtils';
 import { formatPhoneE164 } from '../utils/validation';
 import { auth } from '../utils/firebase';
@@ -261,7 +261,7 @@ export default function OMSAgencyComms({
       });
 
       setOrders(updated);
-      safeStorage.setItem('digivisa_orders', JSON.stringify(updated));
+      safeStorage.setItem(ordersStorageKey(), JSON.stringify(updated));
       setGroupLinkSuccess('Cập nhật link nhóm chat thành công!');
     } catch (err: any) {
       setGroupLinkError(err.message || 'Lỗi kết nối máy chủ');
@@ -371,7 +371,7 @@ export default function OMSAgencyComms({
       return o;
     });
     setOrders(updated);
-    safeStorage.setItem('digivisa_orders', JSON.stringify(updated));
+    safeStorage.setItem(ordersStorageKey(), JSON.stringify(updated));
 
     // 2. Add discussion record representing the update
     const legLabel = isSec ? 'Secondary Combo Leg' : 'Primary Leg';
@@ -408,7 +408,7 @@ export default function OMSAgencyComms({
       return o;
     });
     setOrders(updated);
-    safeStorage.setItem('digivisa_orders', JSON.stringify(updated));
+    safeStorage.setItem(ordersStorageKey(), JSON.stringify(updated));
 
     const legLabel = isSec ? 'Secondary Combo Leg' : 'Primary Leg';
     const noteText = `🔄 [Bridge Sub-Status Update] Sub-status set to "${newSubStatus}" for ${legLabel} (${activeServiceType}).`;
@@ -455,7 +455,7 @@ export default function OMSAgencyComms({
       return o;
     });
     setOrders(updated);
-    safeStorage.setItem('digivisa_orders', JSON.stringify(updated));
+    safeStorage.setItem(ordersStorageKey(), JSON.stringify(updated));
   };
 
   // Quick Action: Add manual liaison discussion note
@@ -508,7 +508,7 @@ export default function OMSAgencyComms({
       return o;
     });
     setOrders(updated);
-    safeStorage.setItem('digivisa_orders', JSON.stringify(updated));
+    safeStorage.setItem(ordersStorageKey(), JSON.stringify(updated));
 
     setLiaisonNote('');
     alert(`📝 Note logged for ${legLabel}! It will appear across tracking panels and operational histories.`);
@@ -969,7 +969,7 @@ export default function OMSAgencyComms({
                           return o;
                         });
                         setOrders(updated);
-                        safeStorage.setItem('digivisa_orders', JSON.stringify(updated));
+                        safeStorage.setItem(ordersStorageKey(), JSON.stringify(updated));
 
                         // 3. Post system memo to discussions
                         const partnerObj = PARTNERS[activeServiceType]?.find(p => p.id === pId);

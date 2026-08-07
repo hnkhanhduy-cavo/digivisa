@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Plane, Sparkles, CheckCircle, ShieldCheck, Compass, HelpCircle, 
@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 
 import { Order, Currency, CURRENCY_SYMBOLS } from './types';
-import { safeStorage } from './utils/storage';
+import { safeStorage, ordersStorageKey } from './utils/storage';
 import { Language, TRANSLATIONS } from './utils/translations';
 import { getTodayStr, getTodayOffsetStr } from './utils/validation';
 import { formatConvertedPrice, resolveOrderAmountVnd } from './utils/pricing';
@@ -21,9 +21,8 @@ import AirportPickupForm from './components/AirportPickupForm';
 import OrderTracker from './components/OrderTracker';
 import Faqs from './components/Faqs';
 import OMS from './components/OMS';
-import { saveOrderToFirestore, fetchAllOrdersFromFirestore, fetchOrdersForUser, auth, onAuthStateChanged, logoutUser, currentUserHasStaffClaim } from './utils/firebase';
-import { generateTrackingToken } from './utils/orderIds';
-import { claimPendingOrdersFromLocalStorage } from './utils/orderClaim';
+import { fetchOrdersForUser, fetchAllOrdersFromFirestore, saveOrderToFirestore, auth, onAuthStateChanged, logoutUser, currentUserHasStaffClaim } from './utils/firebase';
+import { generateOrderId, generateTrackingToken } from './utils/orderIds';
 import PostBookingAuthModal from './components/PostBookingAuthModal';
 import UserAuthModal from './components/UserAuthModal';
 import AdminLoginModal from './components/AdminLoginModal';
@@ -117,7 +116,6 @@ export default function App() {
     safeStorage.setItem('digivisa_language', lang);
   };
 
-  // Pristine empty state by default for production users, loads from local storage if existing
   const [orders, setOrders] = useState<Order[]>([]);
 
   const [isUserAuthOpen, setIsUserAuthOpen] = useState(false);
@@ -137,10 +135,24 @@ export default function App() {
     reason: 'cancelled' | 'unconfirmed' | 'error';
   }>({ isOpen: false, orderId: null, reason: 'unconfirmed' });
 
-  // Firebase auth state listener — staff role only from custom claim, never localStorage
+  const prevUidRef = useRef<string | null>(null);
+  const prevRoleRef = useRef<'customer' | 'staff'>(userRole);
+
+  useEffect(() => {
+    if (prevRoleRef.current === 'staff' && userRole === 'customer') {
+      setOrders([]);
+    }
+    prevRoleRef.current = userRole;
+  }, [userRole]);
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
+        if (prevUidRef.current && prevUidRef.current !== user.uid) {
+          setOrders([]);
+        }
+        prevUidRef.current = user.uid;
+
         setCurrentUser({ uid: user.uid, email: user.email, displayName: user.displayName });
         try {
           const token = await user.getIdTokenResult();
@@ -155,82 +167,83 @@ export default function App() {
           setUserRole('customer');
         }
       } else {
+        prevUidRef.current = null;
         setCurrentUser(null);
         setUserRole('customer');
+        setOrders([]);
         safeStorage.setItem('digivisa_user_role', 'customer');
       }
     });
     return () => unsubscribe();
   }, []);
 
-  // Load orders specific to the currently logged in user
   useEffect(() => {
-    const loadUserOrders = async () => {
-      if (currentUser?.email || currentUser?.uid) {
-        try {
-          const userOrders = await fetchOrdersForUser(currentUser.uid || '', currentUser.email || undefined);
-          if (userOrders) {
-            setOrders(userOrders.map(sanitizeOrder));
-          }
-        } catch (e) {
-          console.error("Error loading orders for user:", e);
-        }
-      }
-    };
-    if (userRole === 'customer') {
-      loadUserOrders();
+    let cancelled = false;
+
+    if (safeStorage.getItem('digivisa_orders')) {
+      safeStorage.removeItem('digivisa_orders');
     }
-  }, [currentUser, userRole]);
+
+    const uid = currentUser?.uid;
+    const key = ordersStorageKey(uid);
+    const saved = safeStorage.getItem(key);
+    if (saved && saved !== 'undefined') {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          const sanitized = parsed.map(sanitizeOrder);
+          const filtered = sanitized.filter(o => 
+            o.id !== 'DV-774910' && 
+            o.id !== 'DV-FT4015' && 
+            o.id !== 'DV-PICK-33880'
+          );
+          if (!cancelled) setOrders(filtered);
+        }
+      } catch (e) {
+        console.error("Localstorage orders parse error", e);
+      }
+    } else {
+      if (!uid && !cancelled) {
+        setOrders([]);
+      }
+    }
+
+    if (uid) {
+      if (userRole === 'staff') {
+        fetchAllOrdersFromFirestore()
+          .then((userOrders) => {
+            if (cancelled) return;
+            if (userOrders) {
+              const sanitized = userOrders.map(sanitizeOrder);
+              setOrders(sanitized);
+              safeStorage.setItem(ordersStorageKey(uid), JSON.stringify(sanitized));
+            }
+          })
+          .catch((e) => console.error("Error loading staff orders:", e));
+      } else {
+        fetchOrdersForUser(uid, currentUser?.email || undefined)
+          .then((userOrders) => {
+            if (cancelled) return;
+            if (userOrders) {
+              const sanitized = userOrders.map(sanitizeOrder);
+              setOrders(sanitized);
+              safeStorage.setItem(ordersStorageKey(uid), JSON.stringify(sanitized));
+            }
+          })
+          .catch((e) => console.error("Error loading orders for user:", e));
+      }
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser?.uid, userRole]);
 
   const [postBookingOrder, setPostBookingOrder] = useState<Order | null>(null);
-  /** Order ids queued for /api/order-claim after guest registers / signs in. */
-  const [pendingClaimOrderIds, setPendingClaimOrderIds] = useState<string[]>([]);
+  const [pendingCheckoutOrder, setPendingCheckoutOrder] = useState<Order | null>(null);
 
-  const runOrderClaimAfterAuth = async (preferIds?: string[]) => {
-    try {
-      const result = await claimPendingOrdersFromLocalStorage(preferIds);
-      if (result.claimed.length > 0) {
-        const uid = auth.currentUser?.uid || '';
-        const email = auth.currentUser?.email || undefined;
-        setOrders((prev) =>
-          prev.map((o) =>
-            result.claimed.includes(o.id)
-              ? { ...o, userId: uid, userEmail: email || o.userEmail }
-              : o
-          )
-        );
-        if (uid) {
-          const remote = await fetchOrdersForUser(uid);
-          if (remote?.length) {
-            const byId = new Map(remote.map((o: any) => [o.id, sanitizeOrder(o)]));
-            setOrders((prev) => {
-              const merged = new Map(prev.map((o) => [o.id, o]));
-              byId.forEach((o, id) => merged.set(id, o));
-              return Array.from(merged.values());
-            });
-          }
-        }
-        triggerToast(
-          language === 'VI'
-            ? `Đã gắn ${result.claimed.length} đơn vào tài khoản.`
-            : `Linked ${result.claimed.length} order(s) to your account.`,
-          'success'
-        );
-      }
-      if (result.conflicts.length > 0) {
-        triggerToast(
-          language === 'VI'
-            ? 'Một số đơn đã thuộc tài khoản khác — không thể nhận.'
-            : 'Some orders already belong to another account — not claimed.',
-          'error'
-        );
-      }
-    } catch (e) {
-      console.error('[order-claim] client', e);
-    }
-  };
 
-  // Staff modal already verified Firebase claim staff:true before calling this
+
   const handleAdminSuccess = async () => {
     const isStaff = await currentUserHasStaffClaim();
     if (!isStaff) {
@@ -256,7 +269,6 @@ export default function App() {
     triggerToast(language === 'VI' ? 'Đăng nhập Staff thành công!' : 'Staff logged in successfully!', 'success');
   };
 
-  // Hash route listener for secret admin URL: /#/verynoice -> Pops up password prompt or opens OMS tab
   useEffect(() => {
     const checkHash = () => {
       const hash = window.location.hash;
@@ -274,14 +286,12 @@ export default function App() {
     return () => window.removeEventListener('hashchange', checkHash);
   }, [userRole]);
 
-  // Check if we are in local development mode or if a query parameter ?demo=true is present
   const isDemoMode = (typeof window !== 'undefined' && (
     window.location.hostname.includes('localhost') || 
     window.location.hostname.includes('127.0.0.1') ||
     window.location.search.includes('demo=true')
   ));
 
-  // Helper to sanitize any legacy TSN references and missing order properties
   const sanitizeOrder = (o: any): Order => {
     if (!o) return { id: 'DV-UNKNOWN', type: 'Visa', status: 'Pending', createdAt: '', paymentStatus: 'Pending', details: {} as any };
     const id = o.id || o.orderId || o.docId || 'DV-UNKNOWN';
@@ -303,31 +313,6 @@ export default function App() {
     return { ...o, id, type, status, paymentStatus, createdAt, details };
   };
 
-  // Load orders from localStorage if any, filtering out any old default mock records
-  useEffect(() => {
-    const saved = safeStorage.getItem('digivisa_orders');
-    if (saved && saved !== 'undefined') {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          // Sanitize TSN -> SGN and filter out old default mock orders
-          const sanitized = parsed.map(sanitizeOrder);
-          const filtered = sanitized.filter(o => 
-            o.id !== 'DV-774910' && 
-            o.id !== 'DV-FT4015' && 
-            o.id !== 'DV-PICK-33880'
-          );
-          
-          setOrders(filtered);
-          safeStorage.setItem('digivisa_orders', JSON.stringify(filtered));
-        }
-      } catch (e) {
-        console.error("Localstorage orders parse error", e);
-      }
-    }
-  }, []);
-
-  // Sync html class and lang attribute based on selected language
   useEffect(() => {
     if (typeof document !== 'undefined') {
       const html = document.documentElement;
@@ -341,17 +326,16 @@ export default function App() {
     }
   }, [language]);
 
-  // Sync state to local storage when state changes
   const saveOrders = (updatedOrdersOrFn: Order[] | ((prev: Order[]) => Order[])) => {
     setOrders((prev) => {
       const rawNext = typeof updatedOrdersOrFn === 'function' ? updatedOrdersOrFn(prev) : updatedOrdersOrFn;
       const next = rawNext.map(sanitizeOrder);
-      safeStorage.setItem('digivisa_orders', JSON.stringify(next));
+      const key = ordersStorageKey(currentUser?.uid);
+      safeStorage.setItem(key, JSON.stringify(next));
       return next;
     });
   };
 
-  // Pre-seed demo data handler
   const loadDemoData = () => {
     const defaultMockOrders: Order[] = [
       {
@@ -431,13 +415,11 @@ export default function App() {
     triggerToast("Demo orders seeded successfully! Switch tabs to explore tracking and OMS.", "success");
   };
 
-  // Clear all data handler
   const clearAllOrders = () => {
     saveOrders([]);
     triggerToast("All applications cleared! Pristine production view activated.", "info");
   };
 
-  // Toast notification helper
   const triggerToast = (msg: string, type: 'success' | 'info' | 'error' = 'success') => {
     setToastMessage(msg);
     setToastType(type);
@@ -457,7 +439,8 @@ export default function App() {
     opts?: { showSuccessModal?: boolean }
   ) => {
     const showSuccessModal = opts?.showSuccessModal !== false;
-    const storedOrdersRaw = safeStorage.getItem('digivisa_orders') || '[]';
+    const key = ordersStorageKey(currentUser?.uid);
+    const storedOrdersRaw = safeStorage.getItem(key) || '[]';
     let storedOrders: Order[] = [];
     try { storedOrders = JSON.parse(storedOrdersRaw); } catch { /* ignore */ }
 
@@ -479,7 +462,6 @@ export default function App() {
       ninepayPaymentNo: transactionId || foundOrder.ninepayPaymentNo,
     };
 
-    // Local UX only — Firestore Paid is written solely by /api/9pay-verify (Inquire).
     saveOrders((prev) => {
       const base = prev.some((o) => o.id === orderId) ? prev : storedOrders;
       const merged = base.some((o) => o.id === orderId) ? base : [updatedOrder, ...base];
@@ -587,24 +569,12 @@ export default function App() {
     }
   };
 
-  // return_url is UX-only: never trust query params to set Paid. Inquire decides.
   useEffect(() => {
     if (typeof window === 'undefined') return;
-
-    // Sandbox discovery: log whatever 9Pay actually appends on return.
-    console.log('[DigiVisa 9Pay return_url] window.location.search =', window.location.search);
 
     const urlParams = new URLSearchParams(window.location.search);
     const paymentStatus = urlParams.get('payment');
     const orderId = urlParams.get('orderId');
-
-    // Informational only — if result/checksum ever appear, inquire remains authoritative.
-    if (urlParams.get('result') || urlParams.get('checksum')) {
-      console.log('[DigiVisa 9Pay return_url] observed result/checksum params (ignored for Paid; inquire decides)', {
-        hasResult: !!urlParams.get('result'),
-        hasChecksum: !!urlParams.get('checksum'),
-      });
-    }
 
     const cleanUrl = () => {
       window.history.replaceState({}, document.title, window.location.pathname);
@@ -622,8 +592,6 @@ export default function App() {
       return;
     }
 
-    // ?payment=success is only a UX signal to inquire — never trust URL params for Paid.
-    // Hand-typed success URLs without a real 9Pay payment stay Unpaid.
     if (paymentStatus === 'success' && orderId) {
       let cancelled = false;
       setIsVerifyingPayment(true);
@@ -660,7 +628,6 @@ export default function App() {
     }
   }, []);
 
-  // Backstop: when opening Tracker or OMS, re-inquire recent unpaid orders (debounced).
   useEffect(() => {
     if (activeTab !== 'tracker' && activeTab !== 'oms') return;
     if (!orders.length) return;
@@ -679,9 +646,15 @@ export default function App() {
     };
   }, [activeTab, orders]);
 
-  // Submit Callbacks
-  const handleBookingSuccess = async (newOrder: Order) => {
+  const handleBookingSuccess = async (newOrder: Order): Promise<boolean> => {
     try {
+      const activeUid = auth.currentUser?.uid || currentUser?.uid;
+      if (!activeUid) {
+        setPendingCheckoutOrder(newOrder);
+        setPostBookingOrder(newOrder);
+        return false;
+      }
+
       console.log('[DigiVisa 9Pay] Order Creation Triggered:', newOrder.id);
       const amountVnd = resolveOrderAmountVnd(newOrder);
 
@@ -696,39 +669,21 @@ export default function App() {
           ...newOrder,
           amountVnd,
           trackingToken: newOrder.trackingToken || generateTrackingToken(),
-          userId: currentUser?.uid || (newOrder as any).userId,
-          userEmail: currentUser?.email || (newOrder as any).userEmail || (newOrder.details as any)?.email,
+          userId: activeUid,
+          userEmail: auth.currentUser?.email || currentUser?.email || (newOrder as any).userEmail || (newOrder.details as any)?.email,
           paymentStatus: 'Pending',
         };
-        if (!currentUser?.uid) {
-          delete (unpaid as any).userId;
-        }
         saveOrders([unpaid, ...orders]);
-        try {
-          if (unpaid.trackingToken) safeStorage.setItem(`digivisa_track_${unpaid.id}`, unpaid.trackingToken);
-        } catch { /* ignore */ }
         saveOrderToFirestore(unpaid)
           .then((saveRes) => {
             if (saveRes && !saveRes.success) {
-              console.error('Firestore save failed (guest flow):', saveRes.error);
-              triggerToast(
-                language === 'VI'
-                  ? `Đơn ${unpaid.id} chưa lưu được lên máy chủ. Vui lòng chụp màn hình mã theo dõi trước khi thanh toán.`
-                  : `Order ${unpaid.id} could not be saved to the server. Please screenshot your tracking token before paying.`,
-                'error'
-              );
+              console.error('Firestore save failed:', saveRes.error);
             }
           })
           .catch((err) => {
             console.error('Firestore sync background err:', err);
-            triggerToast(
-              language === 'VI'
-                ? `Đơn ${unpaid.id} chưa lưu được lên máy chủ. Vui lòng chụp màn hình mã theo dõi trước khi thanh toán.`
-                : `Order ${unpaid.id} could not be saved to the server. Please screenshot your tracking token before paying.`,
-              'error'
-            );
           });
-        return;
+        return true;
       }
 
       const trackingToken = newOrder.trackingToken || generateTrackingToken();
@@ -736,41 +691,25 @@ export default function App() {
         ...newOrder,
         amountVnd,
         trackingToken,
-        userId: currentUser?.uid || (newOrder as any).userId,
-        userEmail: currentUser?.email || (newOrder as any).userEmail || (newOrder.details as any)?.email,
+        userId: activeUid,
+        userEmail: auth.currentUser?.email || currentUser?.email || (newOrder as any).userEmail || (newOrder.details as any)?.email,
         paymentStatus: 'Pending',
       };
-      // Drop forged userId when guest (rules reject create with foreign userId)
-      if (!currentUser?.uid) {
-        delete (orderWithUser as any).userId;
-      }
       saveOrders([orderWithUser, ...orders]);
-      try {
-        safeStorage.setItem(`digivisa_track_${orderWithUser.id}`, trackingToken);
-        if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-          navigator.clipboard.writeText(trackingToken).catch(() => {});
-        }
-      } catch { /* ignore */ }
       const saveRes = await saveOrderToFirestore(orderWithUser);
       if (saveRes && !saveRes.success) {
         console.error('Firestore save failed (9Pay flow):', saveRes.error);
-        triggerToast(
-          language === 'VI'
-            ? `Đơn ${orderWithUser.id} chưa lưu được lên máy chủ. Vui lòng chụp màn hình mã theo dõi trước khi thanh toán.`
-            : `Order ${orderWithUser.id} could not be saved to the server. Please screenshot your tracking token before paying.`,
-          'error'
-        );
       }
-      setPostBookingOrder(null);
 
       triggerToast(
         language === 'VI'
-          ? `Đơn ${orderWithUser.id} tạo OK. Mã theo dõi đã copy — dán vào Tracker nếu cần. Đang sang 9Pay...`
-          : `Order ${orderWithUser.id} created. Tracking token copied — paste into Tracker if needed. Opening 9Pay...`,
+          ? `Đơn ${orderWithUser.id} đã khởi tạo. Đang chuyển sang 9Pay...`
+          : `Order ${orderWithUser.id} created. Opening 9Pay...`,
         'success'
       );
 
       await startPaymentForOrder(orderWithUser.id, { skipVerify: true });
+      return true;
     } catch (e) {
       console.error('[DigiVisa 9Pay] handleBookingSuccess execution error:', e);
       triggerToast(
@@ -779,13 +718,13 @@ export default function App() {
           : `Payment init error: ${e instanceof Error ? e.message : String(e)}. Order remains unpaid.`,
         'error'
       );
+      return true;
     }
   };
 
   return (
     <div className={`min-h-screen bg-[#F8FAFC] flex flex-col font-sans antialiased text-slate-800 ${language === 'VI' ? 'lang-vi' : ''}`} id="applet-viewport">
       
-      {/* Toast alert banner */}
       <AnimatePresence>
         {toastMessage && (
           <motion.div
@@ -827,33 +766,30 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Navigation Header */}
       <Header
         activeTab={activeTab}
         setActiveTab={(tab) => {
           setActiveTab(tab);
-          setActiveService(null); // return to sublist
+          setActiveService(null);
         }}
-        orderCount={orders.length}
+        orderCount={currentUser?.uid ? orders.filter((o) => (o as any).userId === currentUser.uid).length : 0}
         userRole={userRole}
         setUserRole={handleSetUserRole}
         language={language}
         setLanguage={handleSetLanguage}
         currentUser={currentUser}
         onOpenUserAuth={() => setIsUserAuthOpen(true)}
-        onOpenAdminAuth={() => setIsAdminLoginOpen(true)}
         onLogout={async () => {
           await logoutUser();
           setCurrentUser(null);
-          triggerToast(language === 'VI' ? 'Đã đăng xuất!' : 'Logged out successfully!', 'info');
+          setOrders([]);
+          triggerToast(language === 'VI' ? 'Đăng xuất!' : 'Logged out successfully!', 'info');
         }}
       />
 
-      {/* Main Container */}
       <main className="flex-1 py-8 sm:py-12 bg-gradient-to-b from-teal-500/[0.02] to-slate-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           
-          {/* Sandbox Demo Seeding Banner - only visible in Dev or with ?demo=true query parameter */}
           {isDemoMode && orders.length === 0 && (
             <motion.div 
               initial={{ opacity: 0, y: -10 }}
@@ -867,7 +803,7 @@ export default function App() {
                 <div>
                   <p className="text-xs font-bold text-white">Pristine Production Environment Active</p>
                   <p className="text-[11px] text-slate-300 mt-0.5 max-w-2xl leading-relaxed">
-                    The Order Tracker & Staff OMS views are currently empty. Click "Load Demo Data" to instantly seed 3 high-fidelity records, enabling flight landing alerts, VIP chauffeur dispatches, and secure communications.
+                    The Order Tracker & Staff OMS views are currently empty. Click "Load Demo Data" to instantly seed 3 high-fidelity records.
                   </p>
                 </div>
               </div>
@@ -882,7 +818,6 @@ export default function App() {
 
           <AnimatePresence mode="wait">
             
-            {/* TAB 1: Services & Hub */}
             {activeTab === 'services' && (
               <motion.div
                 key="services"
@@ -1135,23 +1070,13 @@ export default function App() {
               </motion.div>
             )}
 
-            {/* TAB 2: Tracker queue panel */}
             {activeTab === 'tracker' && (
-              <motion.div
-                key="tracker"
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -15 }}
-                transition={{ duration: 0.25 }}
-              >
+              <motion.div key="tracker" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -15 }}>
                 <OrderTracker
                   orders={orders}
                   setOrders={saveOrders}
                   currency={currency}
-                  onNavigateToServices={() => {
-                    setActiveTab('services');
-                    setActiveService(null);
-                  }}
+                  onNavigateToServices={() => { setActiveTab('services'); setActiveService(null); }}
                   onLoadDemoData={isDemoMode ? loadDemoData : undefined}
                   onClearAllOrders={clearAllOrders}
                   language={language}
@@ -1159,67 +1084,43 @@ export default function App() {
                   userRole={userRole}
                   onRetryPayment={startPaymentForOrder}
                   retryingOrderId={retryingOrderId}
+                  onOpenUserAuth={() => setIsUserAuthOpen(true)}
                 />
               </motion.div>
             )}
 
-            {/* TAB 3: FAQ / Help Center */}
             {activeTab === 'faqs' && (
-              <motion.div
-                key="faqs"
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -15 }}
-                transition={{ duration: 0.25 }}
-              >
+              <motion.div key="faqs" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -15 }}>
                 <Faqs language={language} />
               </motion.div>
             )}
 
-            {/* TAB 4: Order Management System (OMS) */}
             {activeTab === 'oms' && (
-              <motion.div
-                key="oms"
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -15 }}
-                transition={{ duration: 0.25 }}
-              >
-                <OMS
-                  orders={orders}
-                  setOrders={saveOrders}
-                  currency={currency}
-                  language={language}
-                />
+              <motion.div key="oms" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -15 }}>
+                <OMS orders={orders} setOrders={saveOrders} currency={currency} language={language} />
               </motion.div>
             )}
 
           </AnimatePresence>
-
         </div>
       </main>
 
-      {/* Footer layout */}
       <Footer language={language} />
 
-      {/* Post-booking Auth prompt modal for Guest Users */}
       <PostBookingAuthModal
-        isOpen={!!postBookingOrder && !currentUser}
+        isOpen={!!postBookingOrder}
         order={postBookingOrder}
-        onCloseAsGuest={() => setPostBookingOrder(null)}
+        onClose={() => {
+          setPostBookingOrder(null);
+          setPendingCheckoutOrder(null);
+        }}
         onOpenAuth={() => {
-          if (postBookingOrder?.id) {
-            setPendingClaimOrderIds((prev) =>
-              prev.includes(postBookingOrder.id) ? prev : [...prev, postBookingOrder.id]
-            );
-          }
           setPostBookingOrder(null);
           setIsUserAuthOpen(true);
         }}
         language={language}
       />
 
-      {/* User Customer Auth Modal */}
       <UserAuthModal
         isOpen={isUserAuthOpen}
         onClose={() => setIsUserAuthOpen(false)}
@@ -1227,9 +1128,18 @@ export default function App() {
           setCurrentUser(userData);
           setIsUserAuthOpen(false);
           triggerToast(language === 'VI' ? 'Đăng nhập thành công!' : 'Logged in successfully!', 'success');
-          const prefer = [...pendingClaimOrderIds];
-          setPendingClaimOrderIds([]);
-          await runOrderClaimAfterAuth(prefer.length ? prefer : undefined);
+
+          if (pendingCheckoutOrder) {
+            const orderToPay = pendingCheckoutOrder;
+            setPendingCheckoutOrder(null);
+            const activeUser = auth.currentUser || userData;
+            const orderWithUser: Order = {
+              ...orderToPay,
+              userId: activeUser.uid,
+              userEmail: activeUser.email || (orderToPay.details as any)?.email,
+            };
+            await handleBookingSuccess(orderWithUser);
+          }
         }}
         language={language}
       />

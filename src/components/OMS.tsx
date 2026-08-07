@@ -11,7 +11,7 @@ import { Order, Currency, CURRENCY_SYMBOLS, EXCHANGE_RATES } from '../types';
 import { getVietnamPricing } from '../utils/pricing';
 import OMSAlertsBoard from './OMSAlertsBoard';
 import OMSAgencyComms from './OMSAgencyComms';
-import { safeStorage } from '../utils/storage';
+import { safeStorage, ordersStorageKey } from '../utils/storage';
 import { getSplitOrders } from '../utils/orderUtils';
 import { Language } from '../utils/translations';
 import { formatPhoneE164 } from '../utils/validation';
@@ -738,13 +738,13 @@ export default function OMS({ orders, setOrders, currency, language = 'EN' }: OM
       if (targetOrder.status === 'Pending Review' || targetOrder.status === 'Confirmed') {
         const updated = orders.map(o => o.id === baseId ? { ...o, secondaryStatus: 'Processing' } : o);
         setOrders(updated);
-        safeStorage.setItem('digivisa_orders', JSON.stringify(updated));
+        safeStorage.setItem(ordersStorageKey(), JSON.stringify(updated));
       }
     } else {
       if (targetOrder.status === 'Pending Review' || targetOrder.status === 'Confirmed') {
         const updated = orders.map(o => o.id === baseId ? { ...o, status: 'Processing' } : o);
         setOrders(updated);
-        safeStorage.setItem('digivisa_orders', JSON.stringify(updated));
+        safeStorage.setItem(ordersStorageKey(), JSON.stringify(updated));
       }
     }
   };
@@ -907,7 +907,7 @@ export default function OMS({ orders, setOrders, currency, language = 'EN' }: OM
       return o;
     });
     setOrders(updated);
-    safeStorage.setItem('digivisa_orders', JSON.stringify(updated));
+    safeStorage.setItem(ordersStorageKey(), JSON.stringify(updated));
   };
 
   const updateOrderSubStatus = (orderId: string, subStatus: string) => {
@@ -925,7 +925,7 @@ export default function OMS({ orders, setOrders, currency, language = 'EN' }: OM
       return o;
     });
     setOrders(updated);
-    safeStorage.setItem('digivisa_orders', JSON.stringify(updated));
+    safeStorage.setItem(ordersStorageKey(), JSON.stringify(updated));
   };
 
   const getTimelineSteps = (type: 'Visa' | 'FastTrack' | 'AirportPickup', currentStatus: string, order?: Order) => {
@@ -1833,7 +1833,7 @@ export default function OMS({ orders, setOrders, currency, language = 'EN' }: OM
                                 onChange={(e) => {
                                   const updated = orders.map(o => o.id === order.id ? { ...o, paymentStatus: e.target.value as any } : o);
                                   setOrders(updated);
-                                  safeStorage.setItem('digivisa_orders', JSON.stringify(updated));
+                                  safeStorage.setItem(ordersStorageKey(), JSON.stringify(updated));
                                 }}
                                 className={`text-[10px] font-bold rounded-lg px-2.5 py-1.5 border focus:outline-none focus:ring-2 focus:ring-indigo-500/15 cursor-pointer font-sans transition-all ${
                                   order.paymentStatus.startsWith('Paid')

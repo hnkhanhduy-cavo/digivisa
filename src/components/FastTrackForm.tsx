@@ -15,7 +15,7 @@ import { isValidEmail, isValidInternationalPhone, isValidTaxCode, isValidFlightN
 import { generateOrderId, generateTrackingToken } from '../utils/orderIds';
 interface FastTrackFormProps {
   currency: Currency;
-  onSuccess: (newOrder: Order) => void;
+  onSuccess: (newOrder: Order) => Promise<boolean | void> | boolean | void;
   onCancel: () => void;
   language?: Language;
 }
@@ -392,7 +392,7 @@ export default function FastTrackForm({ currency, onSuccess, onCancel, language 
     return Object.keys(freshErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) {
       alert(isEn 
@@ -413,6 +413,8 @@ export default function FastTrackForm({ currency, onSuccess, onCancel, language 
       }));
       return;
     }
+
+    setIsRedirecting(true);
 
     const orderId = generateOrderId();
     const trackingToken = generateTrackingToken();
@@ -442,7 +444,11 @@ export default function FastTrackForm({ currency, onSuccess, onCancel, language 
       trackingToken,
       details: finalBooking,
     };
-    onSuccess(newOrder);
+    safeStorage.removeItem('digivisa_fasttrack_draft');
+    const res = await onSuccess(newOrder);
+    if (res === false) {
+      setIsRedirecting(false);
+    }
   };
 
   return (

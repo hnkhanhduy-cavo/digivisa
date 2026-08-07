@@ -22,7 +22,7 @@ import executiveMinibusImg from '../assets/images/executive_minibus_178132893309
 interface AirportPickupFormProps {
   currency: Currency;
   language: Language;
-  onSuccess: (newOrder: Order) => void;
+  onSuccess: (newOrder: Order) => Promise<boolean | void> | boolean | void;
   onCancel: () => void;
 }
 
@@ -379,7 +379,7 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
     return Object.keys(freshErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) {
       alert(isEn 
@@ -393,6 +393,8 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
       }, 100);
       return;
     }
+
+    setIsRedirecting(true);
 
     const orderId = orderIdPreview;
     const trackingToken = generateTrackingToken();
@@ -426,7 +428,11 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
       trackingToken,
       details: finalBooking,
     };
-    onSuccess(newOrder);
+    safeStorage.removeItem('digivisa_airport_pickup_draft');
+    const res = await onSuccess(newOrder);
+    if (res === false) {
+      setIsRedirecting(false);
+    }
   };
 
   const isSedanOverloaded = false;

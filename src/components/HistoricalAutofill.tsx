@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Sparkles, Users, Check, UserCheck, CheckCircle2 } from 'lucide-react';
-import { safeStorage } from '../utils/storage';
+import { safeStorage, ordersStorageKey } from '../utils/storage';
 import { auth } from '../utils/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 
@@ -48,7 +48,7 @@ export default function HistoricalAutofill({ onSelect, serviceType, language = '
   // Load max 4 recent successful registered profiles from past orders
   useEffect(() => {
     try {
-      const savedOrdersRaw = safeStorage.getItem('digivisa_orders');
+      const savedOrdersRaw = safeStorage.getItem(ordersStorageKey(currentUser?.uid));
       if (savedOrdersRaw) {
         const orders = JSON.parse(savedOrdersRaw);
         if (Array.isArray(orders)) {

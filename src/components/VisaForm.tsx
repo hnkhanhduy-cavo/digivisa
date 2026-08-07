@@ -16,7 +16,7 @@ import UploadErrorModal, { UploadErrorModalData } from './UploadErrorModal';
 interface VisaFormProps {
   language: Language;
   currency: Currency;
-  onSuccess: (newOrder: Order) => void;
+  onSuccess: (newOrder: Order) => Promise<boolean | void> | boolean | void;
   onCancel: () => void;
 }
 
@@ -481,7 +481,7 @@ export default function VisaForm({ language, currency, onSuccess, onCancel }: Vi
     if (type === 'photo') photoInputRef.current?.click();
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateAll()) {
       alert(isEn 
@@ -496,6 +496,8 @@ export default function VisaForm({ language, currency, onSuccess, onCancel }: Vi
       }, 100);
       return;
     }
+
+    setIsRedirecting(true);
 
     const orderId = generateOrderId();
     const trackingToken = generateTrackingToken();
@@ -524,7 +526,10 @@ export default function VisaForm({ language, currency, onSuccess, onCancel }: Vi
     };
 
     safeStorage.removeItem('digivisa_visa_draft');
-    onSuccess(newOrder);
+    const res = await onSuccess(newOrder);
+    if (res === false) {
+      setIsRedirecting(false);
+    }
   };
 
   return (

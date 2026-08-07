@@ -39,6 +39,10 @@ class SafeStorage {
 
 export const safeStorage = new SafeStorage();
 
+export function ordersStorageKey(uid?: string | null): string {
+  return uid ? `digivisa_orders_${uid}` : 'digivisa_orders_guest';
+}
+
 export function safeOpen(url: string, target = '_blank'): Window | null {
   try {
     if (typeof window !== 'undefined') {

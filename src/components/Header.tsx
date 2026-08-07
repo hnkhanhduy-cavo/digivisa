@@ -12,7 +12,6 @@ interface HeaderProps {
   setLanguage: (lang: Language) => void;
   currentUser?: { email?: string | null; displayName?: string | null } | null;
   onOpenUserAuth?: () => void;
-  onOpenAdminAuth?: () => void;
   onLogout?: () => void;
 }
 
@@ -26,7 +25,6 @@ export default function Header({
   setLanguage,
   currentUser,
   onOpenUserAuth,
-  onOpenAdminAuth,
   onLogout,
 }: HeaderProps) {
   const t = TRANSLATIONS[language];
@@ -159,7 +157,7 @@ export default function Header({
             )}
 
             {/* Staff / Admin Access Button */}
-            {userRole === 'staff' ? (
+            {userRole === 'staff' && (
               <button
                 onClick={() => {
                   setUserRole('customer');
@@ -172,14 +170,6 @@ export default function Header({
               >
                 <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
                 <span className="hidden md:inline">{isEn ? 'Exit Admin' : 'Thoát Admin'}</span>
-              </button>
-            ) : (
-              <button
-                onClick={onOpenAdminAuth}
-                className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
-                title={isEn ? "Staff Admin Login" : "Đăng nhập Staff / Admin"}
-              >
-                <ShieldCheck className="h-4 w-4" />
               </button>
             )}
 
