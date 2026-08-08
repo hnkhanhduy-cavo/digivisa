@@ -12,6 +12,7 @@ import { safeStorage } from '../utils/storage';
 import { getSplitOrders } from '../utils/orderUtils';
 import { formatPhoneE164 } from '../utils/validation';
 import { auth } from '../utils/firebase';
+import { getServiceStatusOptions, getSubStatusOptions, getSubStatusLabel } from '../utils/orderStatus';
 
 interface OMSAgencyCommsProps {
   orders: Order[];
@@ -353,18 +354,8 @@ export default function OMSAgencyComms({
     if (isSec) {
       await onUpdateOrder?.(baseId, { secondaryStatus: newStatus, secondarySubStatus: null });
     } else {
-      let subStatus: string | null | undefined = selectedOrder.subStatus;
-      if (selectedOrder.type === 'Visa') {
-        if (newStatus === 'Agency Review') {
-          subStatus = 'Standard Review';
-        } else if (newStatus === 'Submitted to Embassy') {
-          subStatus = 'Standard processing';
-        } else if (newStatus === 'Completed') {
-          subStatus = 'Approved';
-        } else {
-          subStatus = null;
-        }
-      }
+      const subOpts = getSubStatusOptions(newStatus);
+      const subStatus = subOpts.length > 0 ? subOpts[0] : null;
       await onUpdateOrder?.(baseId, { status: newStatus, subStatus });
     }
 
@@ -1253,14 +1244,7 @@ export default function OMSAgencyComms({
                     {/* Dynamic Rapid-Action status grid */}
                     <div className="grid grid-cols-2 gap-2 pt-2">
                       {(() => {
-                        let statusOptions: string[] = [];
-                        if (activeServiceType === 'Visa') {
-                          statusOptions = ['Agency Review', 'Submitted to Embassy', 'Processing', 'Completed'];
-                        } else if (activeServiceType === 'AirportPickup') {
-                          statusOptions = ['Staff Assigned', 'Passenger Greet', 'Completed'];
-                        } else { // FastTrack
-                          statusOptions = ['Staff Assigned', 'Completed'];
-                        }
+                        const statusOptions = getServiceStatusOptions(activeServiceType);
 
                         return statusOptions.map(status => {
                           const isActive = selectedOrder.status === status;
@@ -1287,115 +1271,40 @@ export default function OMSAgencyComms({
                       })()}
                     </div>
 
-                    {/* Visa Service Custom Sub-Statuses */}
-                    {activeServiceType === 'Visa' && (
-                      <div className="space-y-3">
-                        {selectedOrder.status === 'Agency Review' && (
-                          <div className="bg-amber-50 border border-amber-200 p-3.5 rounded-xl space-y-2 mt-2">
-                            <div className="flex items-center justify-between">
-                              <span className="text-[10px] text-amber-800 font-extrabold uppercase tracking-wider block">
-                                Agency Review Sub-Status
-                              </span>
-                              <span className="text-[8px] font-black bg-amber-100 text-amber-900 border border-amber-300 px-1.5 py-0.2 rounded font-mono">
-                                DOCUMENTATION CHECK
-                              </span>
-                            </div>
-                            <div className="flex gap-2">
-                              {[
-                                { label: 'Standard Document Check', value: 'Standard Review' },
-                                { label: '⚠️ More Documents Required', value: 'More documents required' }
-                              ].map((subOpt) => {
-                                const isSel = (selectedOrder.subStatus || 'Standard Review') === subOpt.value;
-                                return (
-                                  <button
-                                    key={subOpt.value}
-                                    type="button"
-                                    onClick={() => handleUpdateSubStatus(subOpt.value)}
-                                    className={`flex-1 text-[11px] font-bold py-1.5 px-2 rounded-lg border transition-all cursor-pointer ${
-                                      isSel 
-                                        ? 'bg-amber-600 text-white border-amber-600 shadow-sm' 
-                                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                                    }`}
-                                  >
-                                    {subOpt.label}
-                                  </button>
-                                );
-                              })}
-                            </div>
+                    {/* Dynamic Sub-Statuses */}
+                    {getSubStatusOptions(selectedOrder.status).length > 0 && (
+                      <div className="space-y-3 mt-3">
+                        <div className="bg-amber-50/70 border border-amber-200 p-3.5 rounded-xl space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] text-amber-800 font-extrabold uppercase tracking-wider block">
+                              {selectedOrder.status} Sub-Status
+                            </span>
+                            <span className="text-[8px] font-black bg-amber-100 text-amber-900 border border-amber-300 px-1.5 py-0.2 rounded font-mono">
+                              STATUS DETAIL
+                            </span>
                           </div>
-                        )}
-
-                        {selectedOrder.status === 'Submitted to Embassy' && (
-                          <div className="bg-indigo-50 border border-indigo-200 p-3.5 rounded-xl space-y-2 mt-2">
-                            <div className="flex items-center justify-between">
-                              <span className="text-[10px] text-indigo-800 font-extrabold uppercase tracking-wider block">
-                                Embassy Submission Sub-Status
-                              </span>
-                              <span className="text-[8px] font-black bg-indigo-100 text-indigo-900 border border-indigo-300 px-1.5 py-0.2 rounded font-mono">
-                                EMBASSY WAITING
-                              </span>
-                            </div>
-                            <div className="flex gap-2">
-                              {[
-                                { label: 'Standard Under Review', value: 'Standard processing' },
-                                { label: '⚠️ More Docs Required (Embassy Request)', value: 'Awaiting Paperwork' }
-                              ].map((subOpt) => {
-                                const isSel = (selectedOrder.subStatus || 'Standard processing') === subOpt.value;
-                                return (
-                                  <button
-                                    key={subOpt.value}
-                                    type="button"
-                                    onClick={() => handleUpdateSubStatus(subOpt.value)}
-                                    className={`flex-1 text-[11px] font-bold py-1.5 px-2 rounded-lg border transition-all cursor-pointer ${
-                                      isSel 
-                                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' 
-                                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                                    }`}
-                                  >
-                                    {subOpt.label}
-                                  </button>
-                                );
-                              })}
-                            </div>
+                          <div className="flex gap-2">
+                            {getSubStatusOptions(selectedOrder.status).map((subVal) => {
+                              const isSel = (selectedOrder.subStatus || getSubStatusOptions(selectedOrder.status)[0]) === subVal;
+                              return (
+                                <button
+                                  key={subVal}
+                                  type="button"
+                                  onClick={() => handleUpdateSubStatus(subVal)}
+                                  className={`flex-1 text-[11px] font-bold py-1.5 px-2 rounded-lg border transition-all cursor-pointer ${
+                                    isSel 
+                                      ? subVal === 'Rejected'
+                                        ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
+                                        : 'bg-amber-600 text-white border-amber-600 shadow-sm' 
+                                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                                  }`}
+                                >
+                                  {getSubStatusLabel(subVal, language as any)}
+                                </button>
+                              );
+                            })}
                           </div>
-                        )}
-
-                        {selectedOrder.status === 'Completed' && (
-                          <div className="bg-emerald-50 border border-emerald-200 p-3.5 rounded-xl space-y-2 mt-2">
-                            <div className="flex items-center justify-between">
-                              <span className="text-[10px] text-emerald-800 font-extrabold uppercase tracking-wider block">
-                                Completed Sub-Status
-                              </span>
-                              <span className="text-[8px] font-black bg-emerald-100 text-emerald-900 border border-emerald-300 px-1.5 py-0.2 rounded font-mono">
-                                OUTCOME VERIFIED
-                              </span>
-                            </div>
-                            <div className="flex gap-2">
-                              {[
-                                { label: 'Approved & Issued', value: 'Approved' },
-                                { label: 'Declined / Rejected', value: 'Declined' }
-                              ].map((subOpt) => {
-                                const isSel = (selectedOrder.subStatus || 'Approved') === subOpt.value;
-                                return (
-                                  <button
-                                    key={subOpt.value}
-                                    type="button"
-                                    onClick={() => handleUpdateSubStatus(subOpt.value)}
-                                    className={`flex-1 text-[11px] font-bold py-1.5 px-2 rounded-lg border transition-all cursor-pointer ${
-                                      isSel 
-                                        ? subOpt.value === 'Approved'
-                                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                                          : 'bg-rose-600 text-white border-rose-600 shadow-sm'
-                                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                                    }`}
-                                  >
-                                    {subOpt.label}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
+                        </div>
                       </div>
                     )}
 

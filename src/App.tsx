@@ -648,7 +648,7 @@ export default function App() {
     const updatedOrder: Order = {
       ...foundOrder,
       paymentStatus: 'Paid (9Pay)',
-      status: 'Agency Review',
+      status: 'Confirmed',
       ninepayPaymentNo: transactionId || foundOrder.ninepayPaymentNo,
     };
 

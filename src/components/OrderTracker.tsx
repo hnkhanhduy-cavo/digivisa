@@ -12,6 +12,7 @@ import { Language, TRANSLATIONS } from '../utils/translations';
 import { getVietnamPricing } from '../utils/pricing';
 import { formatPhoneE164 } from '../utils/validation';
 import { hasWhatsApp, hasZalo, buildWhatsAppChatUrl, buildZaloChatUrl } from '../utils/contact';
+import { getTimelineStepsForOrder, normalizeStatusForTimeline, getStatusLabel, getSubStatusLabel } from '../utils/orderStatus';
 
 interface OrderTrackerProps {
   orders: Order[];
@@ -592,145 +593,7 @@ export default function OrderTracker({
     return lines;
   };
 
-  const normalizeStatusForTimeline = (status: string, type?: string): string => {
-    const s = String(status || '').trim();
-    
-    if (type === 'Visa') {
-      const validVisaStatuses = ['Agency Review', 'Submitted to Embassy', 'Processing', 'Completed'];
-      const matched = validVisaStatuses.find(opt => opt.toLowerCase() === s.toLowerCase());
-      if (matched) return matched;
-
-      const lower = s.toLowerCase();
-      if (lower === 'completed' || lower === 'approved' || lower === 'approved & issued') {
-        return 'Completed';
-      }
-      if (lower === 'processing' || lower === 'under review' || lower === 'standard processing') {
-        return 'Processing';
-      }
-      if (lower === 'submitted to embassy' || lower === 'submitted') {
-        return 'Submitted to Embassy';
-      }
-      return 'Agency Review';
-    }
-
-    if (type === 'AirportPickup') {
-      const validPickupStatuses = ['Staff Assigned', 'Passenger Greet', 'Completed'];
-      const matched = validPickupStatuses.find(opt => opt.toLowerCase() === s.toLowerCase());
-      if (matched) return matched;
-
-      const lower = s.toLowerCase();
-      if (lower === 'completed' || lower === 'service completed' || lower === 'journey completed' || lower === 'clearance dynamic sync' || lower === 'luggage handover completed') {
-        return 'Completed';
-      }
-      if (lower === 'passenger greet' || lower === 'passenger greeted') {
-        return 'Passenger Greet';
-      }
-      return 'Staff Assigned';
-    }
-
-    if (type === 'FastTrack') {
-      const validTrackStatuses = ['Staff Assigned', 'Completed'];
-      const matched = validTrackStatuses.find(opt => opt.toLowerCase() === s.toLowerCase());
-      if (matched) return matched;
-
-      const lower = s.toLowerCase();
-      if (lower === 'completed' || lower === 'service completed' || lower === 'journey completed' || lower === 'clearance dynamic sync' || lower === 'luggage handover completed') {
-        return 'Completed';
-      }
-      return 'Staff Assigned';
-    }
-
-    return status;
-  };
-
-  const getTimelineStepsForOrder = (order: Order) => {
-    if (order.type === 'Visa') {
-      return [
-        { id: 'Agency Review', label: 'Agency Review', desc: 'Dossier under agency review' },
-        { id: 'Submitted to Embassy', label: 'Submitted to Embassy', desc: 'Submitted to embassy' },
-        { id: 'Processing', label: 'Processing', desc: 'Under review at embassy' },
-        { id: 'Completed', label: 'Completed', desc: 'Visa issued' }
-      ];
-    }
-    if (order.type === 'FastTrack') {
-      return [
-        { id: 'Staff Assigned', label: 'Staff Assigned', desc: 'Staff assigned' },
-        { id: 'Completed', label: 'Completed', desc: 'Service completed' }
-      ];
-    }
-    // AirportPickup (Airport Transfer)
-    return [
-      { id: 'Staff Assigned', label: 'Staff Assigned', desc: 'Chauffeur assigned' },
-      { id: 'Passenger Greet', label: 'Passenger Greet', desc: 'Passenger met' },
-      { id: 'Completed', label: 'Completed', desc: 'Trip completed' }
-    ];
-  };
-
   const [userActiveComboLeg, setUserActiveComboLeg] = useState<'primary' | 'secondary'>('primary');
-
-  // Simulate Step Progress changes - Highly engaging sandbox helper!
-  const progressOrderStatus = (orderId: string) => {
-    setOrders((prevOrders) => {
-      const updated = prevOrders.map((o) => {
-        if (o.id !== orderId) return o;
-        
-        const isSec = userActiveComboLeg === 'secondary' && ((o.type === 'FastTrack' && (o.details as any).addAirportPickup) || (o.type === 'AirportPickup' && (o.details as any).addFastTrack));
-        const currentStatus = isSec ? (o.secondaryStatus || 'Confirmed') : o.status;
-        const currentType = isSec ? (o.type === 'FastTrack' ? 'AirportPickup' : 'FastTrack') : o.type;
-
-        const tempOrder = { ...o, type: currentType, status: currentStatus };
-        const steps = getTimelineStepsForOrder(tempOrder as any);
-        const normalizedCurrent = normalizeStatusForTimeline(currentStatus, currentType);
-        const currentIndex = steps.findIndex(step => step.id === normalizedCurrent);
-        
-        let nextIndex = (currentIndex + 1) % steps.length;
-        let nextStep = steps[nextIndex];
-        
-        let nextStatus = nextStep.id;
-        
-        if (isSec) {
-          const secType = o.type === 'FastTrack' ? 'AirportPickup' : 'FastTrack';
-          let updatedFields: any = { secondaryStatus: nextStatus, secondarySubStatus: undefined };
-          if (nextStatus === 'Staff Assigned' || nextStatus === 'Assigned') {
-            if (secType === 'AirportPickup') {
-              updatedFields.secondaryStaffName = o.secondaryStaffName || 'Mr. Minh Quan (VIP Chauffeur Partner)';
-              updatedFields.secondaryStaffPhone = o.secondaryStaffPhone || '+84912345678';
-              updatedFields.secondaryStaffLocation = o.secondaryStaffLocation || 'Da Nang Airport (DAD) T1 Arrival Gate';
-              updatedFields.secondaryStaffPhoto = o.secondaryStaffPhoto || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200';
-              updatedFields.secondaryLicensePlate = o.secondaryLicensePlate || '43A-999.88';
-              updatedFields.secondaryCarPhoto = o.secondaryCarPhoto || 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&q=80&w=600';
-            } else {
-              updatedFields.secondaryStaffName = o.secondaryStaffName || 'Mr. Kevin Pham (Senior FastTrack Escort)';
-              updatedFields.secondaryStaffPhone = o.secondaryStaffPhone || '+84905111222';
-              updatedFields.secondaryStaffLocation = o.secondaryStaffLocation || 'Da Nang Airport (DAD) Inbound Immigration Hall';
-              updatedFields.secondaryStaffPhoto = o.secondaryStaffPhoto || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200';
-            }
-          }
-          return { ...o, ...updatedFields };
-        } else {
-          let updatedFields: any = { status: nextStatus };
-          if (nextStatus === 'Staff Assigned' || nextStatus === 'Assigned') {
-            if (o.type === 'AirportPickup') {
-              updatedFields.staffName = o.staffName || 'Mr. Minh Quan (VIP Chauffeur Partner)';
-              updatedFields.staffPhone = o.staffPhone || '+84912345678';
-              updatedFields.staffLocation = o.staffLocation || 'Da Nang Airport (DAD) T1 Arrival Gate';
-              updatedFields.staffPhoto = o.staffPhoto || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200';
-              updatedFields.licensePlate = o.licensePlate || '43A-999.88';
-              updatedFields.carPhoto = o.carPhoto || 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&q=80&w=600';
-            } else if (o.type === 'FastTrack') {
-              updatedFields.staffName = o.staffName || 'Mr. Kevin Pham (Senior FastTrack Escort)';
-              updatedFields.staffPhone = o.staffPhone || '+84905111222';
-              updatedFields.staffLocation = o.staffLocation || 'Da Nang Airport (DAD) Inbound Immigration Hall';
-              updatedFields.staffPhoto = o.staffPhoto || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200';
-            }
-          }
-          return { ...o, ...updatedFields };
-        }
-      });
-      safeStorage.setItem(ordersStorageKey(currentUser?.uid), JSON.stringify(updated));
-      return updated;
-    });
-  };
 
   const selectedOrder = orders.find((o) => o.id === selectedOrderId) || null;
 
@@ -765,9 +628,9 @@ export default function OrderTracker({
       const updated = prev.map(o => {
         if (o.id === selectedOrder.id) {
           if (isSec) {
-            return { ...o, secondaryStatus: newStatus, secondarySubStatus: undefined };
+            return { ...o, secondaryStatus: newStatus, secondarySubStatus: null };
           } else {
-            return { ...o, status: newStatus, subStatus: undefined };
+            return { ...o, status: newStatus, subStatus: null };
           }
         }
         return o;
@@ -1037,126 +900,81 @@ export default function OrderTracker({
                 </div>
 
                 {/* Dynamic Horizontal Milestone Bar */}
-                <div className="relative flex items-center justify-between w-full py-2">
-                  {/* Connecting Line */}
-                  <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-0.5 bg-slate-200 z-0"></div>
-                  
-                  {/* Active Connecting Line Highlight */}
-                  <div 
-                    className="absolute left-0 top-1/2 -translate-y-1/2 h-0.5 bg-indigo-500 transition-all duration-500 z-0"
-                    style={{
-                      width: (() => {
-                        const stepsForOrder = getTimelineStepsForOrder(trackingOrder!);
-                        const normalizedCurrent = normalizeStatusForTimeline(trackingOrder!.status, trackingOrder!.type);
-                        const currentIndex = stepsForOrder.findIndex(step => step.id === normalizedCurrent);
-                        if (currentIndex <= 0) return '0%';
-                        if (currentIndex >= stepsForOrder.length - 1) return '100%';
-                        return `${(currentIndex / (stepsForOrder.length - 1)) * 100}%`;
-                      })()
-                    }}
-                  ></div>
+                {trackingOrder?.status === 'Cancelled' ? (
+                  <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 flex items-center gap-3 text-rose-800 font-sans">
+                    <AlertTriangle className="h-5 w-5 text-rose-600 shrink-0" />
+                    <div>
+                      <h4 className="font-extrabold text-xs uppercase tracking-wider">
+                        {language === 'EN' ? 'Order Cancelled' : 'Đơn hàng đã huỷ'}
+                      </h4>
+                      <p className="text-xs text-rose-700 mt-0.5">
+                        {language === 'EN'
+                          ? 'This service has been cancelled by operations. Please contact support for assistance.'
+                          : 'Dịch vụ này đã được nhân viên huỷ. Vui lòng liên hệ hỗ trợ để biết thêm chi tiết.'}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="relative flex items-center justify-between w-full py-2">
+                    {/* Connecting Line */}
+                    <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-0.5 bg-slate-200 z-0"></div>
+                    
+                    {/* Active Connecting Line Highlight */}
+                    <div 
+                      className="absolute left-0 top-1/2 -translate-y-1/2 h-0.5 bg-indigo-500 transition-all duration-500 z-0"
+                      style={{
+                        width: (() => {
+                          const stepsForOrder = getTimelineStepsForOrder(trackingOrder!.type);
+                          const normalizedCurrent = normalizeStatusForTimeline(trackingOrder!.status, trackingOrder!.type);
+                          const currentIndex = stepsForOrder.findIndex(step => step.id === normalizedCurrent);
+                          if (currentIndex <= 0) return '0%';
+                          if (currentIndex >= stepsForOrder.length - 1) return '100%';
+                          return `${(currentIndex / (stepsForOrder.length - 1)) * 100}%`;
+                        })()
+                      }}
+                    ></div>
 
-                  {/* Steps */}
-                  {getTimelineStepsForOrder(trackingOrder!).map((step, idx, arr) => {
-                    const normalizedCurrent = normalizeStatusForTimeline(trackingOrder!.status, trackingOrder!.type);
-                    const currentIndex = arr.findIndex(s => s.id === normalizedCurrent);
-                    const isCompleted = idx < currentIndex;
-                    const isActive = idx === currentIndex;
+                    {/* Steps */}
+                    {getTimelineStepsForOrder(trackingOrder!.type).map((step, idx, arr) => {
+                      const normalizedCurrent = normalizeStatusForTimeline(trackingOrder!.status, trackingOrder!.type);
+                      const currentIndex = arr.findIndex(s => s.id === normalizedCurrent);
+                      const isCompleted = idx < currentIndex;
+                      const isActive = idx === currentIndex;
 
-                    return (
-                      <div 
-                        key={step.id} 
-                        onClick={() => {
-                          return; // Live tracking is read-only for users
-                          const statusToSet = step.id;
-                          setOrders(prev => {
-                            const updated = prev.map(o => {
-                              if (o.id === selectedOrder.id) {
-                                if (isCombo && userActiveComboLeg === 'secondary') {
-                                  const secType = o.type === 'FastTrack' ? 'AirportPickup' : 'FastTrack';
-                                  let updatedFields: any = { secondaryStatus: statusToSet, secondarySubStatus: undefined };
-                                  if (statusToSet === 'Assigned') {
-                                    if (secType === 'AirportPickup') {
-                                      updatedFields.secondaryStaffName = o.secondaryStaffName || 'Mr. Minh Quan (VIP Chauffeur Partner)';
-                                      updatedFields.secondaryStaffPhone = o.secondaryStaffPhone || '+84912345678';
-                                      updatedFields.secondaryStaffLocation = o.secondaryStaffLocation || 'Da Nang Airport (DAD) T1 Arrival Gate';
-                                      updatedFields.secondaryStaffPhoto = o.secondaryStaffPhoto || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200';
-                                      updatedFields.secondaryLicensePlate = o.secondaryLicensePlate || '43A-999.88';
-                                      updatedFields.secondaryCarPhoto = o.secondaryCarPhoto || 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&q=80&w=600';
-                                    } else {
-                                      updatedFields.secondaryStaffName = o.secondaryStaffName || 'Mr. Kevin Pham (Senior FastTrack Escort)';
-                                      updatedFields.secondaryStaffPhone = o.secondaryStaffPhone || '+84905111222';
-                                      updatedFields.secondaryStaffLocation = o.secondaryStaffLocation || 'Da Nang Airport (DAD) Inbound Immigration Hall';
-                                      updatedFields.secondaryStaffPhoto = o.secondaryStaffPhoto || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200';
-                                    }
-                                  }
-                                  return { ...o, ...updatedFields };
-                                } else {
-                                  let subStatus = o.subStatus;
-                                  let updatedFields: any = { status: statusToSet, subStatus };
-                                  if (o.type === 'Visa') {
-                                    if (statusToSet === 'Processing') {
-                                      subStatus = subStatus || 'Standard processing';
-                                    } else if (statusToSet === 'Completed') {
-                                      subStatus = subStatus || 'Approved';
-                                    } else {
-                                      subStatus = undefined;
-                                    }
-                                    updatedFields.subStatus = subStatus;
-                                  } else if (statusToSet === 'Assigned') {
-                                    if (o.type === 'AirportPickup') {
-                                      updatedFields.staffName = o.staffName || 'Mr. Minh Quan (VIP Chauffeur Partner)';
-                                      updatedFields.staffPhone = o.staffPhone || '+84912345678';
-                                      updatedFields.staffLocation = o.staffLocation || 'Da Nang Airport (DAD) T1 Arrival Gate';
-                                      updatedFields.staffPhoto = o.staffPhoto || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200';
-                                      updatedFields.licensePlate = o.licensePlate || '43A-999.88';
-                                      updatedFields.carPhoto = o.carPhoto || 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&q=80&w=600';
-                                    } else if (o.type === 'FastTrack') {
-                                      updatedFields.staffName = o.staffName || 'Mr. Kevin Pham (Senior FastTrack Escort)';
-                                      updatedFields.staffPhone = o.staffPhone || '+84905111222';
-                                      updatedFields.staffLocation = o.staffLocation || 'Da Nang Airport (DAD) Inbound Immigration Hall';
-                                      updatedFields.staffPhoto = o.staffPhoto || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200';
-                                    }
-                                  }
-                                  return { ...o, ...updatedFields };
-                                }
-                              }
-                              return o;
-                            });
-                             safeStorage.setItem(ordersStorageKey(currentUser?.uid), JSON.stringify(updated));
-                             return updated;
-                          });
-                        }}
-                        className="relative z-10 flex flex-col items-center cursor-default"
-                      >
-                        {/* Step Circle Bubble */}
-                        <div className={`h-8 w-8 rounded-full flex items-center justify-center border font-mono text-xs font-black transition-all duration-300 ${
-                          isCompleted 
-                            ? 'bg-emerald-500 border-emerald-600 text-white shadow-md shadow-emerald-500/10' 
-                            : isActive 
-                            ? 'bg-indigo-600 border-indigo-700 text-white ring-4 ring-indigo-100 shadow-md shadow-indigo-600/15 scale-110' 
-                            : 'bg-white border-slate-250 text-slate-400 hover:border-slate-400 hover:text-slate-600'
-                        }`}>
-                          {isCompleted ? (
-                            <Check className="h-4 w-4 text-white font-bold" />
-                          ) : (
-                            idx + 1
-                          )}
+                      return (
+                        <div 
+                          key={step.id} 
+                          className="relative z-10 flex flex-col items-center cursor-default"
+                        >
+                          {/* Step Circle Bubble */}
+                          <div className={`h-8 w-8 rounded-full flex items-center justify-center border font-mono text-xs font-black transition-all duration-300 ${
+                            isCompleted 
+                              ? 'bg-emerald-500 border-emerald-600 text-white shadow-md shadow-emerald-500/10' 
+                              : isActive 
+                              ? 'bg-indigo-600 border-indigo-700 text-white ring-4 ring-indigo-100 shadow-md shadow-indigo-600/15 scale-110' 
+                              : 'bg-white border-slate-250 text-slate-400 hover:border-slate-400 hover:text-slate-600'
+                          }`}>
+                            {isCompleted ? (
+                              <Check className="h-4 w-4 text-white font-bold" />
+                            ) : (
+                              idx + 1
+                            )}
+                          </div>
+                          
+                          {/* Labels */}
+                          <span className={`text-[11px] font-bold mt-2 transition-colors ${
+                            isActive ? 'text-indigo-600 font-extrabold' : isCompleted ? 'text-slate-700' : 'text-slate-400'
+                          }`}>
+                            {getStatusLabel(step.label, language as any)}
+                          </span>
+                          <span className="text-[9px] text-slate-400 hidden sm:block mt-0.5 text-center">
+                            {step.desc}
+                          </span>
                         </div>
-                        
-                        {/* Labels */}
-                        <span className={`text-[11px] font-bold mt-2 transition-colors ${
-                          isActive ? 'text-indigo-600 font-extrabold' : isCompleted ? 'text-slate-700' : 'text-slate-400'
-                        }`}>
-                          {step.label}
-                        </span>
-                        <span className="text-[9px] text-slate-400 hidden sm:block mt-0.5 text-center">
-                          {step.desc}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                )}
 
                 <div className="bg-white border border-slate-150 rounded-xl p-3 text-xs text-slate-600 flex items-start space-x-2.5 shadow-sm mt-2">
                   <div className={`p-1.5 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-600 mt-0.5`}>
@@ -1165,33 +983,21 @@ export default function OrderTracker({
                   <div>
                     <h5 className="font-bold text-slate-800 flex items-center gap-1.5 flex-wrap">
                       Status Detail: 
-                      <span className="text-indigo-600 font-mono font-black">{trackingOrder!.status}</span>
-                      {trackingOrder!.type === 'Visa' && trackingOrder!.subStatus && (
+                      <span className="text-indigo-600 font-mono font-black">{getStatusLabel(trackingOrder!.status, language as any)}</span>
+                      {trackingOrder!.subStatus && (
                         (() => {
-                          let label = trackingOrder!.subStatus;
+                          const subVal = trackingOrder!.subStatus;
                           let style = 'bg-slate-100 text-slate-800 border-slate-200';
-                          if (trackingOrder!.subStatus === 'Standard Review') {
-                            label = 'Document Check In-Progress';
-                            style = 'bg-blue-50 text-blue-800 border-blue-200';
-                          } else if (trackingOrder!.subStatus === 'More documents required') {
-                            label = '⚠️ Additional Documents Required';
+                          if (subVal === 'More docs required') {
                             style = 'bg-amber-100 text-amber-800 border-amber-200 animate-pulse';
-                          } else if (trackingOrder!.subStatus === 'Standard processing') {
-                            label = 'Standard Under Review';
-                            style = 'bg-indigo-50 text-indigo-800 border-indigo-200';
-                          } else if (trackingOrder!.subStatus === 'Awaiting Paperwork') {
-                            label = '⚠️ More Docs Required (Embassy Request)';
-                            style = 'bg-amber-100 text-amber-800 border-amber-200 animate-pulse';
-                          } else if (trackingOrder!.subStatus === 'Approved') {
-                            label = 'Approved & Issued';
+                          } else if (subVal === 'Approved') {
                             style = 'bg-emerald-100 text-emerald-800 border-emerald-200';
-                          } else if (trackingOrder!.subStatus === 'Declined') {
-                            label = 'Declined / Rejected';
+                          } else if (subVal === 'Rejected' || subVal === 'Declined') {
                             style = 'bg-rose-100 text-rose-800 border-rose-200';
                           }
                           return (
                             <span className={`px-1.5 py-0.2 rounded text-[9.5px] font-bold border ${style}`}>
-                              {label}
+                              {getSubStatusLabel(subVal, language as any)}
                             </span>
                           );
                         })()

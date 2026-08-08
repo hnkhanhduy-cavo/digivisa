@@ -194,71 +194,14 @@ const DEFAULT_DISCUSSIONS: Record<string, Array<{ sender: 'digivisa' | 'partner'
   ]
 };
 
-const normalizeStatusForTimeline = (status: string, type?: string, direction?: string): string => {
-  const s = String(status || '').trim();
-  
-  if (type === 'Visa') {
-    const validVisaStatuses = ['Agency Review', 'Submitted to Embassy', 'Processing', 'Completed'];
-    const matched = validVisaStatuses.find(opt => opt.toLowerCase() === s.toLowerCase());
-    if (matched) return matched;
-
-    const lower = s.toLowerCase();
-    if (lower === 'completed' || lower === 'approved' || lower === 'approved & issued') {
-      return 'Completed';
-    }
-    if (lower === 'processing' || lower === 'under review' || lower === 'standard processing') {
-      return 'Processing';
-    }
-    if (lower === 'submitted to embassy' || lower === 'submitted') {
-      return 'Submitted to Embassy';
-    }
-    return 'Agency Review';
-  }
-
-  if (type === 'AirportPickup') {
-    const validPickupStatuses = ['Staff Assigned', 'Passenger Greet', 'Completed'];
-    const matched = validPickupStatuses.find(opt => opt.toLowerCase() === s.toLowerCase());
-    if (matched) return matched;
-
-    const lower = s.toLowerCase();
-    if (lower === 'completed' || lower === 'service completed' || lower === 'journey completed' || lower === 'clearance dynamic sync' || lower === 'luggage handover completed') {
-      return 'Completed';
-    }
-    if (lower === 'passenger greet' || lower === 'passenger greeted') {
-      return 'Passenger Greet';
-    }
-    return 'Staff Assigned';
-  }
-
-  if (type === 'FastTrack') {
-    const validTrackStatuses = ['Staff Assigned', 'Completed'];
-    const matched = validTrackStatuses.find(opt => opt.toLowerCase() === s.toLowerCase());
-    if (matched) return matched;
-
-    const lower = s.toLowerCase();
-    if (lower === 'completed' || lower === 'service completed' || lower === 'journey completed' || lower === 'clearance dynamic sync' || lower === 'luggage handover completed') {
-      return 'Completed';
-    }
-    return 'Staff Assigned';
-  }
-
-  return status;
-};
-
-const getServiceStatusOptions = (order: Order): string[] => {
-  if (order.type === 'Visa') {
-    return ['Agency Review', 'Submitted to Embassy', 'Processing', 'Completed'];
-  }
-  if (order.type === 'AirportPickup') {
-    return ['Staff Assigned', 'Passenger Greet', 'Completed'];
-  }
-  if (order.type === 'FastTrack') {
-    return ['Staff Assigned', 'Completed'];
-  }
-  return ['Agency Review', 'Processing', 'Completed'];
-};
+import { getServiceStatusOptions, getStatusLabel, getSubStatusLabel, getSubStatusOptions, normalizeStatusForTimeline, getTimelineStepsForOrder } from '../utils/orderStatus';
 
 export default function OMS({ orders, setOrders, currency, language = 'EN', onUpdateOrder }: OMSProps) {
+  // Filter only paid orders for OMS
+  const paidOrders = React.useMemo(() => {
+    return (orders || []).filter(o => o.paymentStatus && String(o.paymentStatus).startsWith('Paid'));
+  }, [orders]);
+
   // Master navigation subpage: fulfillment queue vs. urgent alerts board vs. agency comms sync
   const [omsSubPage, setOmsSubPage] = useState<'fulfillment' | 'alerts_board' | 'agency_comms'>('fulfillment');
 
@@ -282,7 +225,7 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
   // Derived map for partner assignment directly from server orders list
   const assignedPartners = React.useMemo(() => {
     const map: Record<string, string> = {};
-    (orders || []).forEach((o: any) => {
+    (paidOrders || []).forEach((o: any) => {
       if (o.assignedPartnerId) {
         map[o.id] = o.assignedPartnerId;
       }
@@ -291,7 +234,7 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
       }
     });
     return map;
-  }, [orders]);
+  }, [paidOrders]);
 
   const [discussions, setDiscussions] = useState<Record<string, Array<{ sender: 'digivisa' | 'partner' | 'system', text: string, timestamp: string }>>>(() => {
     const saved = safeStorage.getItem('digivisa_partner_chats');
@@ -308,11 +251,6 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
   });
 
   const [chatInput, setChatInput] = useState('');
-  const [saveState, setSaveState] = useState<{
-    field: string | null;
-    status: 'saving' | 'saved' | 'error' | null;
-    message?: string;
-  }>({ field: null, status: null });
 
   useEffect(() => {
     safeStorage.setItem('digivisa_partner_chats', JSON.stringify(discussions));
@@ -379,7 +317,7 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
   };
 
   // Filter orders by active service tab & search input
-  const tabOrders = getSplitOrders(orders).filter(o => {
+  const tabOrders = getSplitOrders(paidOrders).filter(o => {
     const matchesTab = partnerServiceTab === 'All' 
       ? true 
       : partnerServiceTab === 'VAT'
@@ -652,69 +590,33 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
   };
 
   const getStatusBadgeStyle = (status: string) => {
-    switch (status) {
-      case 'Agency Review':
-        return 'bg-amber-50 text-amber-850 border-amber-200/80 font-bold';
-      case 'Passenger Greet':
-        return 'bg-blue-50 text-blue-800 border-blue-200/80 font-bold';
-      case 'Confirmed':
-        return 'bg-blue-50 text-blue-800 border-blue-200 font-semibold';
-      case 'Submitted to Embassy':
-        return 'bg-violet-50 text-violet-800 border-violet-200';
-      case 'Processing':
-        return 'bg-indigo-50/70 text-indigo-800 border-indigo-200/60';
-      case 'Staff Assigned':
-      case 'Driver Assigned':
-        return 'bg-sky-50/70 text-sky-800 border-sky-200';
-      case 'Flying':
-        return 'bg-teal-50 text-teal-800 border-teal-200/60';
-      case 'Delay':
-        return 'bg-rose-50 text-rose-700 border-rose-200 font-bold';
-      case 'On Time':
-        return 'bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold';
-      case 'Delay / On Time':
-        return 'bg-amber-50 text-amber-700 border-amber-200';
-      case 'Completed':
-      case 'Approved':
-      case 'Approved & Issued':
-      case 'Service Completed':
-      case 'Journey Completed':
-        return 'bg-emerald-50 text-emerald-850 border-emerald-250/60 font-bold';
-      case 'Pending Review':
-      case 'Pending Documents':
-        return 'bg-amber-50/70 text-amber-800 border-amber-200';
-      case 'Needs Resubmission':
-        return 'bg-rose-50 text-rose-700 border-rose-300 font-extrabold';
-      case 'Document Checked':
-        return 'bg-indigo-50/70 text-indigo-800 border-indigo-200/60';
-      case 'Pending Landing Info':
-      case 'Awaiting Dispatch':
-        return 'bg-orange-50/70 text-orange-850 border-orange-200';
-      case 'Awaiting Flight Landing':
-      case 'Driver Waiting At Gate':
-        return 'bg-purple-50/70 text-purple-850 border-purple-200/60';
-      case 'Passenger Greeted':
-      case 'In Transit':
-        return 'bg-blue-50/70 text-blue-805 border-blue-200';
-      case 'Clearance Dynamic Sync':
-      case 'Luggage Handover Completed':
-        return 'bg-teal-50/70 text-teal-805 border-teal-200/60';
-      case 'Declined':
-      case 'Cancelled':
-        return 'bg-rose-50/75 text-rose-805 border-rose-250';
-      default:
-        return 'bg-slate-50 text-slate-800 border-slate-205';
-    }
+    const s = String(status || '').toLowerCase();
+    if (s.includes('agency review')) return 'bg-amber-50 text-amber-850 border-amber-200/80 font-bold';
+    if (s.includes('passenger greet')) return 'bg-blue-50 text-blue-800 border-blue-200/80 font-bold';
+    if (s.includes('confirmed')) return 'bg-blue-50 text-blue-800 border-blue-200 font-semibold';
+    if (s.includes('embassy')) return 'bg-violet-50 text-violet-800 border-violet-200';
+    if (s.includes('processing')) return 'bg-indigo-50/70 text-indigo-800 border-indigo-200/60';
+    if (s.includes('assigned')) return 'bg-sky-50/70 text-sky-800 border-sky-200';
+    if (s.includes('flying')) return 'bg-teal-50 text-teal-800 border-teal-200/60';
+    if (s.includes('delay')) return 'bg-rose-50 text-rose-700 border-rose-200 font-bold';
+    if (s.includes('on time')) return 'bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold';
+    if (s.includes('completed') || s.includes('approved')) return 'bg-emerald-50 text-emerald-850 border-emerald-250/60 font-bold';
+    if (s.includes('pending')) return 'bg-amber-50/70 text-amber-800 border-amber-200';
+    if (s.includes('resubmission')) return 'bg-rose-50 text-rose-700 border-rose-300 font-extrabold';
+    if (s.includes('transit')) return 'bg-blue-50/70 text-blue-805 border-blue-200';
+    if (s.includes('cancelled')) return 'bg-rose-50 text-rose-800 border-rose-200 font-extrabold';
+    return 'bg-slate-100 text-slate-700 border-slate-200';
   };
 
   const handleDispatch = async (orderId: string, partnerId: string) => {
     const isSec = orderId.endsWith('_secondary');
     const baseId = isSec ? orderId.replace('_secondary', '') : orderId;
 
-    const splitOrders = getSplitOrders(orders);
+    const splitOrders = getSplitOrders(paidOrders);
     const targetOrder = splitOrders.find(o => o.id === orderId);
     if (!targetOrder) return;
     const orderType = targetOrder.type;
+    const realOrder = paidOrders.find(o => o.id === baseId);
 
     const partnerObj = PARTNERS[orderType]?.find(p => p.id === partnerId);
     const partnerName = partnerObj?.name || 'Partner';
@@ -734,24 +636,32 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
     }));
 
     if (isSec) {
-      await onUpdateOrder?.(baseId, {
+      const payload: any = {
         assignedPartnerIdSecondary: partnerId,
         assignedPartnerNameSecondary: partnerName,
         assignedPartnerAtSecondary: nowIso,
         assignedPartnerBySecondary: staffEmail,
-      });
+      };
+      if (realOrder && (realOrder.secondaryStatus === 'Confirmed' || !realOrder.secondaryStatus)) {
+        payload.secondaryStatus = 'Agency Review';
+      }
+      await onUpdateOrder?.(baseId, payload);
     } else {
-      await onUpdateOrder?.(baseId, {
+      const payload: any = {
         assignedPartnerId: partnerId,
         assignedPartnerName: partnerName,
         assignedPartnerAt: nowIso,
         assignedPartnerBy: staffEmail,
-      });
+      };
+      if (realOrder && realOrder.status === 'Confirmed') {
+        payload.status = 'Agency Review';
+      }
+      await onUpdateOrder?.(baseId, payload);
     }
   };
 
   const handleSecondaryDispatch = async (orderId: string, partnerId: string) => {
-    const targetOrder = orders.find(o => o.id === orderId);
+    const targetOrder = paidOrders.find(o => o.id === orderId);
     if (!targetOrder) return;
     const secondaryType = targetOrder.type === 'FastTrack' ? 'AirportPickup' : 'FastTrack';
     const partnerObj = PARTNERS[secondaryType]?.find(p => p.id === partnerId);
@@ -771,12 +681,17 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
       [orderId + '_secondary']: [...(prev[orderId + '_secondary'] || []), systemMsg]
     }));
 
-    await onUpdateOrder?.(orderId, {
+    const payload: any = {
       assignedPartnerIdSecondary: partnerId,
       assignedPartnerNameSecondary: partnerName,
       assignedPartnerAtSecondary: nowIso,
       assignedPartnerBySecondary: staffEmail,
-    });
+    };
+    if (targetOrder.secondaryStatus === 'Confirmed' || !targetOrder.secondaryStatus) {
+      payload.secondaryStatus = 'Agency Review';
+    }
+
+    await onUpdateOrder?.(orderId, payload);
   };
 
   const handleUnassign = async (targetKey: string) => {
@@ -983,19 +898,13 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
   };
 
   const getTimelineSteps = (type: 'Visa' | 'FastTrack' | 'AirportPickup', currentStatus: string, order?: Order) => {
-    let happySteps: string[] = [];
-    if (type === 'Visa') {
-      happySteps = ['Agency Review', 'Submitted to Embassy', 'Processing', 'Completed'];
-    } else if (type === 'AirportPickup') {
-      happySteps = ['Staff Assigned', 'Passenger Greet', 'Completed'];
-    } else { // FastTrack
-      happySteps = ['Staff Assigned', 'Completed'];
-    }
+    const timelineSteps = getTimelineStepsForOrder(type);
+    const flowStepIds = timelineSteps.map((s) => s.id);
 
     const normalizedCurrentStatus = normalizeStatusForTimeline(currentStatus, type);
-    const isException = !happySteps.includes(normalizedCurrentStatus);
-    let steps = [...happySteps];
-    let currentIndex = happySteps.indexOf(normalizedCurrentStatus);
+    const isException = !flowStepIds.includes(normalizedCurrentStatus);
+    let steps = [...flowStepIds];
+    let currentIndex = flowStepIds.indexOf(normalizedCurrentStatus);
 
     if (isException) {
       steps.push(currentStatus);
@@ -1131,7 +1040,7 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
     );
   };
 
-  const selectedOrder = getSplitOrders(orders).find(o => o.id === selectedOrderId);
+  const selectedOrder = getSplitOrders(paidOrders).find(o => o.id === selectedOrderId);
   const selectedOrderPartner = selectedOrder ? PARTNERS[selectedOrder.type].find(p => p.id === assignedPartners[selectedOrder.id]) : null;
   const selectedOrderDiscussion = selectedOrder ? (discussions[selectedOrder.id] || []) : [];
   const selectedOrderChecklist = selectedOrder ? (checklists[selectedOrder.id] || {}) : {};
@@ -1390,7 +1299,7 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
 
         <div className="bg-white/10 backdrop-blur-md border border-white/10 rounded-2xl p-4 shrink-0 text-center relative z-10 min-w-[150px]">
           <span className="text-[10px] uppercase text-zinc-400 font-bold block mb-1">Incoming Orders Ledger</span>
-          <span className="text-3xl font-extrabold text-white block">{getSplitOrders(orders).length}</span>
+          <span className="text-3xl font-extrabold text-white block">{getSplitOrders(paidOrders).length}</span>
           <span className="text-[10px] text-[#A78BFA] font-medium block mt-1">Ready for Partner Dispatch</span>
         </div>
       </div>
@@ -1447,7 +1356,6 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
       {omsSubPage === 'fulfillment' ? (
         <div className="flex flex-col space-y-6">
 
-
         
           <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
           <div>
@@ -1483,7 +1391,7 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
                     : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'
                 }`}
               >
-                All ({getSplitOrders(orders).length})
+                All ({getSplitOrders(paidOrders).length})
               </button>
 
               <button
@@ -1498,7 +1406,7 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
                 }`}
               >
                 <Plane className="h-3 w-3 mr-1" />
-                <span>Visa ({getSplitOrders(orders).filter(o => o.type === 'Visa').length})</span>
+                <span>Visa ({getSplitOrders(paidOrders).filter(o => o.type === 'Visa').length})</span>
               </button>
 
               <button
@@ -1513,7 +1421,7 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
                 }`}
               >
                 <Sparkles className="h-3 w-3 mr-1 text-purple-500" />
-                <span>FastTrack ({getSplitOrders(orders).filter(o => o.type === 'FastTrack').length})</span>
+                <span>FastTrack ({getSplitOrders(paidOrders).filter(o => o.type === 'FastTrack').length})</span>
               </button>
 
               <button
@@ -1528,7 +1436,7 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
                 }`}
               >
                 <Car className="h-3 w-3 mr-1 text-emerald-500" />
-                <span>Car/Bus ({getSplitOrders(orders).filter(o => o.type === 'AirportPickup').length})</span>
+                <span>Car/Bus ({getSplitOrders(paidOrders).filter(o => o.type === 'AirportPickup').length})</span>
               </button>
 
               <button
@@ -1543,7 +1451,7 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
                 }`}
               >
                 <FileText className="h-3 w-3 mr-1 text-red-500 animate-pulse" />
-                <span>VAT Control ({getSplitOrders(orders).filter(o => (o.details as any).wantsInvoice === true).length})</span>
+                <span>VAT Control ({getSplitOrders(paidOrders).filter(o => (o.details as any).wantsInvoice === true).length})</span>
               </button>
             </div>
           </div>
@@ -2018,99 +1926,30 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
                       <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Gateway Status Controller</span>
                       
                       <div className="flex flex-col gap-2 w-full font-sans">
-                        {/* Main Status Dropdown */}
+                        {/* Main Status Display (Read-Only) */}
                         <div className="space-y-1">
-                          <div className="flex justify-between items-center">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase">Primary Status:</label>
-                            {saveState.field === 'status' && saveState.status && (
-                              <span className={`text-[10px] font-bold ${
-                                saveState.status === 'saving' ? 'text-slate-400 animate-pulse' :
-                                saveState.status === 'saved' ? 'text-emerald-600' : 'text-rose-600'
-                              }`}>
-                                {saveState.status === 'saving' && (language === 'EN' ? 'Saving…' : 'Đang lưu…')}
-                                {saveState.status === 'saved' && (language === 'EN' ? '✓ Saved' : '✓ Đã lưu')}
-                                {saveState.status === 'error' && (language === 'EN' ? '✕ Save failed' : '✕ Lưu thất bại')}
-                              </span>
-                            )}
+                          <label className="text-[10px] font-bold text-slate-500 uppercase">Primary Status:</label>
+                          <div className="w-full text-xs font-bold rounded-xl px-3 py-2 border border-indigo-200 bg-indigo-50/50 text-indigo-900 flex items-center justify-between">
+                            <span>{getStatusLabel(selectedOrder.status, language as any)}</span>
+                            <span className="text-[10px] font-mono opacity-70">({selectedOrder.status})</span>
                           </div>
-                          <select
-                            value={selectedOrder.status}
-                            disabled={saveState.field === 'status' && saveState.status === 'saving'}
-                            onChange={async (e) => {
-                              const newStatus = e.target.value as any;
-                              setSaveState({ field: 'status', status: 'saving' });
-                              const res = await onUpdateOrder?.(selectedOrder.id, { status: newStatus });
-                              if (res && res.success) {
-                                setSaveState({ field: 'status', status: 'saved' });
-                                setTimeout(() => {
-                                  setSaveState(prev => prev.field === 'status' && prev.status === 'saved' ? { field: null, status: null } : prev);
-                                }, 2000);
-                              } else {
-                                setSaveState({ field: 'status', status: 'error', message: res?.error || (language === 'EN' ? 'Server rejected update' : 'Máy chủ từ chối cập nhật') });
-                              }
-                            }}
-                            className="w-full text-xs font-bold rounded-xl px-3 py-2 border border-indigo-200 bg-indigo-50/50 text-indigo-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer disabled:opacity-50"
-                          >
-                            <option value="Submitted">1. Submitted (Pending Review)</option>
-                            <option value="Processing">2. Processing (In Progress)</option>
-                            <option value="Confirmed">3. Confirmed (Approved / Locked)</option>
-                            <option value="Assigned">4. Assigned (Driver / Staff Allocated)</option>
-                            <option value="Completed">5. Completed (Done)</option>
-                            <option value="Cancelled">6. Cancelled</option>
-                          </select>
-                          {saveState.field === 'status' && saveState.status === 'error' && saveState.message && (
-                            <div className="text-[10px] text-rose-600 bg-rose-50 border border-rose-200 p-1.5 rounded-lg font-medium mt-1">
-                              ⚠️ {saveState.message}
-                            </div>
-                          )}
                         </div>
 
-                        {/* Visa Sub-status Dropdown */}
-                        {selectedOrder.type === 'Visa' && (
+                        {/* Sub-Status Display (Read-Only) */}
+                        {selectedOrder.subStatus && (
                           <div className="space-y-1">
-                            <div className="flex justify-between items-center">
-                              <label className="text-[10px] font-bold text-slate-500 uppercase">Visa Sub-Status:</label>
-                              {saveState.field === 'subStatus' && saveState.status && (
-                                <span className={`text-[10px] font-bold ${
-                                  saveState.status === 'saving' ? 'text-slate-400 animate-pulse' :
-                                  saveState.status === 'saved' ? 'text-emerald-600' : 'text-rose-600'
-                                }`}>
-                                  {saveState.status === 'saving' && (language === 'EN' ? 'Saving…' : 'Đang lưu…')}
-                                  {saveState.status === 'saved' && (language === 'EN' ? '✓ Saved' : '✓ Đã lưu')}
-                                  {saveState.status === 'error' && (language === 'EN' ? '✕ Save failed' : '✕ Lưu thất bại')}
-                                </span>
-                              )}
+                            <label className="text-[10px] font-bold text-slate-500 uppercase">Sub-Status:</label>
+                            <div className="w-full text-xs font-semibold rounded-xl px-3 py-2 border border-slate-200 bg-slate-50 text-slate-700">
+                              {getSubStatusLabel(selectedOrder.subStatus, language as any)} ({selectedOrder.subStatus})
                             </div>
-                            <select
-                              value={selectedOrder.subStatus || 'Standard Review'}
-                              disabled={saveState.field === 'subStatus' && saveState.status === 'saving'}
-                              onChange={async (e) => {
-                                const newSub = e.target.value;
-                                setSaveState({ field: 'subStatus', status: 'saving' });
-                                const res = await onUpdateOrder?.(selectedOrder.id, { subStatus: newSub });
-                                if (res && res.success) {
-                                  setSaveState({ field: 'subStatus', status: 'saved' });
-                                  setTimeout(() => {
-                                    setSaveState(prev => prev.field === 'subStatus' && prev.status === 'saved' ? { field: null, status: null } : prev);
-                                  }, 2000);
-                                } else {
-                                  setSaveState({ field: 'subStatus', status: 'error', message: res?.error || (language === 'EN' ? 'Server rejected update' : 'Máy chủ từ chối cập nhật') });
-                                }
-                              }}
-                              className="w-full text-xs font-semibold rounded-xl px-3 py-2 border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer disabled:opacity-50"
-                            >
-                              <option value="Standard Review">Standard Review</option>
-                              <option value="Awaiting Paperwork">⚠️ More Docs Required</option>
-                              <option value="Approved">Approved & Issued</option>
-                              <option value="Declined">Declined / Rejected</option>
-                            </select>
-                            {saveState.field === 'subStatus' && saveState.status === 'error' && saveState.message && (
-                              <div className="text-[10px] text-rose-600 bg-rose-50 border border-rose-200 p-1.5 rounded-lg font-medium mt-1">
-                                ⚠️ {saveState.message}
-                              </div>
-                            )}
                           </div>
                         )}
+
+                        <p className="text-[10px] text-slate-400 font-medium italic mt-0.5">
+                          {language === 'EN'
+                            ? 'Update status in the Order Management tab.'
+                            : 'Cập nhật trạng thái tại tab Order Management.'}
+                        </p>
 
                         {/* Payment Status (Read-Only) */}
                         <div className="space-y-1">
@@ -3001,7 +2840,7 @@ Trạng thái thanh toán: ${selectedOrder.paymentStatus || 'Pending'}
       </div>
       ) : omsSubPage === 'agency_comms' ? (
         <OMSAgencyComms
-          orders={orders}
+          orders={paidOrders}
           setOrders={setOrders}
           discussions={discussions}
           setDiscussions={setDiscussions}
@@ -3020,7 +2859,7 @@ Trạng thái thanh toán: ${selectedOrder.paymentStatus || 'Pending'}
         />
       ) : (
         <OMSAlertsBoard
-          orders={orders}
+          orders={paidOrders}
           setOrders={setOrders}
           currency={currency}
           assignedPartners={assignedPartners}
