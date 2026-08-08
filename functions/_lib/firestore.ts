@@ -267,7 +267,7 @@ export async function markOrderPaidInFirestore(
     body: JSON.stringify({
       fields: {
         paymentStatus: { stringValue: 'Paid (9Pay)' },
-        status: { stringValue: 'Agency Review' },
+        status: { stringValue: 'Confirmed' },
         ninepayPaymentNo: { stringValue: paymentNo },
         // Echo amountVnd so rules see an unchanged charge amount on partial PATCH.
         amountVnd: { integerValue: String(Math.round(amountVnd)) },

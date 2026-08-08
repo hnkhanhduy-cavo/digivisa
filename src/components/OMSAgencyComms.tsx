@@ -5,7 +5,7 @@ import {
   Smartphone, Share2, Clipboard, ArrowRight, UserCheck, AlertCircle, 
   RefreshCw, Layers, FileText, PhoneCall, CheckSquare, Search, Filter,
   ExternalLink, User, Compass, HelpCircle, ClipboardCheck, ArrowUpRight,
-  ChevronRight, Building, ShieldAlert, CheckSquare2
+  ChevronRight, Building, ShieldAlert, CheckSquare2, X
 } from 'lucide-react';
 import { Order, Currency, CURRENCY_SYMBOLS } from '../types';
 import { safeStorage } from '../utils/storage';
@@ -61,6 +61,45 @@ const getDisplayVisaType = (details: any): string => {
   }
   return raw;
 };
+
+function StaffPhotoAvatar({ 
+  src, 
+  alt, 
+  sizeClass = "h-12 w-12", 
+  onPreview 
+}: { 
+  src?: string | null; 
+  alt?: string; 
+  sizeClass?: string; 
+  onPreview?: (url: string) => void;
+}) {
+  const [hasError, setHasError] = useState(false);
+
+  useEffect(() => {
+    setHasError(false);
+  }, [src]);
+
+  if (!src || hasError) {
+    return (
+      <div className={`${sizeClass} rounded-full bg-slate-100 border border-slate-200 text-slate-400 flex items-center justify-center shrink-0`}>
+        <User className="h-5 w-5" />
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt || 'Staff Portrait'}
+      referrerPolicy="no-referrer"
+      onError={() => setHasError(true)}
+      onClick={() => onPreview?.(src)}
+      className={`${sizeClass} rounded-full border border-slate-200 object-cover shrink-0 ${
+        onPreview ? 'cursor-pointer hover:opacity-90 transition-opacity' : ''
+      }`}
+    />
+  );
+}
 
 export default function OMSAgencyComms({
   orders,
@@ -184,26 +223,34 @@ export default function OMSAgencyComms({
     return matchesSearch && matchesType;
   });
 
+  const [previewPhotoUrl, setPreviewPhotoUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPreviewPhotoUrl(null);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const selectedOrder = getSplitOrders(orders).find(o => o.id === selectedOrderId) || getSplitOrders(orders)[0];
 
+  const isSecLeg = Boolean(selectedOrder?.id?.endsWith('_secondary'));
+
   // Detect if selected order is a combo
-  const isOrderCombo = !selectedOrder?.isSplitLeg && (selectedOrder ? (
+  const isOrderCombo = selectedOrder ? (
     (selectedOrder.type === 'FastTrack' && (selectedOrder.details as any)?.addAirportPickup) ||
     (selectedOrder.type === 'AirportPickup' && (selectedOrder.details as any)?.addFastTrack)
-  ) : false);
+  ) : false;
 
-  // Determine active service type based on switcher
-  const activeServiceType = selectedOrder ? (
-    !isOrderCombo || activeComboLeg === 'primary'
-      ? selectedOrder.type
-      : (selectedOrder.type === 'FastTrack' ? 'AirportPickup' : 'FastTrack')
-  ) : 'Visa';
+  // Determine active service type
+  const activeServiceType = selectedOrder?.type || 'Visa';
 
   // Determine active partner ID
   const activePartnerId = selectedOrder ? (
-    !isOrderCombo || activeComboLeg === 'primary'
-      ? assignedPartners[selectedOrder.id]
-      : assignedPartners[selectedOrder.id + '_secondary']
+    isSecLeg
+      ? ((selectedOrder as any)?.assignedPartnerIdSecondary || assignedPartners[selectedOrder.id])
+      : ((selectedOrder as any)?.assignedPartnerId || assignedPartners[selectedOrder.id])
   ) : undefined;
 
   useEffect(() => {
@@ -279,14 +326,16 @@ export default function OMSAgencyComms({
     ? PARTNERS[activeServiceType]?.find(p => p.id === activePartnerId)
     : undefined;
 
-  // Get Primary Partner assigned to this booking
-  const primaryPartnerId = selectedOrder ? assignedPartners[selectedOrder.id] : undefined;
-  const primaryPartnerObj = selectedOrder ? PARTNERS[selectedOrder.type]?.find(p => p.id === primaryPartnerId) : undefined;
+  // Get Primary and Secondary Partner assigned to this booking
+  const primaryId = selectedOrder ? (selectedOrder.id.endsWith('_secondary') ? selectedOrder.id.replace('_secondary', '') : selectedOrder.id) : undefined;
+  const secondaryId = primaryId ? primaryId + '_secondary' : undefined;
 
-  // Get Secondary Partner assigned to this booking
+  const primaryPartnerId = primaryId ? assignedPartners[primaryId] : undefined;
+  const primaryPartnerObj = selectedOrder && primaryId ? PARTNERS[selectedOrder.type]?.find(p => p.id === primaryPartnerId) : undefined;
+
   const secondaryType = selectedOrder?.type === 'FastTrack' ? 'AirportPickup' : 'FastTrack';
-  const secondaryPartnerId = selectedOrder ? assignedPartners[selectedOrder.id + '_secondary'] : undefined;
-  const secondaryPartnerObj = selectedOrder ? PARTNERS[secondaryType]?.find(p => p.id === secondaryPartnerId) : undefined;
+  const secondaryPartnerId = secondaryId ? assignedPartners[secondaryId] : undefined;
+  const secondaryPartnerObj = selectedOrder && secondaryId ? PARTNERS[secondaryType]?.find(p => p.id === secondaryPartnerId) : undefined;
 
   // Assigned Agency Info helper
   const getAssignedAgencyInfo = (type: string, partnerObj?: any) => {
@@ -854,9 +903,11 @@ export default function OMSAgencyComms({
                   
                   {/* Find & Assign Partner Agency Dropdown */}
                   {(() => {
-                    const isSecLeg = isOrderCombo && activeComboLeg === 'secondary';
+                    const isSecLeg = selectedOrder ? selectedOrder.id.endsWith('_secondary') : false;
+                    const baseId = isSecLeg ? selectedOrder.id.replace('_secondary', '') : selectedOrder.id;
+
                     const currentAssignedPartnerId = isSecLeg
-                      ? ((selectedOrder as any)?.assignedPartnerIdSecondary || assignedPartners[selectedOrder.id + '_secondary'])
+                      ? ((selectedOrder as any)?.assignedPartnerIdSecondary || assignedPartners[selectedOrder.id])
                       : ((selectedOrder as any)?.assignedPartnerId || assignedPartners[selectedOrder.id]);
 
                     const currentPartnerName = isSecLeg
@@ -893,19 +944,36 @@ export default function OMSAgencyComms({
                           <select
                             value={currentAssignedPartnerId || ''}
                             disabled={isAssigned}
-                            onChange={(e) => {
+                            onChange={async (e) => {
                               const pId = e.target.value;
                               if (!pId) return;
 
                               if (setAssignedPartners) {
                                 setAssignedPartners(prev => ({
                                   ...prev,
-                                  [isSecLeg ? selectedOrder.id + '_secondary' : selectedOrder.id]: pId
+                                  [selectedOrder.id]: pId
                                 }));
                               }
 
                               const partnerObj = PARTNERS[activeServiceType]?.find(p => p.id === pId);
                               const assignedName = partnerObj ? partnerObj.name : 'Partner';
+
+                              if (isSecLeg) {
+                                await onUpdateOrder?.(baseId, {
+                                  assignedPartnerIdSecondary: pId,
+                                  assignedPartnerNameSecondary: assignedName,
+                                  assignedPartnerAtSecondary: new Date().toISOString(),
+                                  assignedPartnerBySecondary: auth.currentUser?.email || 'staff'
+                                });
+                              } else {
+                                await onUpdateOrder?.(baseId, {
+                                  assignedPartnerId: pId,
+                                  assignedPartnerName: assignedName,
+                                  assignedPartnerAt: new Date().toISOString(),
+                                  assignedPartnerBy: auth.currentUser?.email || 'staff'
+                                });
+                              }
+
                               const noteText = `🤝 [Partner Liaison Found] Staff matched and assigned "${assignedName}" to handle the ${activeServiceType} leg. Priority channel initialized.`;
                               
                               const systemMsg = {
@@ -1358,14 +1426,12 @@ export default function OMSAgencyComms({
                                 placeholder="e.g. https://images.unsplash.com/photo-..." 
                                 className="flex-1 bg-white border border-slate-200 rounded-lg p-2 text-xs focus:ring-1 focus:ring-purple-400 focus:outline-none"
                               />
-                              {selectedOrder.staffPhoto && (
-                                <img 
-                                  src={selectedOrder.staffPhoto} 
-                                  alt="Preview" 
-                                  referrerPolicy="no-referrer"
-                                  className="h-8 w-8 rounded-full border border-slate-200 object-cover shrink-0"
-                                />
-                              )}
+                              <StaffPhotoAvatar
+                                src={selectedOrder.staffPhoto}
+                                alt="Preview"
+                                sizeClass="h-8 w-8"
+                                onPreview={(url) => setPreviewPhotoUrl(url)}
+                              />
                             </div>
                           </div>
                         </div>
@@ -1436,11 +1502,11 @@ export default function OMSAgencyComms({
                                 className="flex-1 bg-white border border-slate-200 rounded-lg p-2 text-xs focus:ring-1 focus:ring-blue-400 focus:outline-none"
                               />
                               {selectedOrder.staffPhoto && (
-                                <img 
-                                  src={selectedOrder.staffPhoto} 
-                                  alt="Preview" 
-                                  referrerPolicy="no-referrer"
-                                  className="h-8 w-8 rounded-full border border-slate-200 object-cover shrink-0"
+                                <StaffPhotoAvatar
+                                  src={selectedOrder.staffPhoto}
+                                  alt="Preview"
+                                  sizeClass="h-8 w-8"
+                                  onPreview={(url) => setPreviewPhotoUrl(url)}
                                 />
                               )}
                             </div>
@@ -1688,6 +1754,32 @@ export default function OMSAgencyComms({
 
       </div>
 
+      {previewPhotoUrl && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 animate-fade-in select-none"
+          onClick={() => setPreviewPhotoUrl(null)}
+        >
+          <div 
+            className="relative max-w-4xl max-h-[90vh] flex flex-col items-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setPreviewPhotoUrl(null)}
+              className="absolute -top-10 right-0 text-white hover:text-slate-300 bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors cursor-pointer"
+              title="Close (Esc)"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <img
+              src={previewPhotoUrl}
+              alt="Staff Full Preview"
+              referrerPolicy="no-referrer"
+              className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl border border-white/10"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

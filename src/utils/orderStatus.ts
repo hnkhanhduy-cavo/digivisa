@@ -86,13 +86,25 @@ export function getTimelineStepsForOrder(serviceType: string): { id: string; lab
  * Normalizes status strings for customer OrderTracker timeline indexing.
  */
 export function normalizeStatusForTimeline(status: string | undefined, serviceType: string): string {
-  const s = status || 'Confirmed';
+  if (!status || !status.trim()) {
+    return 'Confirmed';
+  }
+
+  const s = status.trim();
+  const lower = s.toLowerCase();
 
   const validSteps = (SERVICE_FLOW_STEPS[serviceType] || SERVICE_FLOW_STEPS['Visa']).map((x) => x.id);
-  const matched = validSteps.find((opt) => opt.toLowerCase() === s.toLowerCase());
+  const matched = validSteps.find((opt) => opt.toLowerCase() === lower);
   if (matched) return matched;
 
-  const lower = s.toLowerCase();
+  if (lower === 'cancelled' || lower === 'canceled') {
+    return 'Cancelled';
+  }
+
+  if (lower === 'pending payment' || lower === 'pending' || lower === 'pending review') {
+    return s;
+  }
+
   if (lower === 'completed' || lower === 'service completed' || lower === 'journey completed' || lower === 'approved & issued') {
     return 'Completed';
   }
@@ -112,7 +124,7 @@ export function normalizeStatusForTimeline(status: string | undefined, serviceTy
     return 'Passenger Greet';
   }
 
-  return 'Confirmed';
+  return s;
 }
 
 /**

@@ -4,7 +4,7 @@ import {
   Search, ClipboardCheck, ArrowRight, MapPin, Calendar, 
   Clock, ShieldAlert, Sparkles, Printer, User, RefreshCw, 
   BadgeAlert, Plane, ShieldCheck as VerifiedIcon, QrCode, CreditCard,
-  CheckCircle, AlertTriangle, Check, Car
+  CheckCircle, AlertTriangle, Check, Car, X
 } from 'lucide-react';
 import { Order, Currency, CURRENCY_SYMBOLS, EXCHANGE_RATES } from '../types';
 import { safeOpen, safeStorage, ordersStorageKey } from '../utils/storage';
@@ -19,7 +19,6 @@ interface OrderTrackerProps {
   setOrders: React.Dispatch<React.SetStateAction<Order[]>>;
   currency: Currency;
   onNavigateToServices: () => void;
-  onLoadDemoData?: () => void;
   onClearAllOrders?: () => void;
   language?: Language;
   currentUser?: { email?: string | null; displayName?: string | null; uid?: string } | null;
@@ -37,12 +36,50 @@ function isUnpaidOrder(o: Order | null | undefined): boolean {
   return !s.includes('Paid') && s !== 'Refunded';
 }
 
+function StaffPhotoAvatar({ 
+  src, 
+  alt, 
+  sizeClass = "h-12 w-12", 
+  onPreview 
+}: { 
+  src?: string | null; 
+  alt?: string; 
+  sizeClass?: string; 
+  onPreview?: (url: string) => void;
+}) {
+  const [hasError, setHasError] = useState(false);
+
+  useEffect(() => {
+    setHasError(false);
+  }, [src]);
+
+  if (!src || hasError) {
+    return (
+      <div className={`${sizeClass} rounded-full bg-slate-100 border border-slate-200 text-slate-400 flex items-center justify-center shrink-0`}>
+        <User className="h-5 w-5" />
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt || 'Staff Portrait'}
+      referrerPolicy="no-referrer"
+      onError={() => setHasError(true)}
+      onClick={() => onPreview?.(src)}
+      className={`${sizeClass} rounded-full border border-slate-200 object-cover shrink-0 ${
+        onPreview ? 'cursor-pointer hover:opacity-90 transition-opacity' : ''
+      }`}
+    />
+  );
+}
+
 export default function OrderTracker({
   orders,
   setOrders,
   currency,
   onNavigateToServices,
-  onLoadDemoData,
   onClearAllOrders,
   language = 'EN',
   currentUser,
@@ -53,6 +90,15 @@ export default function OrderTracker({
 }: OrderTrackerProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [previewPhotoUrl, setPreviewPhotoUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPreviewPhotoUrl(null);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const isEn = language === 'EN';
 
@@ -718,15 +764,6 @@ export default function OrderTracker({
                   >
                     Book New Clearance
                   </button>
-                  {orders.length === 0 && onLoadDemoData && (
-                    <button
-                      onClick={onLoadDemoData}
-                      id="empty-demo-data-btn"
-                      className="w-full px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-150 rounded-xl text-[10px] font-bold cursor-pointer transition-colors"
-                    >
-                      ✨ Load Demo Data
-                    </button>
-                  )}
                 </div>
               </div>
             ) : (
@@ -776,9 +813,15 @@ export default function OrderTracker({
                       </div>
                       
                       <div className="text-right">
-                        <span className="text-xs font-black text-slate-900 font-display">
-                          {formatCharge(details.totalFee || 0, order)}
-                        </span>
+                        {order.id.endsWith('_secondary') && (details?.totalFee === undefined || details?.totalFee === null) ? (
+                          <span className="text-[10px] text-slate-400 italic font-normal font-sans block max-w-[140px] leading-tight">
+                            {isEn ? 'Included in combo' : 'Đã bao gồm trong combo'}
+                          </span>
+                        ) : (
+                          <span className="text-xs font-black text-slate-900 font-display">
+                            {formatCharge(details.totalFee || 0, order)}
+                          </span>
+                        )}
                         <p className="text-[9px] text-slate-400 mt-0.5">
                           {order.createdAt
                             ? new Date(order.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
@@ -887,141 +930,157 @@ export default function OrderTracker({
 
 
               {/* Interactive Status Roadmap Milestone Timeline */}
-              {selectedOrder && (
-                <div className="bg-slate-50 border border-slate-200/60 rounded-2xl p-5 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <span className="h-2 w-2 rounded-full bg-indigo-500 animate-pulse shrink-0"></span>
-                    <span className="text-[10px] uppercase font-black tracking-widest text-slate-400 font-mono">Live Service Milestone</span>
-                  </div>
-                  <div className="text-[10px] font-bold text-slate-450 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-lg flex items-center gap-1 select-none">
-                    <span>🔒 Live Sync (Read-Only)</span>
-                  </div>
-                </div>
-
-                {/* Dynamic Horizontal Milestone Bar */}
-                {trackingOrder?.status === 'Cancelled' ? (
-                  <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 flex items-center gap-3 text-rose-800 font-sans">
-                    <AlertTriangle className="h-5 w-5 text-rose-600 shrink-0" />
-                    <div>
-                      <h4 className="font-extrabold text-xs uppercase tracking-wider">
-                        {language === 'EN' ? 'Order Cancelled' : 'Đơn hàng đã huỷ'}
-                      </h4>
-                      <p className="text-xs text-rose-700 mt-0.5">
-                        {language === 'EN'
-                          ? 'This service has been cancelled by operations. Please contact support for assistance.'
-                          : 'Dịch vụ này đã được nhân viên huỷ. Vui lòng liên hệ hỗ trợ để biết thêm chi tiết.'}
-                      </p>
+              {selectedOrder && (() => {
+                const isOrderPaid = Boolean(trackingOrder?.paymentStatus && String(trackingOrder.paymentStatus).startsWith('Paid'));
+                return (
+                  <div className="bg-slate-50 border border-slate-200/60 rounded-2xl p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <span className="h-2 w-2 rounded-full bg-indigo-500 animate-pulse shrink-0"></span>
+                      <span className="text-[10px] uppercase font-black tracking-widest text-slate-400 font-mono">Live Service Milestone</span>
+                    </div>
+                    <div className="text-[10px] font-bold text-slate-450 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-lg flex items-center gap-1 select-none">
+                      <span>🔒 Live Sync (Read-Only)</span>
                     </div>
                   </div>
-                ) : (
-                  <div className="relative flex items-center justify-between w-full py-2">
-                    {/* Connecting Line */}
-                    <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-0.5 bg-slate-200 z-0"></div>
-                    
-                    {/* Active Connecting Line Highlight */}
-                    <div 
-                      className="absolute left-0 top-1/2 -translate-y-1/2 h-0.5 bg-indigo-500 transition-all duration-500 z-0"
-                      style={{
-                        width: (() => {
-                          const stepsForOrder = getTimelineStepsForOrder(trackingOrder!.type);
-                          const normalizedCurrent = normalizeStatusForTimeline(trackingOrder!.status, trackingOrder!.type);
-                          const currentIndex = stepsForOrder.findIndex(step => step.id === normalizedCurrent);
-                          if (currentIndex <= 0) return '0%';
-                          if (currentIndex >= stepsForOrder.length - 1) return '100%';
-                          return `${(currentIndex / (stepsForOrder.length - 1)) * 100}%`;
-                        })()
-                      }}
-                    ></div>
 
-                    {/* Steps */}
-                    {getTimelineStepsForOrder(trackingOrder!.type).map((step, idx, arr) => {
-                      const normalizedCurrent = normalizeStatusForTimeline(trackingOrder!.status, trackingOrder!.type);
-                      const currentIndex = arr.findIndex(s => s.id === normalizedCurrent);
-                      const isCompleted = idx < currentIndex;
-                      const isActive = idx === currentIndex;
+                  {!isOrderPaid && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800 font-medium flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                      <span>
+                        {language === 'EN'
+                          ? 'Not paid yet. Processing starts once payment is completed.'
+                          : 'Đơn chưa được thanh toán. Quy trình xử lý sẽ bắt đầu sau khi thanh toán.'}
+                      </span>
+                    </div>
+                  )}
 
-                      return (
-                        <div 
-                          key={step.id} 
-                          className="relative z-10 flex flex-col items-center cursor-default"
-                        >
-                          {/* Step Circle Bubble */}
-                          <div className={`h-8 w-8 rounded-full flex items-center justify-center border font-mono text-xs font-black transition-all duration-300 ${
-                            isCompleted 
-                              ? 'bg-emerald-500 border-emerald-600 text-white shadow-md shadow-emerald-500/10' 
-                              : isActive 
-                              ? 'bg-indigo-600 border-indigo-700 text-white ring-4 ring-indigo-100 shadow-md shadow-indigo-600/15 scale-110' 
-                              : 'bg-white border-slate-250 text-slate-400 hover:border-slate-400 hover:text-slate-600'
-                          }`}>
-                            {isCompleted ? (
-                              <Check className="h-4 w-4 text-white font-bold" />
-                            ) : (
-                              idx + 1
-                            )}
-                          </div>
-                          
-                          {/* Labels */}
-                          <span className={`text-[11px] font-bold mt-2 transition-colors ${
-                            isActive ? 'text-indigo-600 font-extrabold' : isCompleted ? 'text-slate-700' : 'text-slate-400'
-                          }`}>
-                            {getStatusLabel(step.label, language as any)}
-                          </span>
-                          <span className="text-[9px] text-slate-400 hidden sm:block mt-0.5 text-center">
-                            {step.desc}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                <div className="bg-white border border-slate-150 rounded-xl p-3 text-xs text-slate-600 flex items-start space-x-2.5 shadow-sm mt-2">
-                  <div className={`p-1.5 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-600 mt-0.5`}>
-                    <Plane className={`h-3.5 w-3.5 ${trackingOrder!.status?.toLowerCase() === 'assigned' ? 'animate-bounce' : ''}`} />
-                  </div>
-                  <div>
-                    <h5 className="font-bold text-slate-800 flex items-center gap-1.5 flex-wrap">
-                      Status Detail: 
-                      <span className="text-indigo-600 font-mono font-black">{getStatusLabel(trackingOrder!.status, language as any)}</span>
-                      {trackingOrder!.subStatus && (
-                        (() => {
-                          const subVal = trackingOrder!.subStatus;
-                          let style = 'bg-slate-100 text-slate-800 border-slate-200';
-                          if (subVal === 'More docs required') {
-                            style = 'bg-amber-100 text-amber-800 border-amber-200 animate-pulse';
-                          } else if (subVal === 'Approved') {
-                            style = 'bg-emerald-100 text-emerald-800 border-emerald-200';
-                          } else if (subVal === 'Rejected' || subVal === 'Declined') {
-                            style = 'bg-rose-100 text-rose-800 border-rose-200';
-                          }
-                          return (
-                            <span className={`px-1.5 py-0.2 rounded text-[9.5px] font-bold border ${style}`}>
-                              {getSubStatusLabel(subVal, language as any)}
-                            </span>
-                          );
-                        })()
-                      )}
-                    </h5>
-                    <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">{getStatusMessage(trackingOrder!)}</p>
-                    
-                    {trackingOrder!.type === 'Visa' && (
-                      <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center gap-2 text-[11px]">
-                        <span className="text-slate-400 font-bold uppercase text-[9px]">Expected Result:</span>
-                        <strong className="text-indigo-600 bg-indigo-50/50 border border-indigo-100 px-2 py-0.5 rounded font-mono font-black">
-                          {getExpectedResultDate(trackingOrder!)}
-                        </strong>
+                  {/* Dynamic Horizontal Milestone Bar */}
+                  {trackingOrder?.status === 'Cancelled' ? (
+                    <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 flex items-center gap-3 text-rose-800 font-sans">
+                      <AlertTriangle className="h-5 w-5 text-rose-600 shrink-0" />
+                      <div>
+                        <h4 className="font-extrabold text-xs uppercase tracking-wider">
+                          {language === 'EN' ? 'Order Cancelled' : 'Đơn hàng đã huỷ'}
+                        </h4>
+                        <p className="text-xs text-rose-700 mt-0.5">
+                          {language === 'EN'
+                            ? 'This service has been cancelled by operations. Please contact support for assistance.'
+                            : 'Dịch vụ này đã được nhân viên huỷ. Vui lòng liên hệ hỗ trợ để biết thêm chi tiết.'}
+                        </p>
                       </div>
-                    )}
-                  </div>
-                </div>
+                    </div>
+                  ) : (
+                    <div className="relative flex items-center justify-between w-full py-2">
+                      {/* Connecting Line */}
+                      <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-0.5 bg-slate-200 z-0"></div>
+                      
+                      {/* Active Connecting Line Highlight */}
+                      <div 
+                        className="absolute left-0 top-1/2 -translate-y-1/2 h-0.5 bg-indigo-500 transition-all duration-500 z-0"
+                        style={{
+                          width: (() => {
+                            if (!isOrderPaid) return '0%';
+                            const stepsForOrder = getTimelineStepsForOrder(trackingOrder!.type);
+                            const normalizedCurrent = normalizeStatusForTimeline(trackingOrder!.status, trackingOrder!.type);
+                            const currentIndex = stepsForOrder.findIndex(step => step.id === normalizedCurrent);
+                            if (currentIndex <= 0) return '0%';
+                            if (currentIndex >= stepsForOrder.length - 1) return '100%';
+                            return `${(currentIndex / (stepsForOrder.length - 1)) * 100}%`;
+                          })()
+                        }}
+                      ></div>
 
-                {/* Assigned Physical Representative / Driver details */}
-                {trackingOrder!.staffName && (
-                  trackingOrder!.type === 'Visa' 
-                    ? true 
-                    : ['Staff Assigned', 'Flying', 'Passenger Greet', 'Completed'].includes(normalizeStatusForTimeline(trackingOrder!.status, trackingOrder!.type))
-                ) && (
+                      {/* Steps */}
+                      {getTimelineStepsForOrder(trackingOrder!.type).map((step, idx, arr) => {
+                        const normalizedCurrent = normalizeStatusForTimeline(trackingOrder!.status, trackingOrder!.type);
+                        const currentIndex = arr.findIndex(s => s.id === normalizedCurrent);
+                        const isCompleted = isOrderPaid && idx < currentIndex;
+                        const isActive = isOrderPaid && idx === currentIndex;
+
+                        return (
+                          <div 
+                            key={step.id} 
+                            className="relative z-10 flex flex-col items-center cursor-default"
+                          >
+                            {/* Step Circle Bubble */}
+                            <div className={`h-8 w-8 rounded-full flex items-center justify-center border font-mono text-xs font-black transition-all duration-300 ${
+                              isCompleted 
+                                ? 'bg-emerald-500 border-emerald-600 text-white shadow-md shadow-emerald-500/10' 
+                                : isActive 
+                                ? 'bg-indigo-600 border-indigo-700 text-white ring-4 ring-indigo-100 shadow-md shadow-indigo-600/15 scale-110' 
+                                : 'bg-white border-slate-250 text-slate-400 hover:border-slate-400 hover:text-slate-600'
+                            }`}>
+                              {isCompleted ? (
+                                <Check className="h-4 w-4 text-white font-bold" />
+                              ) : (
+                                idx + 1
+                              )}
+                            </div>
+                            
+                            {/* Labels */}
+                            <span className={`text-[11px] font-bold mt-2 transition-colors ${
+                              isActive ? 'text-indigo-600 font-extrabold' : isCompleted ? 'text-slate-700' : 'text-slate-400'
+                            }`}>
+                              {getStatusLabel(step.label, language as any)}
+                            </span>
+                            <span className="text-[9px] text-slate-400 hidden sm:block mt-0.5 text-center">
+                              {step.desc}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {isOrderPaid && (
+                    <div className="bg-white border border-slate-150 rounded-xl p-3 text-xs text-slate-600 flex items-start space-x-2.5 shadow-sm mt-2">
+                      <div className={`p-1.5 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-600 mt-0.5`}>
+                        <Plane className={`h-3.5 w-3.5 ${trackingOrder!.status?.toLowerCase() === 'assigned' ? 'animate-bounce' : ''}`} />
+                      </div>
+                      <div>
+                        <h5 className="font-bold text-slate-800 flex items-center gap-1.5 flex-wrap">
+                          Status Detail: 
+                          <span className="text-indigo-600 font-mono font-black">{getStatusLabel(trackingOrder!.status, language as any)}</span>
+                          {trackingOrder!.subStatus && (
+                            (() => {
+                              const subVal = trackingOrder!.subStatus;
+                              let style = 'bg-slate-100 text-slate-800 border-slate-200';
+                              if (subVal === 'More docs required') {
+                                style = 'bg-amber-100 text-amber-800 border-amber-200 animate-pulse';
+                              } else if (subVal === 'Approved') {
+                                style = 'bg-emerald-100 text-emerald-800 border-emerald-200';
+                              } else if (subVal === 'Rejected' || subVal === 'Declined') {
+                                style = 'bg-rose-100 text-rose-800 border-rose-200';
+                              }
+                              return (
+                                <span className={`px-1.5 py-0.2 rounded text-[9.5px] font-bold border ${style}`}>
+                                  {getSubStatusLabel(subVal, language as any)}
+                                </span>
+                              );
+                            })()
+                          )}
+                        </h5>
+                        <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">{getStatusMessage(trackingOrder!)}</p>
+                        
+                        {trackingOrder!.type === 'Visa' && (
+                          <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center gap-2 text-[11px]">
+                            <span className="text-slate-400 font-bold uppercase text-[9px]">Expected Result:</span>
+                            <strong className="text-indigo-600 bg-indigo-50/50 border border-indigo-100 px-2 py-0.5 rounded font-mono font-black">
+                              {getExpectedResultDate(trackingOrder!)}
+                            </strong>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Assigned Physical Representative / Driver details */}
+                  {isOrderPaid && Boolean(trackingOrder!.staffName) && (
+                    trackingOrder!.type === 'Visa' 
+                      ? true 
+                      : ['Staff Assigned', 'Flying', 'Passenger Greet', 'Completed'].includes(normalizeStatusForTimeline(trackingOrder!.status, trackingOrder!.type))
+                  ) && (
                   <div className="bg-gradient-to-r from-slate-50 to-indigo-50/20 border border-indigo-100 rounded-2xl p-4.5 space-y-3.5 shadow-sm mt-2.5">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2">
@@ -1039,18 +1098,12 @@ export default function OrderTracker({
                     </div>
 
                     <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                      {trackingOrder!.staffPhoto ? (
-                        <img 
-                           src={trackingOrder!.staffPhoto} 
-                           alt={trackingOrder!.staffName} 
-                           referrerPolicy="no-referrer"
-                           className="h-12 w-12 rounded-full border border-slate-200 shadow-sm object-cover shrink-0"
-                        />
-                      ) : (
-                        <div className="h-12 w-12 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
-                          <User className="h-5 w-5" />
-                        </div>
-                      )}
+                      <StaffPhotoAvatar
+                        src={trackingOrder!.staffPhoto}
+                        alt={trackingOrder!.staffName}
+                        sizeClass="h-12 w-12"
+                        onPreview={(url) => setPreviewPhotoUrl(url)}
+                      />
                       <div className="space-y-1 flex-1 min-w-0">
                         <h4 className="font-display font-extrabold text-slate-800 text-xs">
                           {trackingOrder!.staffName}
@@ -1089,7 +1142,8 @@ export default function OrderTracker({
                   </div>
                 )}
                 </div>
-              )}
+              );
+            })()}
 
               {/* Unique Visual Voucher Layout */}
               <div className="border border-slate-150 rounded-2xl overflow-hidden bg-slate-50/50">
@@ -1409,7 +1463,13 @@ export default function OrderTracker({
                             ? (isEn ? 'Amount due:' : 'Số tiền cần thanh toán:')
                             : (isEn ? 'Authorized Fee Paid:' : 'Số tiền đã thanh toán:')}
                         </span>
-                        <strong className="text-slate-900 font-extrabold font-display text-sm">{formatCharge((selectedOrder.details as any).totalFee, selectedOrder)}</strong>
+                        {selectedOrder.id.endsWith('_secondary') && ((selectedOrder.details as any)?.totalFee === undefined || (selectedOrder.details as any)?.totalFee === null) ? (
+                          <span className="text-[11px] text-slate-400 italic font-normal font-sans">
+                            {isEn ? 'Included in the combo package' : 'Đã bao gồm trong gói combo'}
+                          </span>
+                        ) : (
+                          <strong className="text-slate-900 font-extrabold font-display text-sm">{formatCharge((selectedOrder.details as any).totalFee, selectedOrder)}</strong>
+                        )}
                       </div>
                     </div>
 
@@ -1527,8 +1587,34 @@ export default function OrderTracker({
             </div>
           )}
         </div>
-
       </div>
+
+      {previewPhotoUrl && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 animate-fade-in select-none"
+          onClick={() => setPreviewPhotoUrl(null)}
+        >
+          <div 
+            className="relative max-w-4xl max-h-[90vh] flex flex-col items-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setPreviewPhotoUrl(null)}
+              className="absolute -top-10 right-0 text-white hover:text-slate-300 bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors cursor-pointer"
+              title="Close (Esc)"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <img
+              src={previewPhotoUrl}
+              alt="Staff Full Preview"
+              referrerPolicy="no-referrer"
+              className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl border border-white/10"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

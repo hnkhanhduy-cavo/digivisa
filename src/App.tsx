@@ -9,7 +9,6 @@ import {
 import { Order, Currency, CURRENCY_SYMBOLS } from './types';
 import { safeStorage, ordersStorageKey } from './utils/storage';
 import { Language, TRANSLATIONS } from './utils/translations';
-import { getTodayStr, getTodayOffsetStr } from './utils/validation';
 import { formatConvertedPrice, resolveOrderAmountVnd } from './utils/pricing';
 import { NINEPAY_MIN_AMOUNT_VND } from './utils/ninepay';
 import { syncUnpaidOrdersViaInquire, verifyOrderPayment } from './utils/paymentSync';
@@ -476,11 +475,6 @@ export default function App() {
     return () => window.removeEventListener('hashchange', checkHash);
   }, [userRole]);
 
-  const isDemoMode = (typeof window !== 'undefined' && (
-    window.location.hostname.includes('localhost') || 
-    window.location.hostname.includes('127.0.0.1') ||
-    window.location.search.includes('demo=true')
-  ));
 
   const sanitizeOrder = (o: any): Order => {
     if (!o) return { id: 'DV-UNKNOWN', type: 'Visa', status: 'Pending', createdAt: '', paymentStatus: 'Pending', details: {} as any };
@@ -526,84 +520,6 @@ export default function App() {
     });
   };
 
-  const loadDemoData = () => {
-    const defaultMockOrders: Order[] = [
-      {
-        id: 'DV-774910',
-        type: 'Visa',
-        status: 'Agency Review',
-        createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-        paymentStatus: 'Paid (9Pay)',
-        details: {
-          firstName: 'Eleanor',
-          lastName: 'Vance',
-          passportNumber: 'US8743012',
-          passportExpiry: '2031-10-15',
-          nationality: 'United States',
-          dateOfBirth: '1992-04-12',
-          arrivalDate: getTodayStr(),
-          email: 'eleanor.vance@gmail.com',
-          phone: '+15557001200',
-          visaType: 'Tourist (30 Days)',
-          processingSpeed: 'Standard',
-          passportScan: 'passport_scan_vance.jpg',
-          photoScan: 'photo_biometric.png',
-          totalFee: 120,
-        } as any,
-      },
-      {
-        id: 'DV-FT4015',
-        type: 'FastTrack',
-        status: 'Staff Assigned',
-        createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-        paymentStatus: 'Paid (Bank Transfer)',
-        details: {
-          airlineName: 'Singapore Airlines',
-          flightNumber: 'SQ308',
-          arrivalDate: getTodayStr(),
-          arrivalTime: '11:45',
-          numberOfPassengers: 1,
-          packageType: 'Fast Track Standard',
-          contactName: 'Eleanor Vance',
-          contactEmail: 'eleanor.vance@gmail.com',
-          contactPhone: '+15557001200',
-          specialRequests: 'Passenger requires wheelchair setup at aerobridge gate.',
-          totalFee: 78.75,
-        } as any,
-      },
-      {
-        id: 'DV-PICK-33880',
-        type: 'AirportPickup',
-        status: 'Staff Assigned',
-        createdAt: new Date(Date.now() - 20 * 60 * 60 * 1000).toISOString(),
-        paymentStatus: 'Paid (Bank Transfer)',
-        staffName: 'Mr. Minh Quan (VIP Chauffeur Partner)',
-        staffPhone: '+84912345678',
-        licensePlate: '30A - 888.88',
-        details: {
-          pickupDate: getTodayOffsetStr(1),
-          pickupTime: '20:45',
-          flightNumber: 'VJ-123',
-          airlineName: 'VietJet Air',
-          destinationAddress: 'Sheraton Saigon Hotel, District 1, HCMC',
-          pickupAddress: 'Noi Bai Airport T2',
-          direction: 'Arrival',
-          vehicleType: '7 seats',
-          passengerName: 'Olivia Taylor',
-          passengerPhone: '+61292843000',
-          passengerEmail: 'olivia.taylor@melbournetourism.com.au',
-          luggageCount: 4,
-          terminalNumber: 'Terminal 2 International',
-          totalFee: 24.0,
-          addFastTrack: false,
-          paymentMethod: 'bank_transfer',
-          wantsInvoice: true,
-        } as any,
-      },
-    ];
-    saveOrders(defaultMockOrders);
-    triggerToast("Demo orders seeded successfully! Switch tabs to explore tracking and OMS.", "success");
-  };
 
   const clearAllOrders = () => {
     saveOrders([]);
@@ -1184,7 +1100,6 @@ export default function App() {
                   setOrders={saveOrders}
                   currency={currency}
                   onNavigateToServices={() => { setActiveTab('services'); setActiveService(null); }}
-                  onLoadDemoData={isDemoMode ? loadDemoData : undefined}
                   onClearAllOrders={clearAllOrders}
                   language={language}
                   currentUser={currentUser}

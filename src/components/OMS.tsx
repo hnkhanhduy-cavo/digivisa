@@ -1848,7 +1848,13 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
 
                             {/* Amount */}
                             <td className="py-3.5 px-4 font-bold text-slate-900 font-mono whitespace-nowrap">
-                              {formatMoney(order.details.totalFee, order)}
+                              {order.id.endsWith('_secondary') && (order.details?.totalFee === undefined || order.details?.totalFee === null) ? (
+                                <span className="text-[11px] text-slate-400 italic font-normal font-sans">
+                                  {language === 'EN' ? 'Included in the combo package' : 'Đã bao gồm trong gói combo'}
+                                </span>
+                              ) : (
+                                formatMoney(order.details.totalFee, order)
+                              )}
                             </td>
 
                             {/* Service Date */}
