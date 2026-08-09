@@ -256,14 +256,28 @@ export default function OMSAgencyComms({
 
   const isSecLeg = Boolean(selectedOrder?.id?.endsWith('_secondary'));
 
-  // Detect if selected order is a combo
-  const isOrderCombo = selectedOrder ? (
-    (selectedOrder.type === 'FastTrack' && (selectedOrder.details as any)?.addAirportPickup) ||
-    (selectedOrder.type === 'AirportPickup' && (selectedOrder.details as any)?.addFastTrack)
-  ) : false;
+  // Detect if selected order is a combo (evaluating base/parent order so secondary leg row resolves correctly)
+  const isOrderCombo = (() => {
+    if (!selectedOrder) return false;
+    const baseId = selectedOrder.id.replace('_secondary', '');
+    const parentOrder = (orders || []).find((o) => o.id === baseId) || selectedOrder;
+
+    return Boolean(
+      (parentOrder.type === 'FastTrack' && (parentOrder.details as any)?.addAirportPickup) ||
+      (parentOrder.type === 'AirportPickup' && (parentOrder.details as any)?.addFastTrack)
+    );
+  })();
 
   // Determine active service type
   const activeServiceType = selectedOrder?.type || 'Visa';
+
+  // Helper to translate service code to user-facing name
+  const getServiceName = (serviceType: string, lang: string = 'EN'): string => {
+    if (serviceType === 'FastTrack') return 'Fast Track';
+    if (serviceType === 'AirportPickup') return lang === 'EN' ? 'Airport Pickup' : 'Đưa đón sân bay';
+    if (serviceType === 'Visa') return 'Visa';
+    return serviceType;
+  };
 
   // Determine active partner ID
   const activePartnerId = selectedOrder ? (
@@ -928,8 +942,8 @@ export default function OMSAgencyComms({
                         <Layers className="h-4 w-4 text-purple-700" />
                         <span className="text-xs font-extrabold text-purple-900">
                           {language === 'EN'
-                            ? `Viewing: ${isSecLeg ? 'Secondary leg' : 'Primary leg'} (${activeServiceType})`
-                            : `Đang xem: ${isSecLeg ? 'Chặng phụ' : 'Chặng chính'} (${activeServiceType})`}
+                            ? `Viewing: ${isSecLeg ? 'Secondary leg' : 'Primary leg'} (${getServiceName(activeServiceType, language)})`
+                            : `Đang xem: ${isSecLeg ? 'Chặng phụ' : 'Chặng chính'} (${getServiceName(activeServiceType, language)})`}
                         </span>
                       </div>
                       <span className="text-[9px] bg-purple-100 text-purple-800 font-extrabold px-2 py-0.5 rounded-full uppercase border border-purple-200">
@@ -937,14 +951,19 @@ export default function OMSAgencyComms({
                       </span>
                     </div>
 
-                    {/* Partner Assignment Summary for BOTH legs (Read-only) */}
+                    {/* Partner Assignment Summary for BOTH legs (Clickable) */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-0.5">
                       {/* Primary Leg Summary */}
-                      <div className={`p-3 rounded-xl border transition-all text-xs space-y-1.5 ${
-                        !isSecLeg 
-                          ? 'bg-white border-purple-400 shadow-sm ring-1 ring-purple-300' 
-                          : 'bg-slate-50/70 border-slate-200 opacity-65'
-                      }`}>
+                      <div 
+                        onClick={() => {
+                          if (isSecLeg) setSelectedOrderId(baseId);
+                        }}
+                        className={`p-3 rounded-xl border transition-all text-xs space-y-1.5 ${
+                          !isSecLeg 
+                            ? 'bg-white border-purple-400 shadow-sm ring-1 ring-purple-300' 
+                            : 'bg-slate-50/70 border-slate-200 opacity-65 cursor-pointer hover:bg-slate-100/80 hover:border-slate-300'
+                        }`}
+                      >
                         <div className="flex items-center justify-between gap-1">
                           <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">
                             {language === 'EN' ? 'Primary Leg' : 'Chặng chính'}
@@ -989,11 +1008,16 @@ export default function OMSAgencyComms({
                       </div>
 
                       {/* Secondary Leg Summary */}
-                      <div className={`p-3 rounded-xl border transition-all text-xs space-y-1.5 ${
-                        isSecLeg 
-                          ? 'bg-white border-purple-400 shadow-sm ring-1 ring-purple-300' 
-                          : 'bg-slate-50/70 border-slate-200 opacity-65'
-                      }`}>
+                      <div 
+                        onClick={() => {
+                          if (!isSecLeg) setSelectedOrderId(baseId + '_secondary');
+                        }}
+                        className={`p-3 rounded-xl border transition-all text-xs space-y-1.5 ${
+                          isSecLeg 
+                            ? 'bg-white border-purple-400 shadow-sm ring-1 ring-purple-300' 
+                            : 'bg-slate-50/70 border-slate-200 opacity-65 cursor-pointer hover:bg-slate-100/80 hover:border-slate-300'
+                        }`}
+                      >
                         <div className="flex items-center justify-between gap-1">
                           <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">
                             {language === 'EN' ? 'Secondary Leg' : 'Chặng phụ'}
@@ -1038,11 +1062,33 @@ export default function OMSAgencyComms({
                       </div>
                     </div>
 
-                    <p className="text-[10.5px] text-slate-500 font-medium leading-relaxed">
-                      {language === 'EN'
-                        ? 'To switch between legs of a combo order, please click the corresponding row in the list on the left.'
-                        : 'Để chuyển giữa 2 chặng của đơn combo, vui lòng chọn dòng tương ứng ở danh sách bên trái.'}
-                    </p>
+                    {/* Switch Leg Button */}
+                    {(() => {
+                      const targetType = isSecLeg ? primaryType : secondaryType;
+                      const targetServiceName = getServiceName(targetType, language);
+
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (isSecLeg) {
+                              setSelectedOrderId(baseId);
+                            } else {
+                              setSelectedOrderId(baseId + '_secondary');
+                            }
+                          }}
+                          className="w-full py-2 px-3.5 bg-purple-100 hover:bg-purple-200 text-purple-800 border border-purple-200 text-xs font-extrabold rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
+                        >
+                          {!isSecLeg
+                            ? (language === 'EN'
+                                ? `Switch to secondary leg (${targetServiceName}) ➜`
+                                : `Chuyển sang chặng phụ (${targetServiceName}) ➜`)
+                            : (language === 'EN'
+                                ? `⬅ Switch to primary leg (${targetServiceName})`
+                                : `⬅ Chuyển về chặng chính (${targetServiceName})`)}
+                        </button>
+                      );
+                    })()}
                   </div>
                 );
               })()}
@@ -1447,7 +1493,7 @@ export default function OMSAgencyComms({
                       <h4 className="text-[11px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
                         <CheckCircle className="h-4 w-4 text-indigo-600" />
                         <span>
-                          {isOrderCombo ? `Leg Status Bridge: ${activeServiceType}` : 'Direct Status Transition Bridge'}
+                          {isOrderCombo ? `Leg Status Bridge: ${getServiceName(activeServiceType, language)}` : 'Direct Status Transition Bridge'}
                         </span>
                       </h4>
                       <span className="text-[10px] font-bold text-slate-550 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200/60">
@@ -1786,8 +1832,8 @@ export default function OMSAgencyComms({
                         <span>📌</span>
                         <span>
                           {language === 'EN'
-                            ? (isSecLeg ? `Group links for secondary leg (${activeServiceType})` : `Group links for primary leg (${activeServiceType})`)
-                            : (isSecLeg ? `Link nhóm cho chặng phụ (${activeServiceType})` : `Link nhóm cho chặng chính (${activeServiceType})`)}
+                            ? (isSecLeg ? `Group links for secondary leg (${getServiceName(activeServiceType, language)})` : `Group links for primary leg (${getServiceName(activeServiceType, language)})`)
+                            : (isSecLeg ? `Link nhóm cho chặng phụ (${getServiceName(activeServiceType, language)})` : `Link nhóm cho chặng chính (${getServiceName(activeServiceType, language)})`)}
                         </span>
                       </div>
                     )}
