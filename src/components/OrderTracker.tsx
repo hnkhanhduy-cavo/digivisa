@@ -1042,7 +1042,7 @@ export default function OrderTracker({
                         <h5 className="font-bold text-slate-800 flex items-center gap-1.5 flex-wrap">
                           Status Detail: 
                           <span className="text-indigo-600 font-mono font-black">{getStatusLabel(trackingOrder!.status, language as any)}</span>
-                          {trackingOrder!.subStatus && (
+                          {trackingOrder!.type === 'Visa' && trackingOrder!.subStatus && (
                             (() => {
                               const subVal = trackingOrder!.subStatus;
                               let style = 'bg-slate-100 text-slate-800 border-slate-200';

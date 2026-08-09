@@ -10,7 +10,7 @@ import {
 import { Order, Currency, CURRENCY_SYMBOLS } from '../types';
 import { safeStorage } from '../utils/storage';
 import { getSplitOrders } from '../utils/orderUtils';
-import { formatPhoneE164 } from '../utils/validation';
+import { formatPhoneE164, isValidInternationalPhone } from '../utils/validation';
 import { auth } from '../utils/firebase';
 import { getServiceStatusOptions, getSubStatusOptions, getSubStatusLabel } from '../utils/orderStatus';
 
@@ -187,32 +187,7 @@ export default function OMSAgencyComms({
     return result;
   };
 
-  // Auto-select first order if none selected
-  useEffect(() => {
-    const splitOrders = getSplitOrders(orders);
-    if (splitOrders.length > 0 && !selectedOrderId) {
-      setSelectedOrderId(splitOrders[0].id);
-    }
-  }, [orders, selectedOrderId]);
 
-  // Sync selectedOrderId when initialSelectedOrderId changes from the parent
-  useEffect(() => {
-    if (initialSelectedOrderId) {
-      setSelectedOrderId(initialSelectedOrderId);
-      setFilterType('All'); // Show all order types to guarantee visibility of the selected order
-      
-      if (initialSelectedOrderId.endsWith('_secondary')) {
-        setActiveComboLeg('secondary');
-      } else {
-        setActiveComboLeg('primary');
-      }
-    }
-  }, [initialSelectedOrderId]);
-
-  // Reset to primary leg whenever the selected order changes
-  useEffect(() => {
-    setActiveComboLeg('primary');
-  }, [selectedOrderId]);
 
   // Filtered order list
   const filteredOrders = getSplitOrders(orders).filter(o => {
@@ -234,6 +209,54 @@ export default function OMSAgencyComms({
   }, []);
 
   const selectedOrder = getSplitOrders(orders).find(o => o.id === selectedOrderId) || getSplitOrders(orders)[0];
+
+  const [staffInputs, setStaffInputs] = useState<{
+    staffName: string;
+    staffPhone: string;
+    staffLocation: string;
+    staffPhoto: string;
+    licensePlate: string;
+    carPhoto: string;
+  }>({
+    staffName: '',
+    staffPhone: '',
+    staffLocation: '',
+    staffPhoto: '',
+    licensePlate: '',
+    carPhoto: '',
+  });
+  const [staffPhoneError, setStaffPhoneError] = useState<string | null>(null);
+
+  // Sync local draft inputs whenever selectedOrder changes
+  useEffect(() => {
+    if (selectedOrder) {
+      const isSec = selectedOrder.id.endsWith('_secondary');
+      const o = selectedOrder as any;
+      setStaffInputs({
+        staffName: isSec ? (o.secondaryStaffName || '') : (selectedOrder.staffName || ''),
+        staffPhone: isSec ? (o.secondaryStaffPhone || '') : (selectedOrder.staffPhone || ''),
+        staffLocation: isSec ? (o.secondaryStaffLocation || '') : (selectedOrder.staffLocation || ''),
+        staffPhoto: isSec ? (o.secondaryStaffPhoto || '') : (selectedOrder.staffPhoto || ''),
+        licensePlate: isSec ? (o.secondaryLicensePlate || '') : (selectedOrder.licensePlate || ''),
+        carPhoto: isSec ? (o.secondaryCarPhoto || '') : (selectedOrder.carPhoto || ''),
+      });
+      setStaffPhoneError(null);
+    }
+  }, [
+    selectedOrder?.id,
+    selectedOrder?.staffName,
+    selectedOrder?.staffPhone,
+    selectedOrder?.staffLocation,
+    selectedOrder?.staffPhoto,
+    selectedOrder?.licensePlate,
+    selectedOrder?.carPhoto,
+    (selectedOrder as any)?.secondaryStaffName,
+    (selectedOrder as any)?.secondaryStaffPhone,
+    (selectedOrder as any)?.secondaryStaffLocation,
+    (selectedOrder as any)?.secondaryStaffPhoto,
+    (selectedOrder as any)?.secondaryLicensePlate,
+    (selectedOrder as any)?.secondaryCarPhoto,
+  ]);
 
   const isSecLeg = Boolean(selectedOrder?.id?.endsWith('_secondary'));
 
@@ -403,7 +426,7 @@ export default function OMSAgencyComms({
     if (isSec) {
       await onUpdateOrder?.(baseId, { secondaryStatus: newStatus, secondarySubStatus: null });
     } else {
-      const subOpts = getSubStatusOptions(newStatus);
+      const subOpts = getSubStatusOptions(newStatus, activeServiceType);
       const subStatus = subOpts.length > 0 ? subOpts[0] : null;
       await onUpdateOrder?.(baseId, { status: newStatus, subStatus });
     }
@@ -470,13 +493,56 @@ export default function OMSAgencyComms({
 
     if (isSec) {
       const currentStatus = (selectedOrder as any).secondaryStatus || 'Confirmed';
-      const nextStatus = currentStatus === 'Confirmed' ? 'Staff Assigned' : currentStatus;
+      const nextStatus = (currentStatus === 'Confirmed' || currentStatus === 'Agency Review')
+        ? 'Staff Assigned'
+        : currentStatus;
       await onUpdateOrder?.(baseId, { [targetField]: value, secondaryStatus: nextStatus });
     } else {
       const currentStatus = selectedOrder.status || 'Confirmed';
-      const nextStatus = currentStatus === 'Confirmed' ? 'Staff Assigned' : currentStatus;
+      const nextStatus = (currentStatus === 'Confirmed' || currentStatus === 'Agency Review')
+        ? 'Staff Assigned'
+        : currentStatus;
       await onUpdateOrder?.(baseId, { [targetField]: value, status: nextStatus });
     }
+  };
+
+  // Commit field on blur or Enter press if value actually changed
+  const handleCommitField = async (field: keyof typeof staffInputs) => {
+    if (!selectedOrder) return;
+    const isSec = selectedOrder.id.endsWith('_secondary');
+    const o = selectedOrder as any;
+
+    let origValue = '';
+    if (field === 'staffName') origValue = isSec ? (o.secondaryStaffName || '') : (selectedOrder.staffName || '');
+    else if (field === 'staffPhone') origValue = isSec ? (o.secondaryStaffPhone || '') : (selectedOrder.staffPhone || '');
+    else if (field === 'staffLocation') origValue = isSec ? (o.secondaryStaffLocation || '') : (selectedOrder.staffLocation || '');
+    else if (field === 'staffPhoto') origValue = isSec ? (o.secondaryStaffPhoto || '') : (selectedOrder.staffPhoto || '');
+    else if (field === 'licensePlate') origValue = isSec ? (o.secondaryLicensePlate || '') : (selectedOrder.licensePlate || '');
+    else if (field === 'carPhoto') origValue = isSec ? (o.secondaryCarPhoto || '') : (selectedOrder.carPhoto || '');
+
+    const currentValue = staffInputs[field] || '';
+
+    // Phone validation
+    if (field === 'staffPhone') {
+      const trimmed = currentValue.trim();
+      if (trimmed !== '' && !isValidInternationalPhone(trimmed)) {
+        setStaffPhoneError(
+          language === 'EN'
+            ? 'Invalid phone number format. Must be E.164 (e.g. +84909667334).'
+            : 'Số điện thoại không hợp lệ. Vui lòng nhập đúng định dạng quốc tế (ví dụ: +84909667334).'
+        );
+        return; // DO NOT SAVE
+      } else {
+        setStaffPhoneError(null);
+      }
+    }
+
+    // Only save if value actually changed
+    if (currentValue.trim() === origValue.trim()) {
+      return;
+    }
+
+    await handleUpdateStaffOrVehicle(field as string, currentValue.trim());
   };
 
   // Quick Action: Add manual liaison discussion note
@@ -1340,7 +1406,7 @@ export default function OMSAgencyComms({
                     </div>
 
                     {/* Dynamic Sub-Statuses */}
-                    {getSubStatusOptions(selectedOrder.status).length > 0 && (
+                    {getSubStatusOptions(selectedOrder.status, activeServiceType).length > 0 && (
                       <div className="space-y-3 mt-3">
                         <div className="bg-amber-50/70 border border-amber-200 p-3.5 rounded-xl space-y-2">
                           <div className="flex items-center justify-between">
@@ -1352,8 +1418,8 @@ export default function OMSAgencyComms({
                             </span>
                           </div>
                           <div className="flex gap-2">
-                            {getSubStatusOptions(selectedOrder.status).map((subVal) => {
-                              const isSel = (selectedOrder.subStatus || getSubStatusOptions(selectedOrder.status)[0]) === subVal;
+                            {getSubStatusOptions(selectedOrder.status, activeServiceType).map((subVal) => {
+                              const isSel = (selectedOrder.subStatus || getSubStatusOptions(selectedOrder.status, activeServiceType)[0]) === subVal;
                               return (
                                 <button
                                   key={subVal}
@@ -1377,7 +1443,7 @@ export default function OMSAgencyComms({
                     )}
 
                     {/* Fast Track Service Staff Assigned Form */}
-                    {activeServiceType === 'FastTrack' && (selectedOrder.status === 'Confirmed' || selectedOrder.status === 'Staff Assigned') && (
+                    {activeServiceType === 'FastTrack' && ['Confirmed', 'Agency Review', 'Staff Assigned'].includes(selectedOrder.status || '') && (
                       <div className="mt-3 p-4 bg-purple-50/50 border border-purple-200/65 rounded-2xl space-y-3">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center space-x-1.5">
@@ -1387,47 +1453,63 @@ export default function OMSAgencyComms({
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
-                            <label className="block text-[8.5px] font-black text-slate-500 uppercase mb-1">Staff Name</label>
+                            <label className="block text-[8.5px] font-black text-slate-500 uppercase mb-1">Staff Name / Tên nhân viên</label>
                             <input 
                               type="text" 
-                              value={selectedOrder.staffName || ''} 
-                              onChange={(e) => handleUpdateStaffOrVehicle('staffName', e.target.value)}
+                              value={staffInputs.staffName} 
+                              onChange={(e) => setStaffInputs(prev => ({ ...prev, staffName: e.target.value }))}
+                              onBlur={() => handleCommitField('staffName')}
+                              onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
                               placeholder="e.g. Mr. Kevin Pham" 
                               className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs focus:ring-1 focus:ring-purple-400 focus:outline-none"
                             />
                           </div>
                           <div>
-                            <label className="block text-[8.5px] font-black text-slate-500 uppercase mb-1">Staff Phone</label>
+                            <label className="block text-[8.5px] font-black text-slate-500 uppercase mb-1">Staff Phone / Số điện thoại</label>
                             <input 
                               type="text" 
-                              value={selectedOrder.staffPhone || ''} 
-                              onChange={(e) => handleUpdateStaffOrVehicle('staffPhone', e.target.value)}
+                              value={staffInputs.staffPhone} 
+                              onChange={(e) => {
+                                setStaffInputs(prev => ({ ...prev, staffPhone: e.target.value }));
+                                if (staffPhoneError) setStaffPhoneError(null);
+                              }}
+                              onBlur={() => handleCommitField('staffPhone')}
+                              onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
                               placeholder="e.g. +84912334556" 
-                              className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs focus:ring-1 focus:ring-purple-400 focus:outline-none font-mono"
+                              className={`w-full bg-white border ${staffPhoneError ? 'border-rose-400 focus:ring-rose-400' : 'border-slate-200 focus:ring-purple-400'} rounded-lg p-2 text-xs focus:ring-1 focus:outline-none font-mono`}
                             />
+                            {staffPhoneError && (
+                              <p className="text-[10px] text-rose-600 font-bold mt-1 animate-fade-in flex items-center gap-1">
+                                <span>⚠️</span> {staffPhoneError}
+                              </p>
+                            )}
                           </div>
                           <div className="sm:col-span-2">
-                            <label className="block text-[8.5px] font-black text-slate-500 uppercase mb-1">Meeting Location</label>
+                            <label className="block text-[8.5px] font-black text-slate-500 uppercase mb-1">Meeting Location / Điểm đón khách</label>
                             <input 
                               type="text" 
-                              value={selectedOrder.staffLocation || ''} 
-                              onChange={(e) => handleUpdateStaffOrVehicle('staffLocation', e.target.value)}
+                              value={staffInputs.staffLocation} 
+                              onChange={(e) => setStaffInputs(prev => ({ ...prev, staffLocation: e.target.value }))}
+                              onBlur={() => handleCommitField('staffLocation')}
+                              onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
                               placeholder="e.g. Arrival Terminal Gate A2 (near Coffee Stand)" 
                               className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs focus:ring-1 focus:ring-purple-400 focus:outline-none"
                             />
                           </div>
                           <div className="sm:col-span-2">
-                            <label className="block text-[8.5px] font-black text-slate-500 uppercase mb-1">Staff Portrait Photo URL</label>
+                            <label className="block text-[8.5px] font-black text-slate-500 uppercase mb-1">Staff Photo URL / Ảnh nhân viên</label>
                             <div className="flex items-center space-x-2">
                               <input 
                                 type="text" 
-                                value={selectedOrder.staffPhoto || ''} 
-                                onChange={(e) => handleUpdateStaffOrVehicle('staffPhoto', e.target.value)}
+                                value={staffInputs.staffPhoto} 
+                                onChange={(e) => setStaffInputs(prev => ({ ...prev, staffPhoto: e.target.value }))}
+                                onBlur={() => handleCommitField('staffPhoto')}
+                                onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
                                 placeholder="e.g. https://images.unsplash.com/photo-..." 
                                 className="flex-1 bg-white border border-slate-200 rounded-lg p-2 text-xs focus:ring-1 focus:ring-purple-400 focus:outline-none"
                               />
                               <StaffPhotoAvatar
-                                src={selectedOrder.staffPhoto}
+                                src={staffInputs.staffPhoto}
                                 alt="Preview"
                                 sizeClass="h-8 w-8"
                                 onPreview={(url) => setPreviewPhotoUrl(url)}
@@ -1439,91 +1521,94 @@ export default function OMSAgencyComms({
                     )}
 
                     {/* Airport Transfer Service Staff & Vehicle Assigned Form */}
-                    {activeServiceType === 'AirportPickup' && (selectedOrder.status === 'Confirmed' || selectedOrder.status === 'Staff Assigned') && (
+                    {activeServiceType === 'AirportPickup' && ['Confirmed', 'Agency Review', 'Staff Assigned', 'Passenger Greet'].includes(selectedOrder.status || '') && (
                       <div className="mt-3 p-4 bg-blue-50/50 border border-blue-200/65 rounded-2xl space-y-3">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center space-x-1.5">
                             <UserCheck className="h-4 w-4 text-blue-700" />
                             <span className="text-[10.5px] font-black text-blue-900 uppercase tracking-wider">Chauffeur & Fleet Dispatch Details</span>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              handleUpdateStaffOrVehicle('staffName', 'Mr. Nam Cao (VIP Fleet Captain)');
-                              handleUpdateStaffOrVehicle('staffPhone', '+84909667334');
-                              handleUpdateStaffOrVehicle('licensePlate', '30A - 888.88');
-                              handleUpdateStaffOrVehicle('staffPhoto', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=150');
-                              handleUpdateStaffOrVehicle('carPhoto', 'https://images.unsplash.com/photo-1563720223185-11003d516935?auto=format&fit=crop&q=80&w=300');
-                            }}
-                            className="text-[9px] bg-blue-100 hover:bg-blue-200 text-blue-800 font-extrabold px-2 py-0.5 rounded transition-all cursor-pointer border border-blue-200"
-                          >
-                            ⚡ Auto-Fill Chauffeur
-                          </button>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
-                            <label className="block text-[8.5px] font-black text-slate-500 uppercase mb-1">Chauffeur Name</label>
+                            <label className="block text-[8.5px] font-black text-slate-500 uppercase mb-1">Chauffeur Name / Tên tài xế</label>
                             <input 
                               type="text" 
-                              value={selectedOrder.staffPhone ? selectedOrder.staffName : selectedOrder.staffName || ''} 
-                              onChange={(e) => handleUpdateStaffOrVehicle('staffName', e.target.value)}
+                              value={staffInputs.staffName} 
+                              onChange={(e) => setStaffInputs(prev => ({ ...prev, staffName: e.target.value }))}
+                              onBlur={() => handleCommitField('staffName')}
+                              onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
                               placeholder="e.g. Mr. Nam Cao" 
                               className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs focus:ring-1 focus:ring-blue-400 focus:outline-none"
                             />
                           </div>
                           <div>
-                            <label className="block text-[8.5px] font-black text-slate-500 uppercase mb-1">Chauffeur Phone</label>
+                            <label className="block text-[8.5px] font-black text-slate-500 uppercase mb-1">Chauffeur Phone / Số điện thoại</label>
                             <input 
                               type="text" 
-                              value={selectedOrder.staffPhone || ''} 
-                              onChange={(e) => handleUpdateStaffOrVehicle('staffPhone', e.target.value)}
+                              value={staffInputs.staffPhone} 
+                              onChange={(e) => {
+                                setStaffInputs(prev => ({ ...prev, staffPhone: e.target.value }));
+                                if (staffPhoneError) setStaffPhoneError(null);
+                              }}
+                              onBlur={() => handleCommitField('staffPhone')}
+                              onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
                               placeholder="e.g. +84909667334" 
-                              className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs focus:ring-1 focus:ring-blue-400 focus:outline-none font-mono"
+                              className={`w-full bg-white border ${staffPhoneError ? 'border-rose-400 focus:ring-rose-400' : 'border-slate-200 focus:ring-blue-400'} rounded-lg p-2 text-xs focus:ring-1 focus:outline-none font-mono`}
                             />
+                            {staffPhoneError && (
+                              <p className="text-[10px] text-rose-600 font-bold mt-1 animate-fade-in flex items-center gap-1">
+                                <span>⚠️</span> {staffPhoneError}
+                              </p>
+                            )}
                           </div>
                           <div>
-                            <label className="block text-[8.5px] font-black text-slate-500 uppercase mb-1">License Plate</label>
+                            <label className="block text-[8.5px] font-black text-slate-500 uppercase mb-1">License Plate / Biển số xe</label>
                             <input 
                               type="text" 
-                              value={selectedOrder.licensePlate || ''} 
-                              onChange={(e) => handleUpdateStaffOrVehicle('licensePlate', e.target.value)}
+                              value={staffInputs.licensePlate} 
+                              onChange={(e) => setStaffInputs(prev => ({ ...prev, licensePlate: e.target.value }))}
+                              onBlur={() => handleCommitField('licensePlate')}
+                              onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
                               placeholder="e.g. 30A - 888.88" 
                               className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs focus:ring-1 focus:ring-blue-400 focus:outline-none font-semibold font-mono"
                             />
                           </div>
                           <div>
-                            <label className="block text-[8.5px] font-black text-slate-500 uppercase mb-1">Chauffeur Photo URL</label>
+                            <label className="block text-[8.5px] font-black text-slate-500 uppercase mb-1">Chauffeur Photo URL / Ảnh tài xế</label>
                             <div className="flex items-center space-x-2">
                               <input 
                                 type="text" 
-                                value={selectedOrder.staffPhoto || ''} 
-                                onChange={(e) => handleUpdateStaffOrVehicle('staffPhoto', e.target.value)}
+                                value={staffInputs.staffPhoto} 
+                                onChange={(e) => setStaffInputs(prev => ({ ...prev, staffPhoto: e.target.value }))}
+                                onBlur={() => handleCommitField('staffPhoto')}
+                                onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
                                 placeholder="e.g. https://images.unsplash.com/photo-..." 
                                 className="flex-1 bg-white border border-slate-200 rounded-lg p-2 text-xs focus:ring-1 focus:ring-blue-400 focus:outline-none"
                               />
-                              {selectedOrder.staffPhoto && (
-                                <StaffPhotoAvatar
-                                  src={selectedOrder.staffPhoto}
-                                  alt="Preview"
-                                  sizeClass="h-8 w-8"
-                                  onPreview={(url) => setPreviewPhotoUrl(url)}
-                                />
-                              )}
+                              <StaffPhotoAvatar
+                                src={staffInputs.staffPhoto}
+                                alt="Preview"
+                                sizeClass="h-8 w-8"
+                                onPreview={(url) => setPreviewPhotoUrl(url)}
+                              />
                             </div>
                           </div>
                           <div className="sm:col-span-2">
-                            <label className="block text-[8.5px] font-black text-slate-500 uppercase mb-1">Vehicle Photo URL</label>
+                            <label className="block text-[8.5px] font-black text-slate-500 uppercase mb-1">Vehicle Photo URL / Ảnh xe</label>
                             <div className="flex items-center space-x-2">
                               <input 
                                 type="text" 
-                                value={selectedOrder.carPhoto || ''} 
-                                onChange={(e) => handleUpdateStaffOrVehicle('carPhoto', e.target.value)}
+                                value={staffInputs.carPhoto} 
+                                onChange={(e) => setStaffInputs(prev => ({ ...prev, carPhoto: e.target.value }))}
+                                onBlur={() => handleCommitField('carPhoto')}
+                                onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
                                 placeholder="e.g. https://images.unsplash.com/photo-..." 
                                 className="flex-1 bg-white border border-slate-200 rounded-lg p-2 text-xs focus:ring-1 focus:ring-blue-400 focus:outline-none"
                               />
-                              {selectedOrder.carPhoto && (
+                              {staffInputs.carPhoto && (
                                 <img 
-                                  src={selectedOrder.carPhoto} 
+                                  src={staffInputs.carPhoto} 
                                   alt="Car Preview" 
                                   referrerPolicy="no-referrer"
                                   className="h-8 w-12 rounded border border-slate-200 object-cover shrink-0 text-[8px]"

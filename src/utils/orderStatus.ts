@@ -36,8 +36,8 @@ export const SERVICE_FLOW_STEPS: Record<string, StatusStep[]> = {
   ],
 };
 
-// 2. Sub-status options mapping
-export const SUB_STATUS_MAP: Record<string, SubStatusOption[]> = {
+// 2. Sub-status options mapping (Visa only)
+export const VISA_SUB_STATUS_MAP: Record<string, SubStatusOption[]> = {
   'Agency Review': [
     { id: 'Standard doc check', labelEn: 'Standard doc check', labelVi: 'Kiểm tra hồ sơ tiêu chuẩn' },
     { id: 'More docs required', labelEn: 'More docs required', labelVi: 'Yêu cầu bổ sung giấy tờ' },
@@ -64,9 +64,13 @@ export function getServiceStatusOptions(serviceType: string): string[] {
 
 /**
  * Returns available sub-status options for a given status.
+ * Sub-statuses are ONLY applicable for Visa service. Returns [] for all other services.
  */
-export function getSubStatusOptions(status: string, _serviceType?: string): string[] {
-  const options = SUB_STATUS_MAP[status];
+export function getSubStatusOptions(status: string, serviceType?: string): string[] {
+  if (serviceType !== 'Visa') {
+    return [];
+  }
+  const options = VISA_SUB_STATUS_MAP[status];
   return options ? options.map((o) => o.id) : [];
 }
 
@@ -147,8 +151,8 @@ export function getStatusLabel(status: string, lang: 'EN' | 'VI' = 'VI'): string
  * Gets bilingual label for sub-status.
  */
 export function getSubStatusLabel(subStatus: string, lang: 'EN' | 'VI' = 'VI'): string {
-  for (const list of Object.values(SUB_STATUS_MAP)) {
-    const found = list.find((s) => s.id === subStatus);
+  for (const list of Object.values(VISA_SUB_STATUS_MAP)) {
+    const found = (list as SubStatusOption[]).find((s) => s.id === subStatus);
     if (found) {
       return lang === 'EN' ? found.labelEn : found.labelVi;
     }
