@@ -194,6 +194,115 @@ const DEFAULT_DISCUSSIONS: Record<string, Array<{ sender: 'digivisa' | 'partner'
   ]
 };
 
+/**
+ * Single source of truth for exporting order details (Text, TXT file, CSV, Clipboard).
+ * Consolidates customer info extraction and returns standard field pairs by service type.
+ */
+function buildOrderExportFields(order: any): Array<{ label: string; value: string }> {
+  if (!order) return [];
+
+  const d = (order.details as any) || {};
+
+  // Generic field lookup helper with fallbacks
+  const getF = (obj: any, keys: string[], def: string = 'Chưa có') => {
+    if (!obj) return def;
+    for (const k of keys) {
+      if (
+        obj[k] !== undefined &&
+        obj[k] !== null &&
+        String(obj[k]).trim() !== '' &&
+        String(obj[k]).trim() !== 'undefined' &&
+        String(obj[k]).trim() !== 'null' &&
+        String(obj[k]).trim() !== 'N/A'
+      ) {
+        return String(obj[k]).trim();
+      }
+    }
+    return def;
+  };
+
+  // Determine effective service type (handles combo secondary legs)
+  const isSecLeg = order.id ? order.id.endsWith('_secondary') : false;
+  const effectiveType = isSecLeg
+    ? (order.type === 'FastTrack' ? 'AirportPickup' : 'FastTrack')
+    : (order.type || 'Visa');
+
+  // Extract customer name
+  const custName = (() => {
+    const direct = getF(d, ['passengerName', 'fullName', 'name', 'clientName', 'customerName', 'contactName'], '');
+    if (direct) return direct.toUpperCase();
+    const fn = getF(d, ['firstName', 'givenName', 'first_name'], '');
+    const ln = getF(d, ['lastName', 'familyName', 'surname', 'last_name'], '');
+    if (fn || ln) return `${fn} ${ln}`.trim().toUpperCase();
+    const root = getF(order, ['passengerName', 'fullName', 'name', 'userName'], '');
+    if (root) return root.toUpperCase();
+    return 'CHƯA CÓ';
+  })();
+
+  const custPhone = getF(d, ['phone', 'phoneNumber', 'contactPhone', 'passengerPhone', 'mobile', 'tel', 'phoneNo'], getF(order, ['phone', 'phoneNumber'], 'Chưa có'));
+  const custEmail = getF(d, ['email', 'contactEmail', 'passengerEmail', 'userEmail', 'mail'], getF(order, ['email', 'userEmail'], 'Chưa có'));
+  const paymentStatus = order.paymentStatus || 'Chưa có';
+
+  if (effectiveType === 'Visa') {
+    return [
+      { label: 'Mã đơn', value: order.id || 'Chưa có' },
+      { label: 'Loại dịch vụ', value: 'Visa' },
+      { label: 'Họ tên khách', value: custName },
+      { label: 'Số hộ chiếu', value: getF(d, ['passportNumber', 'passportNo', 'passportCode', 'passport'], getF(order, ['passportNumber', 'passportNo'], 'Chưa có')) },
+      { label: 'Ngày hết hạn hộ chiếu', value: getF(d, ['passportExpiry', 'expiryDate'], 'Chưa có') },
+      { label: 'Ngày sinh', value: getF(d, ['dateOfBirth', 'dob'], 'Chưa có') },
+      { label: 'Quốc tịch', value: getF(d, ['nationality', 'country'], 'Chưa có') },
+      { label: 'Loại visa', value: getF(d, ['visaType', 'type'], 'Single eVisa') },
+      { label: 'Gói xử lý', value: d.resultsOption === 'same_day' ? 'Xử lý Khẩn Trong Ngày' : getF(d, ['processingSpeed', 'speed'], 'Tiêu chuẩn') },
+      { label: 'Ngày nhập cảnh dự kiến', value: getF(d, ['arrivalDate', 'entryDate'], 'Chưa có') },
+      { label: 'SĐT', value: custPhone },
+      { label: 'Email', value: custEmail },
+      { label: 'Thanh toán', value: paymentStatus },
+    ];
+  }
+
+  if (effectiveType === 'FastTrack') {
+    return [
+      { label: 'Mã đơn', value: order.id || 'Chưa có' },
+      { label: 'Loại dịch vụ', value: 'Fast Track' },
+      { label: 'Họ tên khách', value: custName },
+      { label: 'Số hiệu chuyến bay', value: getF(d, ['flightNumber', 'flightNo'], 'Chưa có') },
+      { label: 'Hãng bay', value: getF(d, ['airline', 'airlineName'], 'Chưa có') },
+      { label: 'Ngày hạ cánh', value: getF(d, ['arrivalDate', 'flightDate', 'date'], 'Chưa có') },
+      { label: 'Giờ hạ cánh', value: getF(d, ['arrivalTime', 'flightTime', 'time'], 'Chưa có') },
+      { label: 'Sân bay', value: getF(d, ['airport', 'airportCode'], 'SGN - Tân Sơn Nhất') },
+      { label: 'Nhà ga', value: getF(d, ['terminal', 'terminalNo'], 'Chưa có') },
+      { label: 'Số khách', value: getF(d, ['passengerCount', 'passengers', 'guests'], '1 người') },
+      { label: 'Gói dịch vụ', value: getF(d, ['serviceTier', 'fastTrackOption', 'tier'], 'Standard Fast-Track Escort') },
+      { label: 'SĐT', value: custPhone },
+      { label: 'Email', value: custEmail },
+      { label: 'Yêu cầu đặc biệt', value: getF(d, ['specialRequests', 'notes', 'remark', 'optionalNote'], 'Chưa có') },
+      { label: 'Thanh toán', value: paymentStatus },
+    ];
+  }
+
+  // AirportPickup (Đưa đón)
+  return [
+    { label: 'Mã đơn', value: order.id || 'Chưa có' },
+    { label: 'Loại dịch vụ', value: 'Đưa đón' },
+    { label: 'Họ tên khách', value: custName },
+    { label: 'Số hiệu chuyến bay', value: getF(d, ['flightNumber', 'flightNo'], 'Chưa có') },
+    { label: 'Ngày đón', value: getF(d, ['pickupDate', 'arrivalDate', 'date'], 'Chưa có') },
+    { label: 'Giờ đón', value: getF(d, ['pickupTime', 'arrivalTime', 'time'], 'Chưa có') },
+    { label: 'Sân bay', value: getF(d, ['airport', 'airportCode'], 'SGN - Tân Sơn Nhất') },
+    { label: 'Nhà ga', value: getF(d, ['terminal', 'terminalNo'], 'Chưa có') },
+    { label: 'Địa chỉ đón', value: getF(d, ['pickupAddress', 'departureAddress', 'address'], 'Chưa có') },
+    { label: 'Địa chỉ trả', value: getF(d, ['destinationAddress', 'dropoffAddress', 'address'], 'Chưa có') },
+    { label: 'Loại xe', value: getF(d, ['vehicleType', 'carOption', 'carType'], 'Comfort SUV (5-7 Chỗ)') },
+    { label: 'Số hành lý', value: getF(d, ['luggageCount', 'luggage'], 'Chưa có') },
+    { label: 'Số khách', value: getF(d, ['passengerCount', 'passengers'], '1 người') },
+    { label: 'SĐT', value: custPhone },
+    { label: 'Email', value: custEmail },
+    { label: 'Yêu cầu đặc biệt', value: getF(d, ['specialRequests', 'notes', 'remark', 'optionalNote'], 'Chưa có') },
+    { label: 'Thanh toán', value: paymentStatus },
+  ];
+}
+
 import { getServiceStatusOptions, getStatusLabel, getSubStatusLabel, getSubStatusOptions, normalizeStatusForTimeline, getTimelineStepsForOrder } from '../utils/orderStatus';
 
 export default function OMS({ orders, setOrders, currency, language = 'EN', onUpdateOrder }: OMSProps) {
@@ -2035,179 +2144,73 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
                         <button
                           type="button"
                           onClick={() => {
-                            const d = selectedOrder.details as any;
-                            const getF = (obj: any, keys: string[], def: string = 'N/A') => {
-                              if (!obj) return def;
-                              for (const k of keys) {
-                                if (obj[k] && String(obj[k]).trim() && String(obj[k]).trim() !== 'undefined' && String(obj[k]).trim() !== 'null') {
-                                  return String(obj[k]).trim();
-                                }
-                              }
-                              return def;
-                            };
+                            const fields = buildOrderExportFields(selectedOrder);
+                            const isSecLeg = selectedOrder.id?.endsWith('_secondary');
+                            const effectiveType = isSecLeg
+                              ? (selectedOrder.type === 'FastTrack' ? 'AirportPickup' : 'FastTrack')
+                              : selectedOrder.type;
 
-                            const custName = (() => {
-                              const direct = getF(d, ['passengerName', 'fullName', 'name', 'clientName', 'customerName', 'contactName'], '');
-                              if (direct) return direct.toUpperCase();
-                              const fn = getF(d, ['firstName', 'givenName', 'first_name'], '');
-                              const ln = getF(d, ['lastName', 'familyName', 'surname', 'last_name'], '');
-                              if (fn || ln) return `${fn} ${ln}`.trim().toUpperCase();
-                              const root = getF(selectedOrder, ['passengerName', 'fullName', 'name', 'userName'], '');
-                              if (root) return root.toUpperCase();
-                              return 'KHÁCH VÃNG LAI';
-                            })();
-
-                            const custPhone = getF(d, ['phone', 'phoneNumber', 'contactPhone', 'mobile', 'tel', 'phoneNo'], getF(selectedOrder, ['phone', 'phoneNumber'], 'Chưa cung cấp SĐT'));
-                            const custEmail = getF(d, ['email', 'contactEmail', 'userEmail', 'mail'], getF(selectedOrder, ['email', 'userEmail'], 'Chưa cung cấp Email'));
-                            const custPassport = getF(d, ['passportNumber', 'passportNo', 'passportCode', 'passport'], getF(selectedOrder, ['passportNumber', 'passportNo'], 'N/A'));
-
-                            let formattedMsg = '';
-
-                            if (selectedOrder.type === 'FastTrack') {
-                              formattedMsg = `
-==========================================
-✈️ LỆNH ĐÓN SÂN BAY FAST-TRACK: #${selectedOrder.id}
-==========================================
-👤 Tên khách đón: ${custName}
-✈️ Số hiệu chuyến bay: ${getF(d, ['flightNumber', 'flightNo'], 'N/A')}
-🏬 Sân bay đón: ${getF(d, ['airport', 'airportCode'], 'SGN - Tân Sơn Nhất')}
-📅 Ngày & Giờ hạ cánh: ${getF(d, ['arrivalDate', 'flightDate', 'date'], 'N/A')} | ${getF(d, ['arrivalTime', 'flightTime', 'time'], 'Theo lịch trình bay')}
-👥 Số lượng khách: ${getF(d, ['passengerCount', 'passengers', 'guests'], '1 người')}
-⭐ Dịch vụ: ${getF(d, ['serviceTier', 'fastTrackOption', 'tier'], 'Standard Fast-Track Escort')}
-🛂 Số Hộ Chiếu: ${custPassport} (Quốc tịch: ${getF(d, ['nationality', 'country'], 'N/A')})
-📞 SĐT / Zalo / WA khách: ${custPhone}
-📧 Email: ${custEmail}
-💬 Ghi chú đón: ${getF(d, ['specialRequests', 'notes', 'remark'], 'Đón tại khu vực làm thủ tục nhập cảnh')}
-💳 Thanh toán: ${selectedOrder.paymentStatus || 'Pending'}
-==========================================`.trim();
-                            } else if (selectedOrder.type === 'AirportPickup') {
-                              formattedMsg = `
-==========================================
-🚘 LỆNH ĐIỀU XE ĐƯA ĐÓN SÂN BAY: #${selectedOrder.id}
-==========================================
-👤 Tên khách đi xe: ${custName}
-🚘 Dòng xe yêu cầu: ${getF(d, ['vehicleType', 'carOption', 'carType'], 'Comfort SUV (5-7 Chỗ)')}
-🏬 Sân bay đón/trả: ${getF(d, ['airport', 'airportCode'], 'SGN - Tân Sơn Nhất')}
-✈️ Số hiệu chuyến bay: ${getF(d, ['flightNumber', 'flightNo'], 'N/A')}
-📅 Ngày & Giờ đón: ${getF(d, ['pickupDate', 'arrivalDate', 'date'], 'N/A')} | ${getF(d, ['pickupTime', 'arrivalTime', 'time'], 'Theo lịch chuyến bay')}
-📍 Địa chỉ đón / trả: ${getF(d, ['pickupAddress', 'destinationAddress', 'address'], 'N/A')}
-👥 Hành lý / Khách: ${getF(d, ['passengerCount', 'passengers'], '1')} Khách | ${getF(d, ['luggageCount', 'luggage'], '2')} Hành lý
-📞 SĐT / Zalo / WA liên hệ: ${custPhone}
-📧 Email: ${custEmail}
-💬 Ghi chú tài xế: ${getF(d, ['specialRequests', 'notes', 'remark'], 'Tài xế đón giơ biển tên tại sảnh đến')}
-💳 Thanh toán: ${selectedOrder.paymentStatus || 'Pending'}
-==========================================`.trim();
-                            } else {
-                              // Default Visa Order format
-                              formattedMsg = `
-==========================================
-📋 ĐƠN DỊCH VỤ E-VISA: #${selectedOrder.id}
-==========================================
-👤 Họ tên khách: ${custName}
-🛂 Số Hộ Chiếu: ${custPassport} (Hạn: ${getF(d, ['passportExpiry', 'expiryDate'], 'N/A')})
-🌍 Quốc tịch: ${getF(d, ['nationality', 'country'], 'N/A')} | Ngày sinh: ${getF(d, ['dateOfBirth', 'dob'], 'N/A')}
-✈️ Ngày nhập cảnh dự kiến: ${getF(d, ['arrivalDate', 'entryDate'], 'N/A')}
-📌 Loại Visa: ${getF(d, ['visaType', 'type'], 'Single eVisa')}
-⚡ Gói xử lý: ${d.resultsOption === 'same_day' ? 'Xử lý Khẩn Trong Ngày' : getF(d, ['processingSpeed', 'speed'], 'Tiêu chuẩn')}
-📞 SĐT / Zalo / WA: ${custPhone}
-📧 Email: ${custEmail}
-💳 Thanh toán: ${selectedOrder.paymentStatus || 'Pending'}
-==========================================`.trim();
+                            let headerTitle = `📋 ĐƠN DỊCH VỤ E-VISA: #${selectedOrder.id}`;
+                            if (effectiveType === 'FastTrack') {
+                              headerTitle = `✈️ LỆNH ĐÓN SÂN BAY FAST-TRACK: #${selectedOrder.id}`;
+                            } else if (effectiveType === 'AirportPickup') {
+                              headerTitle = `🚘 LỆNH ĐIỀU XE ĐƯA ĐÓN SÂN BAY: #${selectedOrder.id}`;
                             }
 
+                            const formattedMsg = [
+                              '==========================================',
+                              headerTitle,
+                              '==========================================',
+                              ...fields.map((f) => `${f.label}: ${f.value}`),
+                              '=========================================='
+                            ].join('\n');
+
+                            const nameField = fields.find((f) => f.label === 'Họ tên khách');
+                            const phoneField = fields.find((f) => f.label === 'SĐT');
+                            const emailField = fields.find((f) => f.label === 'Email');
+
                             navigator.clipboard.writeText(formattedMsg);
-                            alert(`✅ Đã sao chép tin nhắn chuẩn [${selectedOrder.type.toUpperCase()}]!\nHọ tên: ${custName}\nSĐT: ${custPhone}\nEmail: ${custEmail}`);
+                            alert(`✅ Đã sao chép tin nhắn chuẩn [${effectiveType.toUpperCase()}]!\nHọ tên: ${nameField?.value || 'Chưa có'}\nSĐT: ${phoneField?.value || 'Chưa có'}\nEmail: ${emailField?.value || 'Chưa có'}`);
                           }}
                           className="py-2.5 px-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center justify-center space-x-1.5 shadow-sm transition-all cursor-pointer"
                         >
                           <Copy className="h-3.5 w-3.5" />
-                          <span>📋 Sao chép Lệnh {selectedOrder.type}</span>
+                          <span>📋 Sao chép Lệnh {selectedOrder.id?.endsWith('_secondary') ? (selectedOrder.type === 'FastTrack' ? 'AirportPickup' : 'FastTrack') : selectedOrder.type}</span>
                         </button>
 
                         {/* 2. Download TXT Document */}
                         <button
                           type="button"
                           onClick={() => {
-                            const d = selectedOrder.details as any;
-                            const getF = (obj: any, keys: string[], def: string = 'N/A') => {
-                              if (!obj) return def;
-                              for (const k of keys) {
-                                if (obj[k] && String(obj[k]).trim() && String(obj[k]).trim() !== 'undefined' && String(obj[k]).trim() !== 'null') {
-                                  return String(obj[k]).trim();
-                                }
-                              }
-                              return def;
-                            };
+                            const fields = buildOrderExportFields(selectedOrder);
+                            const isSecLeg = selectedOrder.id?.endsWith('_secondary');
+                            const effectiveType = isSecLeg
+                              ? (selectedOrder.type === 'FastTrack' ? 'AirportPickup' : 'FastTrack')
+                              : selectedOrder.type;
 
-                            const custName = (() => {
-                              const direct = getF(d, ['passengerName', 'fullName', 'name', 'clientName', 'customerName', 'contactName'], '');
-                              if (direct) return direct.toUpperCase();
-                              const fn = getF(d, ['firstName', 'givenName', 'first_name'], '');
-                              const ln = getF(d, ['lastName', 'familyName', 'surname', 'last_name'], '');
-                              if (fn || ln) return `${fn} ${ln}`.trim().toUpperCase();
-                              const root = getF(selectedOrder, ['passengerName', 'fullName', 'name', 'userName'], '');
-                              if (root) return root.toUpperCase();
-                              return 'KHÁCH VÃNG LAI';
-                            })();
-
-                            const custPhone = getF(d, ['phone', 'phoneNumber', 'contactPhone', 'mobile', 'tel', 'phoneNo'], getF(selectedOrder, ['phone', 'phoneNumber'], 'Chưa cung cấp SĐT'));
-                            const custEmail = getF(d, ['email', 'contactEmail', 'userEmail', 'mail'], getF(selectedOrder, ['email', 'userEmail'], 'Chưa cung cấp Email'));
-                            const custPassport = getF(d, ['passportNumber', 'passportNo', 'passportCode', 'passport'], getF(selectedOrder, ['passportNumber', 'passportNo'], 'N/A'));
-
-                            let txtContent = '';
-                            if (selectedOrder.type === 'FastTrack') {
-                              txtContent = `==========================================
-✈️ LỆNH ĐÓN SÂN BAY FAST-TRACK: #${selectedOrder.id}
-==========================================
-Họ tên khách đón: ${custName}
-Số hiệu chuyến bay: ${getF(d, ['flightNumber', 'flightNo'], 'N/A')}
-Sân bay đón: ${getF(d, ['airport', 'airportCode'], 'SGN - Tân Sơn Nhất')}
-Ngày & Giờ hạ cánh: ${getF(d, ['arrivalDate', 'flightDate', 'date'], 'N/A')} | ${getF(d, ['arrivalTime', 'flightTime', 'time'], 'Theo lịch bay')}
-Số lượng khách: ${getF(d, ['passengerCount', 'passengers'], '1 người')}
-Loại dịch vụ: ${getF(d, ['serviceTier', 'fastTrackOption'], 'Standard Fast-Track Escort')}
-Số Hộ Chiếu: ${custPassport} (Quốc tịch: ${getF(d, ['nationality', 'country'], 'N/A')})
-SĐT / Zalo / WA khách: ${custPhone}
-Email khách: ${custEmail}
-Ghi chú đón: ${getF(d, ['specialRequests', 'notes'], 'Đón tại khu vực làm thủ tục nhập cảnh')}
-Trạng thái thanh toán: ${selectedOrder.paymentStatus || 'Pending'}
-==========================================`;
-                            } else if (selectedOrder.type === 'AirportPickup') {
-                              txtContent = `==========================================
-🚘 LỆNH ĐIỀU XE ĐƯA ĐÓN SÂN BAY: #${selectedOrder.id}
-==========================================
-Họ tên khách đi xe: ${custName}
-Dòng xe yêu cầu: ${getF(d, ['vehicleType', 'carOption'], 'Comfort SUV (5-7 Chỗ)')}
-Sân bay đón/trả: ${getF(d, ['airport', 'airportCode'], 'SGN - Tân Sơn Nhất')}
-Số hiệu chuyến bay: ${getF(d, ['flightNumber', 'flightNo'], 'N/A')}
-Ngày & Giờ đón: ${getF(d, ['pickupDate', 'arrivalDate'], 'N/A')} | ${getF(d, ['pickupTime', 'arrivalTime'], 'Theo lịch bay')}
-Địa chỉ đón/trả: ${getF(d, ['pickupAddress', 'destinationAddress', 'address'], 'N/A')}
-Số khách & Hành lý: ${getF(d, ['passengerCount', 'passengers'], '1')} Khách | ${getF(d, ['luggageCount', 'luggage'], '2')} Hành lý
-SĐT / Zalo / WA: ${custPhone}
-Email: ${custEmail}
-Ghi chú tài xế: ${getF(d, ['specialRequests', 'notes'], 'Tài xế đón giơ biển tên tại sảnh đến')}
-Trạng thái thanh toán: ${selectedOrder.paymentStatus || 'Pending'}
-==========================================`;
-                            } else {
-                              txtContent = `==========================================
-📋 ĐƠN DỊCH VỤ E-VISA: #${selectedOrder.id}
-==========================================
-Họ tên khách: ${custName}
-Số Hộ Chiếu: ${custPassport} (Hạn: ${getF(d, ['passportExpiry', 'expiryDate'], 'N/A')})
-Quốc tịch: ${getF(d, ['nationality', 'country'], 'N/A')} | Ngày sinh: ${getF(d, ['dateOfBirth', 'dob'], 'N/A')}
-Ngày nhập cảnh dự kiến: ${getF(d, ['arrivalDate', 'entryDate'], 'N/A')}
-Loại Visa: ${getF(d, ['visaType', 'type'], 'Single eVisa')}
-Gói xử lý: ${d.resultsOption === 'same_day' ? 'Xử lý Khẩn Trong Ngày' : getF(d, ['processingSpeed', 'speed'], 'Tiêu chuẩn')}
-SĐT / Zalo / WA: ${custPhone}
-Email: ${custEmail}
-Trạng thái thanh toán: ${selectedOrder.paymentStatus || 'Pending'}
-==========================================`;
+                            let headerTitle = `📋 ĐƠN DỊCH VỤ E-VISA: #${selectedOrder.id}`;
+                            let fileNamePrefix = 'don_visa';
+                            if (effectiveType === 'FastTrack') {
+                              headerTitle = `✈️ LỆNH ĐÓN SÂN BAY FAST-TRACK: #${selectedOrder.id}`;
+                              fileNamePrefix = 'lenh_don_fasttrack';
+                            } else if (effectiveType === 'AirportPickup') {
+                              headerTitle = `🚘 LỆNH ĐIỀU XE ĐƯA ĐÓN SÂN BAY: #${selectedOrder.id}`;
+                              fileNamePrefix = 'lenh_dieu_xe';
                             }
+
+                            const txtContent = [
+                              '==========================================',
+                              headerTitle,
+                              '==========================================',
+                              ...fields.map((f) => `${f.label}: ${f.value}`),
+                              '=========================================='
+                            ].join('\n');
 
                             const blob = new Blob([txtContent], { type: 'text/plain;charset=utf-8' });
                             const url = URL.createObjectURL(blob);
                             const a = document.createElement('a');
                             a.href = url;
-                            a.download = `lenh_dieu_xanh_${selectedOrder.id}.txt`;
+                            a.download = `${fileNamePrefix}_${selectedOrder.id}.txt`;
                             a.click();
                             URL.revokeObjectURL(url);
                           }}
@@ -2221,55 +2224,29 @@ Trạng thái thanh toán: ${selectedOrder.paymentStatus || 'Pending'}
                         <button
                           type="button"
                           onClick={() => {
-                            const d = selectedOrder.details as any;
-                            const getF = (obj: any, keys: string[], def: string = '') => {
-                              if (!obj) return def;
-                              for (const k of keys) {
-                                if (obj[k] && String(obj[k]).trim() && String(obj[k]).trim() !== 'undefined') {
-                                  return String(obj[k]).trim();
-                                }
+                            const fields = buildOrderExportFields(selectedOrder);
+                            const isSecLeg = selectedOrder.id?.endsWith('_secondary');
+                            const effectiveType = isSecLeg
+                              ? (selectedOrder.type === 'FastTrack' ? 'AirportPickup' : 'FastTrack')
+                              : selectedOrder.type;
+
+                            const headers = fields.map((f) => f.label);
+                            const values = fields.map((f) => f.value);
+
+                            const escapeCsv = (val: string) => {
+                              const s = String(val);
+                              if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+                                return `"${s.replace(/"/g, '""')}"`;
                               }
-                              return def;
+                              return `"${s}"`;
                             };
 
-                            const custName = (() => {
-                              const direct = getF(d, ['passengerName', 'fullName', 'name', 'clientName', 'customerName', 'contactName'], '');
-                              if (direct) return direct;
-                              const fn = getF(d, ['firstName', 'givenName', 'first_name'], '');
-                              const ln = getF(d, ['lastName', 'familyName', 'surname', 'last_name'], '');
-                              if (fn || ln) return `${fn} ${ln}`.trim();
-                              const root = getF(selectedOrder, ['passengerName', 'fullName', 'name', 'userName'], '');
-                              if (root) return root;
-                              return 'Khách Vãng Lai';
-                            })();
-
-                            const custPhone = getF(d, ['phone', 'phoneNumber', 'contactPhone', 'mobile', 'tel'], getF(selectedOrder, ['phone', 'phoneNumber'], ''));
-                            const custEmail = getF(d, ['email', 'contactEmail', 'userEmail', 'mail'], getF(selectedOrder, ['email', 'userEmail'], ''));
-                            const custPassport = getF(d, ['passportNumber', 'passportNo', 'passportCode', 'passport'], getF(selectedOrder, ['passportNumber', 'passportNo'], ''));
-
-                            const headers = ["Mã Đơn", "Loại Dịch Vụ", "Họ Tên Khách", "Số Hộ Chiếu", "Quốc Tịch", "Ngày Sinh", "Ngày Nhập Cảnh", "Chuyến Bay", "Sân Bay", "Địa Chỉ", "SĐT", "Email", "Thanh Toán"];
-                            const row = [
-                              selectedOrder.id,
-                              selectedOrder.type,
-                              custName,
-                              custPassport,
-                              getF(d, ['nationality', 'country'], ''),
-                              getF(d, ['dateOfBirth', 'dob'], ''),
-                              getF(d, ['arrivalDate', 'pickupDate', 'date'], ''),
-                              getF(d, ['flightNumber', 'flightNo'], ''),
-                              getF(d, ['airport', 'airportCode'], ''),
-                              getF(d, ['pickupAddress', 'destinationAddress', 'address'], '').replace(/,/g, ' '),
-                              custPhone,
-                              custEmail,
-                              selectedOrder.paymentStatus || 'Pending'
-                            ];
-
-                            const csvContent = "\uFEFF" + headers.join(",") + "\n" + row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",");
+                            const csvContent = "\uFEFF" + headers.map(escapeCsv).join(",") + "\n" + values.map(escapeCsv).join(",");
                             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
                             const url = URL.createObjectURL(blob);
                             const a = document.createElement('a');
                             a.href = url;
-                            a.download = `danh_sach_don_${selectedOrder.id}.csv`;
+                            a.download = `danh_sach_${effectiveType.toLowerCase()}_${selectedOrder.id}.csv`;
                             a.click();
                             URL.revokeObjectURL(url);
                           }}
@@ -2279,25 +2256,27 @@ Trạng thái thanh toán: ${selectedOrder.paymentStatus || 'Pending'}
                           <span>📊 Tải Bảng Tính (.CSV/Excel)</span>
                         </button>
 
-                        {/* 3. Download Image / Print ticket */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const pScan = (selectedOrder.details as any).passportScanDataUrl;
-                            if (pScan) {
-                              const a = document.createElement('a');
-                              a.href = pScan;
-                              a.download = `passport_${selectedOrder.id}.jpg`;
-                              a.click();
-                            } else {
-                              window.print();
-                            }
-                          }}
-                          className="py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs rounded-xl flex items-center justify-center space-x-1.5 border border-slate-700 transition-all cursor-pointer"
-                        >
-                          <FileText className="h-3.5 w-3.5" />
-                          <span>{(selectedOrder.details as any).passportScanDataUrl ? '📷 Tải ảnh Hộ Chiếu' : '🖨️ In Phiếu Xử Lý'}</span>
-                        </button>
+                        {/* 4. Download Image / Print ticket (Visa service ONLY) */}
+                        {((selectedOrder.id?.endsWith('_secondary') ? (selectedOrder.type === 'FastTrack' ? 'AirportPickup' : 'FastTrack') : selectedOrder.type) === 'Visa') && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const pScan = (selectedOrder.details as any)?.passportScanDataUrl;
+                              if (pScan) {
+                                const a = document.createElement('a');
+                                a.href = pScan;
+                                a.download = `passport_${selectedOrder.id}.jpg`;
+                                a.click();
+                              } else {
+                                window.print();
+                              }
+                            }}
+                            className="py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs rounded-xl flex items-center justify-center space-x-1.5 border border-slate-700 transition-all cursor-pointer"
+                          >
+                            <FileText className="h-3.5 w-3.5" />
+                            <span>{(selectedOrder.details as any)?.passportScanDataUrl ? '📷 Tải ảnh Hộ Chiếu' : '🖨️ In Phiếu Xử Lý'}</span>
+                          </button>
+                        )}
                       </div>
                     </div>
 
