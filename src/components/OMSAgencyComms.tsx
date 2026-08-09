@@ -12,7 +12,7 @@ import { safeStorage } from '../utils/storage';
 import { getSplitOrders } from '../utils/orderUtils';
 import { formatPhoneE164, isValidInternationalPhone } from '../utils/validation';
 import { auth } from '../utils/firebase';
-import { getServiceStatusOptions, getSubStatusOptions, getSubStatusLabel } from '../utils/orderStatus';
+import { getServiceStatusOptions, getSubStatusOptions, getSubStatusLabel, getStatusLabel } from '../utils/orderStatus';
 
 interface OMSAgencyCommsProps {
   orders: Order[];
@@ -881,84 +881,144 @@ export default function OMSAgencyComms({
               </div>
 
               {/* Combo Order Read-Only Indicator Card (Only if isOrderCombo is true) */}
-              {isOrderCombo && (
-                <div className="bg-purple-50/60 p-4 border-b border-purple-100/80 rounded-t-2xl space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <Layers className="h-4 w-4 text-purple-700" />
-                      <span className="text-xs font-extrabold text-purple-900">
-                        {language === 'EN'
-                          ? `Viewing: ${isSecLeg ? 'Secondary leg' : 'Primary leg'} (${activeServiceType})`
-                          : `Đang xem: ${isSecLeg ? 'Chặng phụ' : 'Chặng chính'} (${activeServiceType})`}
+              {isOrderCombo && (() => {
+                const baseId = selectedOrder ? selectedOrder.id.replace('_secondary', '') : '';
+                const parentOrder = (orders || []).find((o) => o.id === baseId);
+
+                const primaryType = parentOrder?.type || selectedOrder.type;
+                const secondaryType = primaryType === 'FastTrack' ? 'AirportPickup' : 'FastTrack';
+
+                const primaryStatus = parentOrder?.status || 'Confirmed';
+                const secondaryStatus = parentOrder?.secondaryStatus || 'Confirmed';
+
+                const hasPrimaryStaff = Boolean(parentOrder?.staffName && String(parentOrder.staffName).trim());
+                const hasSecondaryStaff = Boolean(parentOrder?.secondaryStaffName && String(parentOrder.secondaryStaffName).trim());
+
+                return (
+                  <div className="bg-purple-50/60 p-4 border-b border-purple-100/80 rounded-t-2xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <Layers className="h-4 w-4 text-purple-700" />
+                        <span className="text-xs font-extrabold text-purple-900">
+                          {language === 'EN'
+                            ? `Viewing: ${isSecLeg ? 'Secondary leg' : 'Primary leg'} (${activeServiceType})`
+                            : `Đang xem: ${isSecLeg ? 'Chặng phụ' : 'Chặng chính'} (${activeServiceType})`}
+                        </span>
+                      </div>
+                      <span className="text-[9px] bg-purple-100 text-purple-800 font-extrabold px-2 py-0.5 rounded-full uppercase border border-purple-200">
+                        Combo Package
                       </span>
                     </div>
-                    <span className="text-[9px] bg-purple-100 text-purple-800 font-extrabold px-2 py-0.5 rounded-full uppercase border border-purple-200">
-                      Combo Package
-                    </span>
-                  </div>
 
-                  {/* Partner Assignment Summary for BOTH legs (Read-only) */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-0.5">
-                    {/* Primary Leg Summary */}
-                    <div className={`p-2.5 rounded-xl border transition-all text-xs ${
-                      !isSecLeg 
-                        ? 'bg-white border-purple-400 shadow-sm ring-1 ring-purple-300' 
-                        : 'bg-slate-50/70 border-slate-200 opacity-65'
-                    }`}>
-                      <div className="flex items-center justify-between gap-1 mb-1">
-                        <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">
-                          {language === 'EN' ? 'Primary Leg' : 'Chặng chính'}
-                        </span>
-                        {!isSecLeg && (
-                          <span className="text-[8.5px] bg-purple-100 text-purple-800 font-bold px-1.5 py-0.2 rounded">
-                            {language === 'EN' ? 'Active' : 'Đang chọn'}
+                    {/* Partner Assignment Summary for BOTH legs (Read-only) */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-0.5">
+                      {/* Primary Leg Summary */}
+                      <div className={`p-3 rounded-xl border transition-all text-xs space-y-1.5 ${
+                        !isSecLeg 
+                          ? 'bg-white border-purple-400 shadow-sm ring-1 ring-purple-300' 
+                          : 'bg-slate-50/70 border-slate-200 opacity-65'
+                      }`}>
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">
+                            {language === 'EN' ? 'Primary Leg' : 'Chặng chính'}
                           </span>
-                        )}
+                          {!isSecLeg && (
+                            <span className="text-[8.5px] bg-purple-100 text-purple-800 font-bold px-1.5 py-0.2 rounded">
+                              {language === 'EN' ? 'Active' : 'Đang chọn'}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Partner Line */}
+                        <div className="font-bold text-slate-800 flex items-center gap-1.5">
+                          <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded text-[9px] font-black uppercase shrink-0">
+                            {primaryType}
+                          </span>
+                          <span className="truncate text-[11.5px]">
+                            {primaryPartnerObj ? primaryPartnerObj.name : (language === 'EN' ? 'No partner yet' : 'Chưa giao đối tác')}
+                          </span>
+                        </div>
+
+                        {/* Status Line */}
+                        <div className="flex items-center gap-1.5 text-[11px]">
+                          <span className="text-slate-400 text-[10px] font-medium">{language === 'EN' ? 'Status:' : 'Trạng thái:'}</span>
+                          <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-slate-100 text-indigo-700 border border-indigo-200/80 font-mono">
+                            {getStatusLabel(primaryStatus, language as any)}
+                          </span>
+                        </div>
+
+                        {/* Staff Details Line */}
+                        <div className={`text-[10px] font-bold flex items-center gap-1 pt-0.5 ${
+                          hasPrimaryStaff ? 'text-emerald-600 font-extrabold' : 'text-amber-600 font-semibold'
+                        }`}>
+                          <span>
+                            {hasPrimaryStaff
+                              ? (primaryType === 'FastTrack'
+                                  ? (language === 'EN' ? '✓ Escort details filled' : '✓ Đã có thông tin nhân viên')
+                                  : (language === 'EN' ? '✓ Driver details filled' : '✓ Đã có thông tin tài xế'))
+                              : (language === 'EN' ? '⏳ Waiting for partner details' : '⏳ Chờ thông tin từ đối tác')}
+                          </span>
+                        </div>
                       </div>
-                      <div className="font-bold text-slate-800 flex items-center gap-1.5">
-                        <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded text-[9px] font-black uppercase">
-                          {selectedOrder.type}
-                        </span>
-                        <span className="truncate">
-                          {primaryPartnerObj ? primaryPartnerObj.name : (language === 'EN' ? 'No partner yet' : 'Chưa giao đối tác')}
-                        </span>
+
+                      {/* Secondary Leg Summary */}
+                      <div className={`p-3 rounded-xl border transition-all text-xs space-y-1.5 ${
+                        isSecLeg 
+                          ? 'bg-white border-purple-400 shadow-sm ring-1 ring-purple-300' 
+                          : 'bg-slate-50/70 border-slate-200 opacity-65'
+                      }`}>
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">
+                            {language === 'EN' ? 'Secondary Leg' : 'Chặng phụ'}
+                          </span>
+                          {isSecLeg && (
+                            <span className="text-[8.5px] bg-purple-100 text-purple-800 font-bold px-1.5 py-0.2 rounded">
+                              {language === 'EN' ? 'Active' : 'Đang chọn'}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Partner Line */}
+                        <div className="font-bold text-slate-800 flex items-center gap-1.5">
+                          <span className="px-1.5 py-0.5 bg-purple-50 text-purple-700 rounded text-[9px] font-black uppercase shrink-0">
+                            {secondaryType}
+                          </span>
+                          <span className="truncate text-[11.5px]">
+                            {secondaryPartnerObj ? secondaryPartnerObj.name : (language === 'EN' ? 'No partner yet' : 'Chưa giao đối tác')}
+                          </span>
+                        </div>
+
+                        {/* Status Line */}
+                        <div className="flex items-center gap-1.5 text-[11px]">
+                          <span className="text-slate-400 text-[10px] font-medium">{language === 'EN' ? 'Status:' : 'Trạng thái:'}</span>
+                          <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-slate-100 text-indigo-700 border border-indigo-200/80 font-mono">
+                            {getStatusLabel(secondaryStatus, language as any)}
+                          </span>
+                        </div>
+
+                        {/* Staff Details Line */}
+                        <div className={`text-[10px] font-bold flex items-center gap-1 pt-0.5 ${
+                          hasSecondaryStaff ? 'text-emerald-600 font-extrabold' : 'text-amber-600 font-semibold'
+                        }`}>
+                          <span>
+                            {hasSecondaryStaff
+                              ? (secondaryType === 'FastTrack'
+                                  ? (language === 'EN' ? '✓ Escort details filled' : '✓ Đã có thông tin nhân viên')
+                                  : (language === 'EN' ? '✓ Driver details filled' : '✓ Đã có thông tin tài xế'))
+                              : (language === 'EN' ? '⏳ Waiting for partner details' : '⏳ Chờ thông tin từ đối tác')}
+                          </span>
+                        </div>
                       </div>
                     </div>
 
-                    {/* Secondary Leg Summary */}
-                    <div className={`p-2.5 rounded-xl border transition-all text-xs ${
-                      isSecLeg 
-                        ? 'bg-white border-purple-400 shadow-sm ring-1 ring-purple-300' 
-                        : 'bg-slate-50/70 border-slate-200 opacity-65'
-                    }`}>
-                      <div className="flex items-center justify-between gap-1 mb-1">
-                        <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">
-                          {language === 'EN' ? 'Secondary Leg' : 'Chặng phụ'}
-                        </span>
-                        {isSecLeg && (
-                          <span className="text-[8.5px] bg-purple-100 text-purple-800 font-bold px-1.5 py-0.2 rounded">
-                            {language === 'EN' ? 'Active' : 'Đang chọn'}
-                          </span>
-                        )}
-                      </div>
-                      <div className="font-bold text-slate-800 flex items-center gap-1.5">
-                        <span className="px-1.5 py-0.5 bg-purple-50 text-purple-700 rounded text-[9px] font-black uppercase">
-                          {secondaryType}
-                        </span>
-                        <span className="truncate">
-                          {secondaryPartnerObj ? secondaryPartnerObj.name : (language === 'EN' ? 'No partner yet' : 'Chưa giao đối tác')}
-                        </span>
-                      </div>
-                    </div>
+                    <p className="text-[10.5px] text-slate-500 font-medium leading-relaxed">
+                      {language === 'EN'
+                        ? 'To switch between legs of a combo order, please click the corresponding row in the list on the left.'
+                        : 'Để chuyển giữa 2 chặng của đơn combo, vui lòng chọn dòng tương ứng ở danh sách bên trái.'}
+                    </p>
                   </div>
-
-                  <p className="text-[10.5px] text-slate-500 font-medium leading-relaxed">
-                    {language === 'EN'
-                      ? 'To switch between legs of a combo order, please click the corresponding row in the list on the left.'
-                      : 'Để chuyển giữa 2 chặng của đơn combo, vui lòng chọn dòng tương ứng ở danh sách bên trái.'}
-                  </p>
-                </div>
-              )}
+                );
+              })()}
 
               {/* Unified Flow: Combined into one clear column */}
               <div className="flex-1 overflow-y-auto">
