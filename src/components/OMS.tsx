@@ -11,7 +11,7 @@ import { Order, Currency, CURRENCY_SYMBOLS, EXCHANGE_RATES } from '../types';
 import { getVietnamPricing } from '../utils/pricing';
 import OMSAlertsBoard from './OMSAlertsBoard';
 import OMSAgencyComms from './OMSAgencyComms';
-import { safeStorage } from '../utils/storage';
+import { safeStorage, safeOpen } from '../utils/storage';
 import { getSplitOrders } from '../utils/orderUtils';
 import { Language } from '../utils/translations';
 import { formatPhoneE164 } from '../utils/validation';
@@ -179,20 +179,7 @@ const FLIGHT_DATABASE: Record<string, {
   }
 };
 
-// Seed discussion templates to make the interactions look extremely realistic & rich
-const DEFAULT_DISCUSSIONS: Record<string, Array<{ sender: 'digivisa' | 'partner' | 'system', text: string, timestamp: string }>> = {
-  'DV-774910': [
-    { sender: 'system', text: 'Order DV-774910 created & marked paid by Eleanor Vance.', timestamp: '3 days ago' },
-    { sender: 'partner', text: 'Hi Digivisa, we reviewed Eleanor Watson passport scan. Biometrics are clear. Processing as Express tier now with Immigration desk.', timestamp: '2 days ago' },
-    { sender: 'digivisa', text: 'Acknowledged. Customer has an urgent connection, please fast-track stamp output.', timestamp: '2 days ago' },
-    { sender: 'partner', text: 'Visa approved. Stamp reference uploaded in system. Customer is authorized.', timestamp: '1 day ago' },
-  ],
-  'DV-FT4015': [
-    { sender: 'system', text: 'Order DV-FT4015 created & marked paid by Eleanor Vance.', timestamp: '1 day ago' },
-    { sender: 'digivisa', text: 'Hi VIP Escort Team, this passenger requested wheelchair setup at aerobridge gate. Please confirm coordination.', timestamp: '1 day ago' },
-    { sender: 'partner', text: 'Confirmed. Coordinator is rostered with private terminal wheelchair.', timestamp: '18 hours ago' }
-  ]
-};
+
 
 /**
  * Single source of truth for exporting order details (Text, TXT file, CSV, Clipboard).
@@ -345,10 +332,44 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
     return map;
   }, [paidOrders]);
 
-  const [discussions, setDiscussions] = useState<Record<string, Array<{ sender: 'digivisa' | 'partner' | 'system', text: string, timestamp: string }>>>(() => {
-    const saved = safeStorage.getItem('digivisa_partner_chats');
-    return saved ? JSON.parse(saved) : DEFAULT_DISCUSSIONS;
-  });
+  // Derived discussions / internal ops notes from orders list
+  const discussions = React.useMemo(() => {
+    const map: Record<string, Array<{ sender: 'digivisa' | 'partner' | 'system', text: string, timestamp: string, by?: string, leg?: 'primary' | 'secondary' }>> = {};
+
+    (orders || []).forEach(o => {
+      const baseId = o.id;
+      const primaryKey = baseId;
+      const secondaryKey = `${baseId}_secondary`;
+
+      map[primaryKey] = [];
+      map[secondaryKey] = [];
+
+      // Add system creation note if order is paid
+      if (o.paymentStatus && String(o.paymentStatus).startsWith('Paid')) {
+        map[primaryKey].push({
+          sender: 'system',
+          text: `Đơn hàng #${baseId} đã thanh toán thành công và chuyển vào quy trình xử lý.`,
+          timestamp: o.createdAt || new Date().toISOString()
+        });
+      }
+
+      // Populate from opsNotes array
+      const opsNotes = (o as any).opsNotes || [];
+      opsNotes.forEach((n: any) => {
+        const key = n.leg === 'secondary' ? secondaryKey : primaryKey;
+        if (!map[key]) map[key] = [];
+        map[key].push({
+          sender: n.by ? 'digivisa' : 'system',
+          text: n.text,
+          timestamp: n.at || new Date().toISOString(),
+          by: n.by,
+          leg: n.leg
+        });
+      });
+    });
+
+    return map;
+  }, [orders]);
 
   // Checklist verification states per order (saved locally to make the partner QA check persistent)
   const [checklists, setChecklists] = useState<Record<string, Record<string, boolean>>>(() => {
@@ -360,10 +381,6 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
   });
 
   const [chatInput, setChatInput] = useState('');
-
-  useEffect(() => {
-    safeStorage.setItem('digivisa_partner_chats', JSON.stringify(discussions));
-  }, [discussions]);
 
   useEffect(() => {
     safeStorage.setItem('digivisa_checklists', JSON.stringify(checklists));
@@ -732,17 +749,13 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
     const nowIso = new Date().toISOString();
     const staffEmail = auth.currentUser?.email || 'staff';
 
-    // Add system message to chat log
-    const systemMsg = {
-      sender: 'system' as const,
-      text: `Order dispatched to partner: ${partnerName}. Priority channel initialized.`,
-      timestamp: 'Just now'
+    const existingNotes = (realOrder as any)?.opsNotes || [];
+    const dispatchNote = {
+      text: `System update: Order dispatched to partner ${partnerName}.`,
+      by: '',
+      at: nowIso,
+      leg: (isSec ? 'secondary' : 'primary') as 'primary' | 'secondary'
     };
-    
-    setDiscussions(prev => ({
-      ...prev,
-      [orderId]: [...(prev[orderId] || []), systemMsg]
-    }));
 
     if (isSec) {
       const payload: any = {
@@ -750,6 +763,7 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
         assignedPartnerNameSecondary: partnerName,
         assignedPartnerAtSecondary: nowIso,
         assignedPartnerBySecondary: staffEmail,
+        opsNotes: [...existingNotes, dispatchNote],
       };
       if (realOrder && (realOrder.secondaryStatus === 'Confirmed' || !realOrder.secondaryStatus)) {
         payload.secondaryStatus = 'Agency Review';
@@ -761,6 +775,7 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
         assignedPartnerName: partnerName,
         assignedPartnerAt: nowIso,
         assignedPartnerBy: staffEmail,
+        opsNotes: [...existingNotes, dispatchNote],
       };
       if (realOrder && realOrder.status === 'Confirmed') {
         payload.status = 'Agency Review';
@@ -778,23 +793,20 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
     const nowIso = new Date().toISOString();
     const staffEmail = auth.currentUser?.email || 'staff';
 
-    const systemMsg = {
-      sender: 'system' as const,
-      text: `Combo service dispatched to secondary partner: ${partnerName}. Priority channel initialized.`,
-      timestamp: 'Just now'
+    const existingNotes = (targetOrder as any)?.opsNotes || [];
+    const secDispatchNote = {
+      text: `System update: Combo service leg dispatched to secondary partner ${partnerName}.`,
+      by: '',
+      at: nowIso,
+      leg: 'secondary' as const
     };
-
-    setDiscussions(prev => ({
-      ...prev,
-      [orderId]: [...(prev[orderId] || []), systemMsg],
-      [orderId + '_secondary']: [...(prev[orderId + '_secondary'] || []), systemMsg]
-    }));
 
     const payload: any = {
       assignedPartnerIdSecondary: partnerId,
       assignedPartnerNameSecondary: partnerName,
       assignedPartnerAtSecondary: nowIso,
       assignedPartnerBySecondary: staffEmail,
+      opsNotes: [...existingNotes, secDispatchNote],
     };
     if (targetOrder.secondaryStatus === 'Confirmed' || !targetOrder.secondaryStatus) {
       payload.secondaryStatus = 'Agency Review';
@@ -861,58 +873,44 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
     });
   };
 
-  const handlePostMessage = (orderId: string) => {
+  const handlePostMessage = async (orderId: string) => {
     if (!chatInput.trim()) return;
-    const newMsg = {
-      sender: 'digivisa' as const,
-      text: chatInput,
-      timestamp: 'Just now'
+    const isSec = orderId.endsWith('_secondary');
+    const baseId = isSec ? orderId.replace('_secondary', '') : orderId;
+    const parentOrder = (orders || []).find(o => o.id === baseId);
+    const existingNotes = (parentOrder as any)?.opsNotes || [];
+
+    const newNote = {
+      text: chatInput.trim(),
+      by: auth.currentUser?.email || 'Operations',
+      at: new Date().toISOString(),
+      leg: (isSec ? 'secondary' : 'primary') as 'primary' | 'secondary'
     };
 
-    setDiscussions(prev => ({
-      ...prev,
-      [orderId]: [...(prev[orderId] || []), newMsg]
-    }));
+    const updatedOpsNotes = [...existingNotes, newNote];
     setChatInput('');
 
-    // Simulate partner auto-acknowledging after 1 second for a deeply immersive prototype!
-    setTimeout(() => {
-      const partnerReplies = [
-        "Received. Checking arrival boards and updates with airport operations.",
-        "Acknowledged. Dispatching confirmation documents shortly.",
-        "Understood. Team is aligning with field coordinators on the tarmac."
-      ];
-      const randomReply = partnerReplies[Math.floor(Math.random() * partnerReplies.length)];
-      const botMsg = {
-        sender: 'partner' as const,
-        text: `[Reply from Partner Liaison] ${randomReply}`,
-        timestamp: 'Just now'
-      };
-      setDiscussions(prev => {
-        // Only reply if this order is still active or defined
-        if (!prev[orderId]) return prev;
-        return {
-          ...prev,
-          [orderId]: [...prev[orderId], botMsg]
-        };
-      });
-    }, 1500);
+    if (onUpdateOrder) {
+      await onUpdateOrder(baseId, { opsNotes: updatedOpsNotes });
+    }
   };
 
   const handleQueryFlightStatus = (orderId: string, flightNo: string) => {
-    // 1. Post initial system scanning msg
-    const scanMsg = {
-      sender: 'system' as const,
+    const isSec = orderId.endsWith('_secondary');
+    const baseId = isSec ? orderId.replace('_secondary', '') : orderId;
+    const parentOrder = (orders || []).find(o => o.id === baseId);
+    const existingNotes = (parentOrder as any)?.opsNotes || [];
+
+    const scanNote = {
       text: `🤖 [AI Flight Tracker] RUNNING: Initiating satellite telemetry link on Flight ${flightNo.toUpperCase()}...`,
-      timestamp: 'Just now'
+      by: '',
+      at: new Date().toISOString(),
+      leg: (isSec ? 'secondary' : 'primary') as 'primary' | 'secondary'
     };
 
-    setDiscussions(prev => ({
-      ...prev,
-      [orderId]: [...(prev[orderId] || []), scanMsg]
-    }));
+    onUpdateOrder?.(baseId, { opsNotes: [...existingNotes, scanNote] });
 
-    // 2. Mock a delays, then post the result JSON
+    // Mock delay then post telemetry result system note
     setTimeout(() => {
       const standardCode = flightNo.toUpperCase().trim();
       const details = FLIGHT_DATABASE[standardCode] || {
@@ -931,26 +929,18 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
         weather: 'Fair, 29°C'
       };
 
-      const resultMsg = {
-        sender: 'system' as const,
-        text: `🤖 [AI Flight Tracker] RESULT: ${JSON.stringify({ flightNo: standardCode, ...details })}`,
-        timestamp: 'Just now'
+      const latestParent = (orders || []).find(o => o.id === baseId);
+      const latestNotes = (latestParent as any)?.opsNotes || [...existingNotes, scanNote];
+
+      const resultNote = {
+        text: `🤖 [AI Flight Tracker] RESULT: ${standardCode} (${details.airline}). Status: ${details.status}, Arrival: ${details.arrival}, Terminal/Gate: ${details.terminal}/${details.gate}`,
+        by: '',
+        at: new Date().toISOString(),
+        leg: (isSec ? 'secondary' : 'primary') as 'primary' | 'secondary'
       };
 
-      const dispatchAlertMsg = {
-        sender: 'partner' as const,
-        text: `[Flight Ops Control] Telemetry lock verified on ${standardCode}. ETA synced at ${details.arrival}. Regional liaison designated queue is prepped at ${details.gate || 'Arribals'}.`,
-        timestamp: 'Just now'
-      };
-
-      setDiscussions(prev => {
-        if (!prev[orderId]) return prev;
-        return {
-          ...prev,
-          [orderId]: [...prev[orderId], resultMsg, dispatchAlertMsg]
-        };
-      });
-    }, 1200);
+      onUpdateOrder?.(baseId, { opsNotes: [...latestNotes, resultNote] });
+    }, 1500);
   };
 
   const toggleChecklist = (orderId: string, itemKey: string) => {
@@ -2306,8 +2296,57 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
                         const secondaryPartnerAssignedId = assignedPartners[selectedOrder.id + '_secondary'];
                         const secondaryPartnerDetails = secondaryPartnerType ? PARTNERS[secondaryPartnerType].find(p => p.id === secondaryPartnerAssignedId) : null;
 
+                        const baseId = selectedOrder.parentId || selectedOrder.id.replace('_secondary', '');
+                        const parentOrder = (paidOrders || []).find(o => o.id === baseId) || selectedOrder;
+                        const waUrl = (parentOrder as any)?.whatsappGroupUrl;
+                        const zaUrl = (parentOrder as any)?.zaloGroupUrl;
+
                         return (
                           <div className="space-y-4">
+                            {/* Group Chat Access Buttons (WhatsApp & Zalo) */}
+                            <div className="grid grid-cols-2 gap-2 font-sans">
+                              <button
+                                type="button"
+                                disabled={!waUrl}
+                                title={
+                                  !waUrl
+                                    ? (language === 'EN' ? 'No group link yet. Add it in the Order Management tab.' : 'Chưa có link nhóm. Nhập ở tab Order Management.')
+                                    : (language === 'EN' ? 'Open WhatsApp group' : 'Mở nhóm WhatsApp')
+                                }
+                                onClick={() => {
+                                  if (waUrl) safeOpen(waUrl, '_blank');
+                                }}
+                                className={`py-2 px-2.5 text-[10.5px] font-bold rounded-xl border flex items-center justify-center gap-1.5 transition-all ${
+                                  waUrl
+                                    ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200 cursor-pointer shadow-xs'
+                                    : 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-60'
+                                }`}
+                              >
+                                <MessageSquare className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                                <span className="truncate">{language === 'EN' ? 'Open WhatsApp group' : 'Mở nhóm WhatsApp'}</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                disabled={!zaUrl}
+                                title={
+                                  !zaUrl
+                                    ? (language === 'EN' ? 'No group link yet. Add it in the Order Management tab.' : 'Chưa có link nhóm. Nhập ở tab Order Management.')
+                                    : (language === 'EN' ? 'Open Zalo group' : 'Mở nhóm Zalo')
+                                }
+                                onClick={() => {
+                                  if (zaUrl) safeOpen(zaUrl, '_blank');
+                                }}
+                                className={`py-2 px-2.5 text-[10.5px] font-bold rounded-xl border flex items-center justify-center gap-1.5 transition-all ${
+                                  zaUrl
+                                    ? 'bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200 cursor-pointer shadow-xs'
+                                    : 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-60'
+                                }`}
+                              >
+                                <MessageSquare className="h-3.5 w-3.5 shrink-0 text-blue-600" />
+                                <span className="truncate">{language === 'EN' ? 'Open Zalo group' : 'Mở nhóm Zalo'}</span>
+                              </button>
+                            </div>
                             {/* Primary Partner Sector */}
                             <div className={`${isOrderCombo ? 'border-b border-dashed border-slate-200 pb-3' : ''}`}>
                               {isOrderCombo && (
@@ -2546,12 +2585,12 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
                         <div className="flex items-center space-x-2">
                           <MessageSquare className="h-4.5 w-4.5 text-indigo-500 shrink-0" />
                           <div>
-                            <span className="text-xs font-bold text-slate-900 block">Liaison Comms Thread</span>
-                            <span className="text-[9px] text-slate-450 block">Direct sync with partner</span>
+                            <span className="text-xs font-bold text-slate-900 block">Internal Ops Notes Thread</span>
+                            <span className="text-[9px] text-slate-450 block">Internal staff notes (Customer/Partner cannot see)</span>
                           </div>
                         </div>
-                        <span className="text-[9px] bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-full border border-emerald-100 font-bold uppercase">
-                          Encrypted Link
+                        <span className="text-[9px] bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded-full border border-indigo-100 font-bold uppercase">
+                          Internal Only
                         </span>
                       </div>
 
@@ -2700,50 +2739,48 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
                           <button
                             type="button"
                             onClick={() => {
+                              const isSec = selectedOrder.id.endsWith('_secondary');
+                              const baseId = isSec ? selectedOrder.id.replace('_secondary', '') : selectedOrder.id;
+                              const parentOrder = (orders || []).find(o => o.id === baseId);
+                              const existingNotes = (parentOrder as any)?.opsNotes || [];
+
                               updateOrderStatus(selectedOrder.id, 'Needs Resubmission');
-                              const sysMsg = {
-                                sender: 'system' as const,
-                                text: `Status flag updated to: "Needs Resubmission". Automated notification dispatched to customer.`,
-                                timestamp: 'Just now'
+                              const newNote = {
+                                text: `System note: Document quality check failed. Passport scan is partly blurred. Customer notified to resubmit high-resolution photo.`,
+                                by: '',
+                                at: new Date().toISOString(),
+                                leg: (isSec ? 'secondary' : 'primary') as 'primary' | 'secondary'
                               };
-                              const partMsg = {
-                                sender: 'partner' as const,
-                                text: `[Liaison Notice] Document quality check failed. The passport biographical scan is partly blurred. Please request the customer to resubmit a higher resolution photograph or device PDF.`,
-                                timestamp: 'Just now'
-                              };
-                              setDiscussions(prev => ({
-                                ...prev,
-                                [selectedOrder.id]: [...(prev[selectedOrder.id] || []), sysMsg, partMsg]
-                              }));
+
+                              onUpdateOrder?.(baseId, { opsNotes: [...existingNotes, newNote] });
                             }}
                             className="w-full text-left p-1.5 text-[10.5px] font-semibold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-250 rounded-lg cursor-pointer transition-all flex items-center justify-between"
                           >
-                            <span>1. Partner Notice: Incomplete Passport Scan</span>
+                            <span>1. System Trigger: Incomplete Passport Scan</span>
                             <span className="text-[9px] bg-amber-200 px-1 py-0.2 rounded font-black">TRIGGER</span>
                           </button>
                           
                           <button
                             type="button"
                             onClick={() => {
+                              const isSec = selectedOrder.id.endsWith('_secondary');
+                              const baseId = isSec ? selectedOrder.id.replace('_secondary', '') : selectedOrder.id;
+                              const parentOrder = (orders || []).find(o => o.id === baseId);
+                              const existingNotes = (parentOrder as any)?.opsNotes || [];
+
                               updateOrderStatus(selectedOrder.id, 'Needs Resubmission');
-                              const sysMsg = {
-                                sender: 'system' as const,
-                                text: `Status flag updated to: "Needs Resubmission". Embassy feedback logged.`,
-                                timestamp: 'Just now'
+                              const newNote = {
+                                text: `System note: Embassy officer feedback: Biometric photo background does not meet contrast standards. Customer notified to resubmit 4x6 photo.`,
+                                by: '',
+                                at: new Date().toISOString(),
+                                leg: (isSec ? 'secondary' : 'primary') as 'primary' | 'secondary'
                               };
-                              const partMsg = {
-                                sender: 'partner' as const,
-                                text: `[Embassy Rejection Notice] The consular officer feedback specifies that the uploaded biometric portrait scan background does not meet high white contrast standards. Applicant must supply standard 4x6 photography again.`,
-                                timestamp: 'Just now'
-                              };
-                              setDiscussions(prev => ({
-                                ...prev,
-                                [selectedOrder.id]: [...(prev[selectedOrder.id] || []), sysMsg, partMsg]
-                              }));
+
+                              onUpdateOrder?.(baseId, { opsNotes: [...existingNotes, newNote] });
                             }}
                             className="w-full text-left p-1.5 text-[10.5px] font-semibold bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-250 rounded-lg cursor-pointer transition-all flex items-center justify-between"
                           >
-                            <span>2. Consular Notice: Embassy Photo Correction</span>
+                            <span>2. System Trigger: Embassy Photo Correction</span>
                             <span className="text-[9px] bg-rose-200 px-1 py-0.2 rounded font-black">TRIGGER</span>
                           </button>
                         </div>
@@ -2845,7 +2882,6 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
           orders={paidOrders}
           setOrders={setOrders}
           discussions={discussions}
-          setDiscussions={setDiscussions}
           currency={currency}
           assignedPartners={assignedPartners}
           setAssignedPartners={setAssignedPartners}

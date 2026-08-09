@@ -8,7 +8,7 @@ import {
   ChevronRight, Building, ShieldAlert, CheckSquare2, X
 } from 'lucide-react';
 import { Order, Currency, CURRENCY_SYMBOLS } from '../types';
-import { safeStorage } from '../utils/storage';
+import { safeStorage, safeOpen } from '../utils/storage';
 import { getSplitOrders } from '../utils/orderUtils';
 import { formatPhoneE164, isValidInternationalPhone } from '../utils/validation';
 import { auth } from '../utils/firebase';
@@ -18,7 +18,6 @@ interface OMSAgencyCommsProps {
   orders: Order[];
   setOrders: (orders: Order[]) => void;
   discussions: Record<string, Array<{ sender: 'digivisa' | 'partner' | 'system', text: string, timestamp: string }>>;
-  setDiscussions: React.Dispatch<React.SetStateAction<Record<string, Array<{ sender: 'digivisa' | 'partner' | 'system', text: string, timestamp: string }>>>>;
   currency: Currency;
   assignedPartners: Record<string, string>;
   setAssignedPartners?: React.Dispatch<React.SetStateAction<Record<string, string>>>;
@@ -105,7 +104,6 @@ export default function OMSAgencyComms({
   orders,
   setOrders,
   discussions,
-  setDiscussions,
   currency,
   assignedPartners,
   setAssignedPartners,
@@ -420,30 +418,28 @@ export default function OMSAgencyComms({
 
     const isSec = selectedOrder.id.endsWith('_secondary');
     const baseId = isSec ? selectedOrder.id.replace('_secondary', '') : selectedOrder.id;
+    const parentOrder = (orders || []).find(o => o.id === baseId);
+    const existingNotes = (parentOrder as any)?.opsNotes || [];
+
+    const legLabel = isSec ? 'Secondary Combo Leg' : 'Primary Leg';
+    const noteText = `System update: ${legLabel} (${activeServiceType}) status updated to "${newStatus}".`;
+
+    const newNote = {
+      text: noteText,
+      by: auth.currentUser?.email || '',
+      at: new Date().toISOString(),
+      leg: (isSec ? 'secondary' : 'primary') as 'primary' | 'secondary'
+    };
+
+    const updatedOpsNotes = [...existingNotes, newNote];
 
     if (isSec) {
-      await onUpdateOrder?.(baseId, { secondaryStatus: newStatus, secondarySubStatus: null });
+      await onUpdateOrder?.(baseId, { secondaryStatus: newStatus, secondarySubStatus: null, opsNotes: updatedOpsNotes });
     } else {
       const subOpts = getSubStatusOptions(newStatus, activeServiceType);
       const subStatus = subOpts.length > 0 ? subOpts[0] : null;
-      await onUpdateOrder?.(baseId, { status: newStatus, subStatus });
+      await onUpdateOrder?.(baseId, { status: newStatus, subStatus, opsNotes: updatedOpsNotes });
     }
-
-    // 2. Add discussion record representing the update
-    const legLabel = isSec ? 'Secondary Combo Leg' : 'Primary Leg';
-    const partnerName = activePartner ? activePartner.name : 'Partner Liaison';
-
-    const noteText = `🔄 [Bridge Status Update] Person in Charge directly updated ${legLabel} (${activeServiceType}) status to "${newStatus}" after checking in with ${partnerName}.`;
-    const newDisc = {
-      sender: 'digivisa' as const,
-      text: noteText,
-      timestamp: new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
-    };
-
-    setDiscussions(prev => ({
-      ...prev,
-      [selectedOrder.id]: [...(prev[selectedOrder.id] || []), newDisc]
-    }));
   };
 
   // Quick Action: Change Order Sub-Status & record log
@@ -452,25 +448,26 @@ export default function OMSAgencyComms({
 
     const isSec = selectedOrder.id.endsWith('_secondary');
     const baseId = isSec ? selectedOrder.id.replace('_secondary', '') : selectedOrder.id;
-
-    if (isSec) {
-      await onUpdateOrder?.(baseId, { secondarySubStatus: newSubStatus });
-    } else {
-      await onUpdateOrder?.(baseId, { subStatus: newSubStatus });
-    }
+    const parentOrder = (orders || []).find(o => o.id === baseId);
+    const existingNotes = (parentOrder as any)?.opsNotes || [];
 
     const legLabel = isSec ? 'Secondary Combo Leg' : 'Primary Leg';
-    const noteText = `🔄 [Bridge Sub-Status Update] Sub-status set to "${newSubStatus}" for ${legLabel} (${activeServiceType}).`;
-    const newDisc = {
-      sender: 'digivisa' as const,
+    const noteText = `System update: ${legLabel} (${activeServiceType}) sub-status set to "${newSubStatus}".`;
+
+    const newNote = {
       text: noteText,
-      timestamp: new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+      by: auth.currentUser?.email || '',
+      at: new Date().toISOString(),
+      leg: (isSec ? 'secondary' : 'primary') as 'primary' | 'secondary'
     };
 
-    setDiscussions(prev => ({
-      ...prev,
-      [selectedOrder.id]: [...(prev[selectedOrder.id] || []), newDisc]
-    }));
+    const updatedOpsNotes = [...existingNotes, newNote];
+
+    if (isSec) {
+      await onUpdateOrder?.(baseId, { secondarySubStatus: newSubStatus, opsNotes: updatedOpsNotes });
+    } else {
+      await onUpdateOrder?.(baseId, { subStatus: newSubStatus, opsNotes: updatedOpsNotes });
+    }
   };
 
   // Quick Action: Update Staff or Vehicle dispatch details
@@ -543,30 +540,29 @@ export default function OMSAgencyComms({
     await handleUpdateStaffOrVehicle(field as string, currentValue.trim());
   };
 
-  // Quick Action: Add manual liaison discussion note
-  const handleAddLiaisonNote = (e: React.FormEvent) => {
+  // Quick Action: Add internal ops note
+  const handleAddLiaisonNote = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedOrder || !liaisonNote.trim()) return;
 
-    const legLabel = isOrderCombo 
-      ? (isSecLeg ? 'Secondary Combo Leg' : 'Primary Leg')
-      : 'Service';
+    const isSec = selectedOrder.id.endsWith('_secondary');
+    const baseId = isSec ? selectedOrder.id.replace('_secondary', '') : selectedOrder.id;
+    const parentOrder = (orders || []).find(o => o.id === baseId);
+    const existingNotes = (parentOrder as any)?.opsNotes || [];
 
-    const formattedNote = `💬 [Bridge Note - ${legLabel}] Staff update: ${liaisonNote}`;
-    const newDisc = {
-      sender: 'digivisa' as const,
-      text: formattedNote,
-      timestamp: new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+    const newNote = {
+      text: liaisonNote.trim(),
+      by: auth.currentUser?.email || 'Operations',
+      at: new Date().toISOString(),
+      leg: (isSec ? 'secondary' : 'primary') as 'primary' | 'secondary'
     };
 
-    setDiscussions(prev => ({
-      ...prev,
-      [selectedOrder.id]: [...(prev[selectedOrder.id] || []), newDisc]
-    }));
-
+    const updatedOpsNotes = [...existingNotes, newNote];
     setLiaisonNote('');
-    const isEn = language === 'EN';
-    alert(isEn ? 'Note saved. Visible to internal staff only.' : 'Đã ghi chú. Chỉ nhân viên nội bộ nhìn thấy.');
+
+    if (onUpdateOrder) {
+      await onUpdateOrder(baseId, { opsNotes: updatedOpsNotes });
+    }
   };
 
   // Helper to copy text templates to clipboard
@@ -576,7 +572,7 @@ export default function OMSAgencyComms({
     setTimeout(() => setCopySuccess(null), 2500);
   };
 
-  const handleTransferDossier = (order: Order, serviceType: string) => {
+  const handleTransferDossier = async (order: Order, serviceType: string) => {
     if (!order) return;
     const dossierText = getDossierText(order, serviceType);
     navigator.clipboard.writeText(dossierText);
@@ -587,19 +583,26 @@ export default function OMSAgencyComms({
       setDossierTransferSuccess(null);
     }, 4500);
 
-    // Automatically log a system notification in discussion records for audit history in OMS
+    const isSec = order.id.endsWith('_secondary');
+    const baseId = isSec ? order.id.replace('_secondary', '') : order.id;
+    const parentOrder = (orders || []).find(o => o.id === baseId);
+    const existingNotes = (parentOrder as any)?.opsNotes || [];
+
     const agencyName = currentAgency ? currentAgency.agencyName : 'assigned partner agency';
-    const noteText = `🚀 [Dossier Sync] Staff coordinator successfully transferred full customer dossier & document checklist details to ${agencyName} for ${serviceType} processing. Payload copied to clipboard.`;
-    const newDisc = {
-      sender: 'system' as const,
+    const noteText = `System update: Staff transferred customer dossier details for ${serviceType} leg processing to ${agencyName}.`;
+
+    const newNote = {
       text: noteText,
-      timestamp: new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+      by: auth.currentUser?.email || '',
+      at: new Date().toISOString(),
+      leg: (isSec ? 'secondary' : 'primary') as 'primary' | 'secondary'
     };
 
-    setDiscussions(prev => ({
-      ...prev,
-      [order.id]: [...(prev[order.id] || []), newDisc]
-    }));
+    const updatedOpsNotes = [...existingNotes, newNote];
+
+    if (onUpdateOrder) {
+      await onUpdateOrder(baseId, { opsNotes: updatedOpsNotes });
+    }
   };
 
   // Pre-configured messaging templates based on current selected order
@@ -1080,35 +1083,35 @@ export default function OMSAgencyComms({
 
                               const partnerObj = PARTNERS[activeServiceType]?.find(p => p.id === pId);
                               const assignedName = partnerObj ? partnerObj.name : 'Partner';
+                              const parentOrder = (orders || []).find(o => o.id === baseId);
+                              const existingNotes = (parentOrder as any)?.opsNotes || [];
+
+                              const assignNote = {
+                                text: `System update: Assigned partner "${assignedName}" to handle the ${activeServiceType} leg.`,
+                                by: auth.currentUser?.email || '',
+                                at: new Date().toISOString(),
+                                leg: (isSecLeg ? 'secondary' : 'primary') as 'primary' | 'secondary'
+                              };
+
+                              const updatedOpsNotes = [...existingNotes, assignNote];
 
                               if (isSecLeg) {
                                 await onUpdateOrder?.(baseId, {
                                   assignedPartnerIdSecondary: pId,
                                   assignedPartnerNameSecondary: assignedName,
                                   assignedPartnerAtSecondary: new Date().toISOString(),
-                                  assignedPartnerBySecondary: auth.currentUser?.email || 'staff'
+                                  assignedPartnerBySecondary: auth.currentUser?.email || 'staff',
+                                  opsNotes: updatedOpsNotes
                                 });
                               } else {
                                 await onUpdateOrder?.(baseId, {
                                   assignedPartnerId: pId,
                                   assignedPartnerName: assignedName,
                                   assignedPartnerAt: new Date().toISOString(),
-                                  assignedPartnerBy: auth.currentUser?.email || 'staff'
+                                  assignedPartnerBy: auth.currentUser?.email || 'staff',
+                                  opsNotes: updatedOpsNotes
                                 });
                               }
-
-                              const noteText = `🤝 [Partner Liaison Found] Staff matched and assigned "${assignedName}" to handle the ${activeServiceType} leg. Priority channel initialized.`;
-                              
-                              const systemMsg = {
-                                sender: 'system' as const,
-                                text: noteText,
-                                timestamp: new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
-                              };
-
-                              setDiscussions(prev => ({
-                                ...prev,
-                                [selectedOrder.id]: [...(prev[selectedOrder.id] || []), systemMsg]
-                              }));
                             }}
                             className="flex-1 bg-white border border-slate-200 hover:border-slate-350 text-slate-800 text-xs font-bold rounded-xl p-2.5 focus:ring-2 focus:ring-indigo-500/15 focus:outline-none cursor-pointer transition-colors disabled:opacity-50 disabled:bg-slate-100 disabled:cursor-not-allowed"
                           >
@@ -1791,28 +1794,81 @@ export default function OMSAgencyComms({
                       </div>
                     )}
 
-                    <div className="flex justify-end">
-                      <button
-                        type="button"
-                        disabled={isSavingGroupLinks}
-                        onClick={handleSaveGroupLinks}
-                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer flex items-center space-x-1.5"
-                      >
-                        {isSavingGroupLinks ? (
-                          <span>Đang lưu...</span>
-                        ) : (
-                          <span>Lưu Link Nhóm</span>
-                        )}
-                      </button>
-                    </div>
+                    {(() => {
+                      const baseId = isSecLeg ? selectedOrder.id.replace('_secondary', '') : selectedOrder.id;
+                      const parentOrder = (orders || []).find(o => o.id === baseId) || selectedOrder;
+                      const waUrl = (parentOrder as any)?.whatsappGroupUrl;
+                      const zaUrl = (parentOrder as any)?.zaloGroupUrl;
+
+                      return (
+                        <div className="flex flex-wrap items-center justify-between gap-2 pt-1 font-sans">
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              disabled={!waUrl}
+                              title={
+                                !waUrl
+                                  ? (language === 'EN' ? 'No group link yet. Add it in the Order Management tab.' : 'Chưa có link nhóm. Nhập ở tab Order Management.')
+                                  : (language === 'EN' ? 'Open WhatsApp group' : 'Mở nhóm WhatsApp')
+                              }
+                              onClick={() => {
+                                if (waUrl) safeOpen(waUrl, '_blank');
+                              }}
+                              className={`px-3 py-2 text-xs font-bold rounded-xl border flex items-center gap-1.5 transition-all ${
+                                waUrl
+                                  ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200 cursor-pointer shadow-xs'
+                                  : 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-60'
+                              }`}
+                            >
+                              <MessageSquare className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                              <span>{language === 'EN' ? 'Open WhatsApp group' : 'Mở nhóm WhatsApp'}</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={!zaUrl}
+                              title={
+                                !zaUrl
+                                  ? (language === 'EN' ? 'No group link yet. Add it in the Order Management tab.' : 'Chưa có link nhóm. Nhập ở tab Order Management.')
+                                  : (language === 'EN' ? 'Open Zalo group' : 'Mở nhóm Zalo')
+                              }
+                              onClick={() => {
+                                if (zaUrl) safeOpen(zaUrl, '_blank');
+                              }}
+                              className={`px-3 py-2 text-xs font-bold rounded-xl border flex items-center gap-1.5 transition-all ${
+                                zaUrl
+                                  ? 'bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200 cursor-pointer shadow-xs'
+                                  : 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-60'
+                              }`}
+                            >
+                              <MessageSquare className="h-3.5 w-3.5 shrink-0 text-blue-600" />
+                              <span>{language === 'EN' ? 'Open Zalo group' : 'Mở nhóm Zalo'}</span>
+                            </button>
+                          </div>
+
+                          <button
+                            type="button"
+                            disabled={isSavingGroupLinks}
+                            onClick={handleSaveGroupLinks}
+                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer flex items-center space-x-1.5"
+                          >
+                            {isSavingGroupLinks ? (
+                              <span>Đang lưu...</span>
+                            ) : (
+                              <span>Lưu Link Nhóm</span>
+                            )}
+                          </button>
+                        </div>
+                      );
+                    })()}
                   </div>
 
-                  {/* Liaison discussion log */}
+                  {/* Internal Ops Discussion Notes */}
                   <div className="pt-4 border-t border-slate-200/80 space-y-3">
                     <div className="flex justify-between items-center">
-                      <h4 className="text-[11px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                      <h4 className="text-[11px] font-black text-slate-700 uppercase tracking-widest flex items-center gap-1.5">
                         <MessageSquare className="h-4 w-4 text-indigo-600" />
-                        <span>Staff-Partner Liaison Logs & Memos</span>
+                        <span>{language === 'EN' ? 'Internal Ops Notes' : 'Ghi chú nội bộ'}</span>
                       </h4>
                       <span className="text-[10px] text-slate-400 font-semibold font-sans">
                         {isOrderCombo
@@ -1823,54 +1879,69 @@ export default function OMSAgencyComms({
                       </span>
                     </div>
 
+                    {/* Notice Banner */}
+                    <div className="text-[10.5px] text-amber-800 bg-amber-50/80 border border-amber-200/70 p-2.5 rounded-xl font-medium flex items-center gap-2">
+                      <ShieldAlert className="h-4 w-4 text-amber-600 shrink-0" />
+                      <span>
+                        {language === 'EN'
+                          ? 'Internal only. Neither the customer nor the partner can see this.'
+                          : 'Chỉ nhân viên nội bộ nhìn thấy. Khách hàng và đối tác KHÔNG thấy nội dung này.'}
+                      </span>
+                    </div>
+
                     {/* Simple Note Log Form */}
                     <form onSubmit={handleAddLiaisonNote} className="space-y-2">
                       <div className="relative">
                         <textarea
                           placeholder={
-                            isOrderCombo
-                              ? `e.g. Spoke with ${activePartner?.contact || 'partner'} regarding ${activeServiceType} leg. Everything confirmed for arrival...`
-                              : "e.g. Discussed documentation check with Huong. Passport scans verified, submitting to embassy."
+                            language === 'EN'
+                              ? 'Enter internal ops notes for this order (e.g. Verified flight details with customer via phone...)'
+                              : 'Nhập ghi chú nội bộ cho đơn này (ví dụ: Đã gọi điện xác nhận thông tin chuyến bay với khách...)'
                           }
                           value={liaisonNote}
                           onChange={(e) => setLiaisonNote(e.target.value)}
                           rows={2}
-                          className="w-full bg-slate-50 hover:bg-slate-50/50 border border-slate-200 focus:bg-white focus:border-indigo-500 rounded-xl p-3 text-xs focus:outline-none transition-all placeholder:text-slate-400"
+                          className="w-full bg-slate-50 hover:bg-slate-50/50 border border-slate-200 focus:bg-white focus:border-indigo-500 rounded-xl p-3 text-xs focus:outline-none transition-all placeholder:text-slate-400 font-sans"
                         />
                       </div>
                       <div className="flex justify-end">
                         <button
                           type="submit"
                           disabled={!liaisonNote.trim()}
-                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl cursor-pointer flex items-center gap-1 shadow-sm transition-all"
+                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl cursor-pointer flex items-center gap-1.5 shadow-sm transition-all"
                         >
                           <Send className="h-3 w-3" />
-                          <span>Log Discussion Memo</span>
+                          <span>{language === 'EN' ? 'Add Note' : 'Ghi chú'}</span>
                         </button>
                       </div>
                     </form>
 
                     {/* Timeline of logged messages */}
-                    <div className="space-y-2 mt-2 max-h-[180px] overflow-y-auto">
+                    <div className="space-y-2 mt-2 max-h-[220px] overflow-y-auto">
                       {activeLogs.length === 0 ? (
                         <div className="p-4 rounded-xl border border-dashed border-slate-200 bg-slate-50/50 text-center text-slate-400 text-[11px]">
-                          No manual discussion logs registered yet. Type above to record call details.
+                          {language === 'EN'
+                            ? 'No internal ops notes recorded yet for this order.'
+                            : 'Chưa có ghi chú nội bộ nào được lưu cho đơn này.'}
                         </div>
                       ) : (
-                        [...activeLogs].reverse().map((log, idx) => {
-                          const isPlatformLog = log.text.includes("Bridge Status Update") || log.text.includes("Liaison Status Update");
+                        [...activeLogs].reverse().map((log: any, idx: number) => {
+                          const authorEmail = log.by || (log.sender === 'system' ? (language === 'EN' ? 'System' : 'Hệ thống') : 'Operations');
+                          const isSystem = !log.by && log.sender === 'system';
+                          const timeStr = log.timestamp ? (isNaN(Date.parse(log.timestamp)) ? log.timestamp : new Date(log.timestamp).toLocaleString()) : '';
+
                           return (
                             <div 
                               key={idx} 
                               className={`p-2.5 rounded-xl text-xs space-y-1 border ${
-                                isPlatformLog 
+                                isSystem 
                                   ? 'bg-slate-50 text-slate-700 border-slate-200/80' 
                                   : 'bg-indigo-50/40 text-indigo-950 border-indigo-100/60'
                               }`}
                             >
-                              <div className="flex justify-between items-center text-[9px] font-bold text-slate-450 uppercase">
-                                <span>{isPlatformLog ? 'PLATFORM SYSTEM' : 'STAFF COORD LOG'}</span>
-                                <span className="font-mono">{log.timestamp}</span>
+                              <div className="flex justify-between items-center text-[9px] font-bold text-slate-500">
+                                <span className="font-mono text-indigo-700 font-bold">{authorEmail}</span>
+                                <span className="font-mono text-slate-400">{timeStr}</span>
                               </div>
                               <p className="font-medium text-[11px] leading-relaxed select-all">
                                 {log.text}
