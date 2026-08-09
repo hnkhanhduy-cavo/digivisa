@@ -1517,11 +1517,15 @@ export default function OrderTracker({
                   </div>
                   <div className="flex gap-2 shrink-0 items-center">
                     {(() => {
-                      const showWaGroup = !!selectedOrder?.whatsappGroupUrl;
+                      const isSec = isCombo && userActiveComboLeg === 'secondary';
+                      const waGroupUrl = isSec ? selectedOrder?.whatsappGroupUrlSecondary : selectedOrder?.whatsappGroupUrl;
+                      const zaGroupUrl = isSec ? selectedOrder?.zaloGroupUrlSecondary : selectedOrder?.zaloGroupUrl;
+
+                      const showWaGroup = !!waGroupUrl;
                       const showWaDirect = !showWaGroup && hasWhatsApp();
                       const showWa = showWaGroup || showWaDirect;
 
-                      const showZaGroup = !!selectedOrder?.zaloGroupUrl;
+                      const showZaGroup = !!zaGroupUrl;
                       const showZaDirect = !showZaGroup && hasZalo();
                       const showZa = showZaGroup || showZaDirect;
 
@@ -1541,8 +1545,8 @@ export default function OrderTracker({
                             <button 
                               type="button"
                               onClick={() => {
-                                if (showWaGroup) {
-                                  safeOpen(selectedOrder!.whatsappGroupUrl!, '_blank');
+                                if (showWaGroup && waGroupUrl) {
+                                  safeOpen(waGroupUrl, '_blank');
                                 } else {
                                   const msg = isEn
                                     ? `Hello DigiVisa, I need support for order ${selectedOrder?.id || ''}`
@@ -1562,8 +1566,8 @@ export default function OrderTracker({
                             <button 
                               type="button"
                               onClick={() => {
-                                if (showZaGroup) {
-                                  safeOpen(selectedOrder!.zaloGroupUrl!, '_blank');
+                                if (showZaGroup && zaGroupUrl) {
+                                  safeOpen(zaGroupUrl, '_blank');
                                 } else {
                                   const url = buildZaloChatUrl();
                                   if (url) safeOpen(url, '_blank');
@@ -1582,16 +1586,22 @@ export default function OrderTracker({
                   </div>
                 </div>
 
-                {(selectedOrder?.whatsappGroupUrl || selectedOrder?.zaloGroupUrl) && (
-                  <div className="pt-2 border-t border-slate-100 text-[10.5px] text-slate-500 font-medium flex items-center gap-1.5">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    <span>
-                      {isEn 
-                        ? 'Private group for this order, including the handling partner.' 
-                        : 'Nhóm riêng cho đơn này, có cả đối tác xử lý.'}
-                    </span>
-                  </div>
-                )}
+                {(() => {
+                  const isSec = isCombo && userActiveComboLeg === 'secondary';
+                  const hasGroupLink = isSec
+                    ? (selectedOrder?.whatsappGroupUrlSecondary || selectedOrder?.zaloGroupUrlSecondary)
+                    : (selectedOrder?.whatsappGroupUrl || selectedOrder?.zaloGroupUrl);
+                  return hasGroupLink ? (
+                    <div className="pt-2 border-t border-slate-100 text-[10.5px] text-slate-500 font-medium flex items-center gap-1.5">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      <span>
+                        {isEn 
+                          ? 'Private group for this order, including the handling partner.' 
+                          : 'Nhóm riêng cho đơn này, có cả đối tác xử lý.'}
+                      </span>
+                    </div>
+                  ) : null;
+                })()}
               </div>
 
             </motion.div>

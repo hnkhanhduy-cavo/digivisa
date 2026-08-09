@@ -123,6 +123,12 @@ export interface Order {
   zaloGroupUrl?: string;
   /** ISO timestamp lần cuối staff cập nhật link nhóm. */
   groupLinkUpdatedAt?: string;
+  /** Link mời nhóm chat riêng chặng phụ của đơn combo. Chỉ host chat.whatsapp.com. */
+  whatsappGroupUrlSecondary?: string;
+  /** Link mời nhóm Zalo riêng chặng phụ của đơn combo. Chỉ host zalo.me. */
+  zaloGroupUrlSecondary?: string;
+  /** ISO timestamp lần cuối staff cập nhật link nhóm chặng phụ. */
+  groupLinkUpdatedAtSecondary?: string;
   larkRecordId?: string;
   larkNotifiedAt?: string;
   userId?: string;

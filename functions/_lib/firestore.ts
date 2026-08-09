@@ -195,6 +195,8 @@ export async function findOrderByTrackingToken(
   const id = docNameToOrderId(doc.name);
   const whatsappGroupUrl = readStringField(f, 'whatsappGroupUrl');
   const zaloGroupUrl = readStringField(f, 'zaloGroupUrl');
+  const whatsappGroupUrlSecondary = readStringField(f, 'whatsappGroupUrlSecondary');
+  const zaloGroupUrlSecondary = readStringField(f, 'zaloGroupUrlSecondary');
 
   return {
     ok: true,
@@ -209,6 +211,8 @@ export async function findOrderByTrackingToken(
       type: readStringField(f, 'type') || '',
       ...(whatsappGroupUrl ? { whatsappGroupUrl } : {}),
       ...(zaloGroupUrl ? { zaloGroupUrl } : {}),
+      ...(whatsappGroupUrlSecondary ? { whatsappGroupUrlSecondary } : {}),
+      ...(zaloGroupUrlSecondary ? { zaloGroupUrlSecondary } : {}),
     },
   };
 }
@@ -282,23 +286,29 @@ export async function markOrderPaidInFirestore(
 export async function setGroupLinksInFirestore(
   orderId: string,
   links: { whatsappGroupUrl?: string; zaloGroupUrl?: string },
-  env: Env
+  env: Env,
+  leg: 'primary' | 'secondary' = 'primary'
 ): Promise<{ ok: boolean; status: number; body?: string; groupLinkUpdatedAt?: string }> {
   const token = await getAccessToken(env);
   const groupLinkUpdatedAt = new Date().toISOString();
 
-  const mask: string[] = ['groupLinkUpdatedAt'];
+  const isSec = leg === 'secondary';
+  const updatedAtFieldName = isSec ? 'groupLinkUpdatedAtSecondary' : 'groupLinkUpdatedAt';
+  const waFieldName = isSec ? 'whatsappGroupUrlSecondary' : 'whatsappGroupUrl';
+  const zaFieldName = isSec ? 'zaloGroupUrlSecondary' : 'zaloGroupUrl';
+
+  const mask: string[] = [updatedAtFieldName];
   const fields: Record<string, unknown> = {
-    groupLinkUpdatedAt: { stringValue: groupLinkUpdatedAt },
+    [updatedAtFieldName]: { stringValue: groupLinkUpdatedAt },
   };
 
   if (links.whatsappGroupUrl !== undefined) {
-    mask.push('whatsappGroupUrl');
-    fields.whatsappGroupUrl = { stringValue: links.whatsappGroupUrl };
+    mask.push(waFieldName);
+    fields[waFieldName] = { stringValue: links.whatsappGroupUrl };
   }
   if (links.zaloGroupUrl !== undefined) {
-    mask.push('zaloGroupUrl');
-    fields.zaloGroupUrl = { stringValue: links.zaloGroupUrl };
+    mask.push(zaFieldName);
+    fields[zaFieldName] = { stringValue: links.zaloGroupUrl };
   }
 
   const url = firestoreDocUrl(projectId(env), orderId, mask);

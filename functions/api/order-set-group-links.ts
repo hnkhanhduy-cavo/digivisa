@@ -2,7 +2,7 @@
  * Set custom WhatsApp and Zalo group links for an order (Staff only).
  * Route: POST /api/order-set-group-links
  * Header: Authorization: Bearer <Firebase_ID_Token>
- * Body: { orderId: string, whatsappGroupUrl?: string, zaloGroupUrl?: string }
+ * Body: { orderId: string, whatsappGroupUrl?: string, zaloGroupUrl?: string, leg?: 'primary' | 'secondary' }
  */
 
 import type { Env } from '../_lib/env';
@@ -40,7 +40,10 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       orderId?: string;
       whatsappGroupUrl?: string;
       zaloGroupUrl?: string;
+      leg?: 'primary' | 'secondary';
     };
+
+    const leg: 'primary' | 'secondary' = body.leg === 'secondary' ? 'secondary' : 'primary';
 
     const orderId = String(body.orderId || '').trim();
     if (!orderId) {
@@ -72,7 +75,8 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     const saveRes = await setGroupLinksInFirestore(
       orderId,
       links,
-      context.env
+      context.env,
+      leg
     );
 
     if (!saveRes.ok) {
@@ -83,10 +87,23 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       );
     }
 
+    if (leg === 'secondary') {
+      return jsonResponse({
+        success: true,
+        orderId,
+        leg,
+        whatsappGroupUrlSecondary: links.whatsappGroupUrl,
+        zaloGroupUrlSecondary: links.zaloGroupUrl,
+        groupLinkUpdatedAtSecondary: saveRes.groupLinkUpdatedAt,
+      });
+    }
+
     return jsonResponse({
       success: true,
       orderId,
-      ...links,
+      leg,
+      whatsappGroupUrl: links.whatsappGroupUrl,
+      zaloGroupUrl: links.zaloGroupUrl,
       groupLinkUpdatedAt: saveRes.groupLinkUpdatedAt,
     });
   } catch (error: any) {

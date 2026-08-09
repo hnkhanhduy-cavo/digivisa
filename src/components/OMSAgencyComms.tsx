@@ -272,14 +272,28 @@ export default function OMSAgencyComms({
       : ((selectedOrder as any)?.assignedPartnerId || assignedPartners[selectedOrder.id])
   ) : undefined;
 
+  const currentWaUrl = (() => {
+    if (!selectedOrder) return '';
+    const baseId = isSecLeg ? selectedOrder.id.replace('_secondary', '') : selectedOrder.id;
+    const parentOrder = (orders || []).find((o) => o.id === baseId) || selectedOrder;
+    return isSecLeg ? (parentOrder.whatsappGroupUrlSecondary || '') : (parentOrder.whatsappGroupUrl || '');
+  })();
+
+  const currentZaUrl = (() => {
+    if (!selectedOrder) return '';
+    const baseId = isSecLeg ? selectedOrder.id.replace('_secondary', '') : selectedOrder.id;
+    const parentOrder = (orders || []).find((o) => o.id === baseId) || selectedOrder;
+    return isSecLeg ? (parentOrder.zaloGroupUrlSecondary || '') : (parentOrder.zaloGroupUrl || '');
+  })();
+
   useEffect(() => {
     if (selectedOrder) {
-      setWaGroupInput(selectedOrder.whatsappGroupUrl || '');
-      setZaGroupInput(selectedOrder.zaloGroupUrl || '');
+      setWaGroupInput(currentWaUrl);
+      setZaGroupInput(currentZaUrl);
       setGroupLinkError('');
       setGroupLinkSuccess('');
     }
-  }, [selectedOrder?.id, selectedOrder?.whatsappGroupUrl, selectedOrder?.zaloGroupUrl]);
+  }, [selectedOrder?.id, currentWaUrl, currentZaUrl]);
 
   const handleSaveGroupLinks = async () => {
     if (!selectedOrder) return;
@@ -309,6 +323,7 @@ export default function OMSAgencyComms({
           orderId: baseId,
           whatsappGroupUrl: waGroupInput,
           zaloGroupUrl: zaGroupInput,
+          leg: isSec ? 'secondary' : 'primary',
         }),
       });
 
@@ -321,12 +336,21 @@ export default function OMSAgencyComms({
 
       const updated = orders.map((o) => {
         if (o.id === baseId) {
-          return {
-            ...o,
-            whatsappGroupUrl: data.whatsappGroupUrl || undefined,
-            zaloGroupUrl: data.zaloGroupUrl || undefined,
-            groupLinkUpdatedAt: data.groupLinkUpdatedAt,
-          };
+          if (isSec) {
+            return {
+              ...o,
+              whatsappGroupUrlSecondary: data.whatsappGroupUrlSecondary || undefined,
+              zaloGroupUrlSecondary: data.zaloGroupUrlSecondary || undefined,
+              groupLinkUpdatedAtSecondary: data.groupLinkUpdatedAtSecondary,
+            };
+          } else {
+            return {
+              ...o,
+              whatsappGroupUrl: data.whatsappGroupUrl || undefined,
+              zaloGroupUrl: data.zaloGroupUrl || undefined,
+              groupLinkUpdatedAt: data.groupLinkUpdatedAt,
+            };
+          }
         }
         return o;
       });
@@ -1741,16 +1765,32 @@ export default function OMSAgencyComms({
                           Link Nhóm Chat Riêng Cho Đơn Hàng (WhatsApp & Zalo)
                         </span>
                       </div>
-                      {selectedOrder.groupLinkUpdatedAt && (
-                        <span className="text-[9.5px] font-mono text-slate-500">
-                          Cập nhật: {new Date(selectedOrder.groupLinkUpdatedAt).toLocaleString()}
-                        </span>
-                      )}
+                      {(() => {
+                        const baseId = isSecLeg ? selectedOrder.id.replace('_secondary', '') : selectedOrder.id;
+                        const parentOrder = (orders || []).find((o) => o.id === baseId) || selectedOrder;
+                        const updatedAt = isSecLeg ? parentOrder?.groupLinkUpdatedAtSecondary : parentOrder?.groupLinkUpdatedAt;
+                        return updatedAt ? (
+                          <span className="text-[9.5px] font-mono text-slate-500">
+                            Cập nhật: {new Date(updatedAt).toLocaleString()}
+                          </span>
+                        ) : null;
+                      })()}
                     </div>
 
                     <p className="text-[10.5px] text-slate-600 leading-normal">
                       💡 <strong>Hướng dẫn:</strong> Nhóm chat phải được tạo thủ công trong ứng dụng WhatsApp/Zalo. Sau đó copy link mời (invite link) và dán vào bên dưới rồi bấm <strong>Lưu Link Nhóm</strong>. (Tẩy trống ô rồi lưu để xóa link).
                     </p>
+
+                    {isOrderCombo && (
+                      <div className="text-[11px] font-bold text-indigo-800 bg-indigo-100/70 border border-indigo-200/80 px-3 py-1.5 rounded-xl flex items-center gap-1.5">
+                        <span>📌</span>
+                        <span>
+                          {language === 'EN'
+                            ? (isSecLeg ? `Group links for secondary leg (${activeServiceType})` : `Group links for primary leg (${activeServiceType})`)
+                            : (isSecLeg ? `Link nhóm cho chặng phụ (${activeServiceType})` : `Link nhóm cho chặng chính (${activeServiceType})`)}
+                        </span>
+                      </div>
+                    )}
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
@@ -1797,8 +1837,8 @@ export default function OMSAgencyComms({
                     {(() => {
                       const baseId = isSecLeg ? selectedOrder.id.replace('_secondary', '') : selectedOrder.id;
                       const parentOrder = (orders || []).find(o => o.id === baseId) || selectedOrder;
-                      const waUrl = (parentOrder as any)?.whatsappGroupUrl;
-                      const zaUrl = (parentOrder as any)?.zaloGroupUrl;
+                      const waUrl = isSecLeg ? (parentOrder as any)?.whatsappGroupUrlSecondary : (parentOrder as any)?.whatsappGroupUrl;
+                      const zaUrl = isSecLeg ? (parentOrder as any)?.zaloGroupUrlSecondary : (parentOrder as any)?.zaloGroupUrl;
 
                       return (
                         <div className="flex flex-wrap items-center justify-between gap-2 pt-1 font-sans">
@@ -1808,7 +1848,7 @@ export default function OMSAgencyComms({
                               disabled={!waUrl}
                               title={
                                 !waUrl
-                                  ? (language === 'EN' ? 'No group link yet. Add it in the Order Management tab.' : 'Chưa có link nhóm. Nhập ở tab Order Management.')
+                                  ? (language === 'EN' ? 'No group link yet. Paste it in the field above and press Save.' : 'Chưa có link nhóm. Dán link vào ô bên trên rồi bấm Lưu Link Nhóm.')
                                   : (language === 'EN' ? 'Open WhatsApp group' : 'Mở nhóm WhatsApp')
                               }
                               onClick={() => {
@@ -1829,7 +1869,7 @@ export default function OMSAgencyComms({
                               disabled={!zaUrl}
                               title={
                                 !zaUrl
-                                  ? (language === 'EN' ? 'No group link yet. Add it in the Order Management tab.' : 'Chưa có link nhóm. Nhập ở tab Order Management.')
+                                  ? (language === 'EN' ? 'No group link yet. Paste it in the field above and press Save.' : 'Chưa có link nhóm. Dán link vào ô bên trên rồi bấm Lưu Link Nhóm.')
                                   : (language === 'EN' ? 'Open Zalo group' : 'Mở nhóm Zalo')
                               }
                               onClick={() => {

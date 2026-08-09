@@ -2296,10 +2296,11 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
                         const secondaryPartnerAssignedId = assignedPartners[selectedOrder.id + '_secondary'];
                         const secondaryPartnerDetails = secondaryPartnerType ? PARTNERS[secondaryPartnerType].find(p => p.id === secondaryPartnerAssignedId) : null;
 
+                        const isSec = selectedOrder.id.endsWith('_secondary');
                         const baseId = selectedOrder.parentId || selectedOrder.id.replace('_secondary', '');
                         const parentOrder = (paidOrders || []).find(o => o.id === baseId) || selectedOrder;
-                        const waUrl = (parentOrder as any)?.whatsappGroupUrl;
-                        const zaUrl = (parentOrder as any)?.zaloGroupUrl;
+                        const waUrl = isSec ? (parentOrder as any)?.whatsappGroupUrlSecondary : (parentOrder as any)?.whatsappGroupUrl;
+                        const zaUrl = isSec ? (parentOrder as any)?.zaloGroupUrlSecondary : (parentOrder as any)?.zaloGroupUrl;
 
                         return (
                           <div className="space-y-4">
