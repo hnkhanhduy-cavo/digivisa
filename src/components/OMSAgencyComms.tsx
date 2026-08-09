@@ -188,10 +188,61 @@ export default function OMSAgencyComms({
   // Filtered order list
   const filteredOrders = getSplitOrders(orders).filter(o => {
     if (!o || !o.id) return false;
-    const custName = getCustomerName(o).toLowerCase();
-    const matchesSearch = (o.id || '').toLowerCase().includes(searchQuery.toLowerCase()) || custName.includes(searchQuery.toLowerCase());
     const matchesType = filterType === 'All' || o.type === filterType;
-    return matchesSearch && matchesType;
+    if (!matchesType) return false;
+
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return true;
+
+    // 1. Match Order ID
+    if ((o.id || '').toLowerCase().includes(q)) return true;
+
+    // 2. Match Customer Name
+    const custName = getCustomerName(o).toLowerCase();
+    if (custName !== 'n/a' && custName.includes(q)) return true;
+
+    // 3. Match Email
+    const details = (o.details || {}) as any;
+    const contact = getCustomerContact(o);
+    const emailList = [
+      contact.email,
+      details.email,
+      details.contactEmail,
+      details.passengerEmail
+    ];
+    for (const em of emailList) {
+      if (em && typeof em === 'string' && em.toLowerCase() !== 'n/a' && em.toLowerCase().includes(q)) {
+        return true;
+      }
+    }
+
+    // 4. Match Phone Number (digits-only comparison in both directions, plus 0/84 normalization)
+    const qDigits = q.replace(/\D/g, '');
+    if (qDigits.length > 0) {
+      const phoneList = [
+        contact.phone,
+        details.phone,
+        details.contactPhone,
+        details.passengerPhone
+      ];
+      for (const ph of phoneList) {
+        if (ph && typeof ph === 'string' && ph.toLowerCase() !== 'n/a') {
+          const phDigits = ph.replace(/\D/g, '');
+          if (phDigits.length > 0) {
+            if (phDigits.includes(qDigits) || qDigits.includes(phDigits)) {
+              return true;
+            }
+            const normPh = phDigits.startsWith('84') ? '0' + phDigits.slice(2) : phDigits;
+            const normQ = qDigits.startsWith('84') ? '0' + qDigits.slice(2) : qDigits;
+            if (normPh.includes(normQ) || normQ.includes(normPh)) {
+              return true;
+            }
+          }
+        }
+      }
+    }
+
+    return false;
   });
 
   const [previewPhotoUrl, setPreviewPhotoUrl] = useState<string | null>(null);

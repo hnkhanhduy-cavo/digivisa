@@ -147,13 +147,65 @@ export default function OrderTracker({
   });
 
   const filteredOrders = (() => {
-    const query = searchQuery.trim().toUpperCase();
-    if (!query) return userVisibleOrders;
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return userVisibleOrders;
+    const qDigits = q.replace(/\D/g, '');
+
     return userVisibleOrders.filter((o) => {
-      return (
-        o.id.toUpperCase().includes(query) ||
-        o.type.toUpperCase().includes(query)
-      );
+      // 1. Match Order ID or Service Type
+      if ((o.id || '').toLowerCase().includes(q) || (o.type || '').toLowerCase().includes(q)) {
+        return true;
+      }
+
+      const details = (o.details || {}) as any;
+
+      // 2. Match Customer Name
+      const custName = (
+        o.type === 'Visa'
+          ? `${details.firstName || ''} ${details.lastName || ''}`.trim()
+          : details.contactName || details.passengerName || ''
+      ).toLowerCase();
+      if (custName && custName !== 'n/a' && custName.includes(q)) {
+        return true;
+      }
+
+      // 3. Match Email
+      const emailList = [
+        details.email,
+        details.contactEmail,
+        details.passengerEmail
+      ];
+      for (const em of emailList) {
+        if (em && typeof em === 'string' && em.toLowerCase() !== 'n/a' && em.toLowerCase().includes(q)) {
+          return true;
+        }
+      }
+
+      // 4. Match Phone Number (digits-only comparison in both directions, plus 0/84 normalization)
+      if (qDigits.length > 0) {
+        const phoneList = [
+          details.phone,
+          details.contactPhone,
+          details.passengerPhone
+        ];
+        for (const ph of phoneList) {
+          if (ph && typeof ph === 'string' && ph.toLowerCase() !== 'n/a') {
+            const phDigits = ph.replace(/\D/g, '');
+            if (phDigits.length > 0) {
+              if (phDigits.includes(qDigits) || qDigits.includes(phDigits)) {
+                return true;
+              }
+              const normPh = phDigits.startsWith('84') ? '0' + phDigits.slice(2) : phDigits;
+              const normQ = qDigits.startsWith('84') ? '0' + qDigits.slice(2) : qDigits;
+              if (normPh.includes(normQ) || normQ.includes(normPh)) {
+                return true;
+              }
+            }
+          }
+        }
+      }
+
+      return false;
     });
   })();
 
