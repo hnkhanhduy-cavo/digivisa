@@ -243,6 +243,36 @@ export default function OMSAgencyComms({
     }
 
     return false;
+  }).sort((a, b) => {
+    const getOrderTime = (o: Order) => {
+      if (!o || !o.createdAt) return 0;
+      const t = new Date(o.createdAt).getTime();
+      return isNaN(t) ? 0 : t;
+    };
+
+    const timeA = getOrderTime(a);
+    const timeB = getOrderTime(b);
+
+    if (timeB !== timeA) {
+      return timeB - timeA;
+    }
+
+    // Tie-breaker when creation times are equal:
+    // 1. Group by base order ID first so legs of the same order stay together
+    const baseIdA = (a.id || '').replace('_secondary', '');
+    const baseIdB = (b.id || '').replace('_secondary', '');
+    if (baseIdA !== baseIdB) {
+      return baseIdA.localeCompare(baseIdB);
+    }
+
+    // 2. For legs of the exact same combo order, primary leg comes before secondary leg
+    const aIsSec = (a.id || '').endsWith('_secondary');
+    const bIsSec = (b.id || '').endsWith('_secondary');
+    if (aIsSec !== bIsSec) {
+      return aIsSec ? 1 : -1;
+    }
+
+    return 0;
   });
 
   const [previewPhotoUrl, setPreviewPhotoUrl] = useState<string | null>(null);
