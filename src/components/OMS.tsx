@@ -1088,62 +1088,64 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
         </div>
 
         {/* Horizontal Track Area */}
-        <div className="relative flex items-center justify-between px-2 pt-2 pb-1.5 min-h-[36px]">
-          {/* Background Gray Line */}
-          <div className="absolute left-4 right-4 h-1 bg-slate-200 rounded-full top-[17px] -z-0" />
-          
-          {/* Colored Filled Connection Line */}
-          <div 
-            className={`absolute left-4 h-1 rounded-full top-[17px] -z-0 transition-all duration-300 ${
-              isException 
-                ? 'bg-rose-500' 
-                : 'bg-indigo-600'
-            }`}
-            style={{ width: `calc(${ratio}% - ${ratio > 0 ? (isException ? '14px' : '8px') : '0px'})` }}
-          />
-
-          {steps.map((stepName, idx) => {
-            const isCompleted = idx < currentIndex;
-            const isActive = idx === currentIndex;
-            const isFuture = idx > currentIndex;
-
-            // Generate customized styles for each node type
-            let circleClass = '';
-            let innerContent = null;
-
-            if (isException && isActive) {
-              circleClass = 'bg-rose-500 border-2 border-rose-100 ring-4 ring-rose-500/20 text-white';
-              innerContent = <AlertCircle className="h-3 w-3 shrink-0" />;
-            } else if (isCompleted) {
-              circleClass = 'bg-emerald-500 text-white ring-2 ring-emerald-500/20';
-              innerContent = <Check className="h-3 w-3 shrink-0" strokeWidth={3} />;
-            } else if (isActive) {
-              circleClass = 'bg-indigo-600 border-2 border-indigo-100 ring-4 ring-indigo-500/30 text-white font-black';
-              innerContent = <span className="text-[10px] leading-none shrink-0">{idx + 1}</span>;
-            } else {
-              circleClass = 'bg-white border-2 border-slate-300 text-slate-500';
-              innerContent = <span className="text-[10px] leading-none shrink-0">{idx + 1}</span>;
-            }
-
-            return (
+        <div className="relative w-full py-1">
+          <div className="relative flex items-center justify-between w-full px-4 h-7">
+            {/* Background Gray Line (Center of Circle 1 [left-30px] to center of Last Circle [right-30px]) */}
+            <div className="absolute left-[30px] right-[30px] top-1/2 -translate-y-1/2 h-1 bg-slate-200 rounded-full z-0" />
+            
+            {/* Colored Filled Connection Line */}
+            <div className="absolute left-[30px] right-[30px] top-1/2 -translate-y-1/2 h-1 z-0 overflow-hidden rounded-full pointer-events-none">
               <div 
-                key={stepName}
-                onMouseEnter={() => setHoveredStepName(stepName)}
-                onMouseLeave={() => setHoveredStepName(null)}
-                className="relative flex flex-col items-center group z-10"
-              >
-                {/* Node Interactive Circle */}
-                <div className={`w-7 h-7 rounded-full flex items-center justify-center transition-all duration-200 ${circleClass}`}>
-                  {innerContent}
-                </div>
+                className={`h-full transition-all duration-300 rounded-full ${
+                  isException ? 'bg-rose-500' : 'bg-indigo-600'
+                }`}
+                style={{ width: `${ratio}%` }}
+              />
+            </div>
 
-                {/* Micro tooltip label for individual steps */}
-                <span className="absolute top-8 opacity-0 group-hover:opacity-100 transition-all bg-slate-950 text-white text-[9.5px] font-bold px-2.5 py-1 rounded-xl shadow-md whitespace-nowrap z-50 pointer-events-none scale-90 translate-y-1 group-hover:translate-y-0 group-hover:scale-100 duration-150 border border-slate-800">
-                  {stepName}
-                </span>
-              </div>
-            );
-          })}
+            {steps.map((stepName, idx) => {
+              const isCompleted = idx < currentIndex;
+              const isActive = idx === currentIndex;
+              const isFuture = idx > currentIndex;
+
+              // Generate customized styles for each node type
+              let circleClass = '';
+              let innerContent = null;
+
+              if (isException && isActive) {
+                circleClass = 'bg-rose-500 border-2 border-rose-100 ring-4 ring-rose-500/20 text-white';
+                innerContent = <AlertCircle className="h-3 w-3 shrink-0" />;
+              } else if (isCompleted) {
+                circleClass = 'bg-emerald-500 text-white ring-2 ring-emerald-500/20';
+                innerContent = <Check className="h-3 w-3 shrink-0" strokeWidth={3} />;
+              } else if (isActive) {
+                circleClass = 'bg-indigo-600 border-2 border-indigo-100 ring-4 ring-indigo-500/30 text-white font-black';
+                innerContent = <span className="text-[10px] leading-none shrink-0">{idx + 1}</span>;
+              } else {
+                circleClass = 'bg-white border-2 border-slate-300 text-slate-500';
+                innerContent = <span className="text-[10px] leading-none shrink-0">{idx + 1}</span>;
+              }
+
+              return (
+                <div 
+                  key={stepName}
+                  onMouseEnter={() => setHoveredStepName(stepName)}
+                  onMouseLeave={() => setHoveredStepName(null)}
+                  className="relative flex items-center justify-center cursor-pointer group z-10"
+                >
+                  {/* Node Interactive Circle */}
+                  <div className={`w-7 h-7 rounded-full flex items-center justify-center transition-all duration-200 ${circleClass}`}>
+                    {innerContent}
+                  </div>
+
+                  {/* Micro tooltip label for individual steps */}
+                  <span className="absolute top-8 opacity-0 group-hover:opacity-100 transition-all bg-slate-950 text-white text-[9.5px] font-bold px-2.5 py-1 rounded-xl shadow-md whitespace-nowrap z-50 pointer-events-none scale-90 translate-y-1 group-hover:translate-y-0 group-hover:scale-100 duration-150 border border-slate-800">
+                    {stepName}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     );

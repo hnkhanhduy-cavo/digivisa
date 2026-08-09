@@ -971,65 +971,83 @@ export default function OrderTracker({
                       </div>
                     </div>
                   ) : (
-                    <div className="relative flex items-center justify-between w-full py-2">
-                      {/* Connecting Line */}
-                      <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-0.5 bg-slate-200 z-0"></div>
-                      
-                      {/* Active Connecting Line Highlight */}
-                      <div 
-                        className="absolute left-0 top-1/2 -translate-y-1/2 h-0.5 bg-indigo-500 transition-all duration-500 z-0"
-                        style={{
-                          width: (() => {
-                            if (!isOrderPaid) return '0%';
-                            const stepsForOrder = getTimelineStepsForOrder(trackingOrder!.type);
-                            const normalizedCurrent = normalizeStatusForTimeline(trackingOrder!.status, trackingOrder!.type);
-                            const currentIndex = stepsForOrder.findIndex(step => step.id === normalizedCurrent);
-                            if (currentIndex <= 0) return '0%';
-                            if (currentIndex >= stepsForOrder.length - 1) return '100%';
-                            return `${(currentIndex / (stepsForOrder.length - 1)) * 100}%`;
-                          })()
-                        }}
-                      ></div>
-
-                      {/* Steps */}
-                      {getTimelineStepsForOrder(trackingOrder!.type).map((step, idx, arr) => {
-                        const normalizedCurrent = normalizeStatusForTimeline(trackingOrder!.status, trackingOrder!.type);
-                        const currentIndex = arr.findIndex(s => s.id === normalizedCurrent);
-                        const isCompleted = isOrderPaid && idx < currentIndex;
-                        const isActive = isOrderPaid && idx === currentIndex;
-
-                        return (
+                    <div className="relative w-full py-2 space-y-2.5">
+                      {/* Circles & Connecting Line Row */}
+                      <div className="relative flex items-center justify-between w-full px-4 h-8">
+                        {/* Background Connecting Line (Center of 1st circle to center of last circle) */}
+                        <div className="absolute left-8 right-8 top-1/2 -translate-y-1/2 h-1 bg-slate-200 rounded-full z-0" />
+                        
+                        {/* Active Connecting Line Highlight */}
+                        <div className="absolute left-8 right-8 top-1/2 -translate-y-1/2 h-1 z-0 overflow-hidden rounded-full pointer-events-none">
                           <div 
-                            key={step.id} 
-                            className="relative z-10 flex flex-col items-center cursor-default"
-                          >
-                            {/* Step Circle Bubble */}
-                            <div className={`h-8 w-8 rounded-full flex items-center justify-center border font-mono text-xs font-black transition-all duration-300 ${
-                              isCompleted 
-                                ? 'bg-emerald-500 border-emerald-600 text-white shadow-md shadow-emerald-500/10' 
-                                : isActive 
-                                ? 'bg-indigo-600 border-indigo-700 text-white ring-4 ring-indigo-100 shadow-md shadow-indigo-600/15 scale-110' 
-                                : 'bg-white border-slate-250 text-slate-400 hover:border-slate-400 hover:text-slate-600'
-                            }`}>
-                              {isCompleted ? (
-                                <Check className="h-4 w-4 text-white font-bold" />
-                              ) : (
-                                idx + 1
-                              )}
+                            className="h-full bg-indigo-500 transition-all duration-500 rounded-full"
+                            style={{
+                              width: (() => {
+                                if (!isOrderPaid) return '0%';
+                                const stepsForOrder = getTimelineStepsForOrder(trackingOrder!.type);
+                                const normalizedCurrent = normalizeStatusForTimeline(trackingOrder!.status, trackingOrder!.type);
+                                const currentIndex = stepsForOrder.findIndex(step => step.id === normalizedCurrent);
+                                if (currentIndex <= 0) return '0%';
+                                const maxIdx = stepsForOrder.length - 1;
+                                return `${Math.min(100, Math.max(0, (currentIndex / maxIdx) * 100))}%`;
+                              })()
+                            }}
+                          />
+                        </div>
+
+                        {/* Steps Circles */}
+                        {getTimelineStepsForOrder(trackingOrder!.type).map((step, idx, arr) => {
+                          const normalizedCurrent = normalizeStatusForTimeline(trackingOrder!.status, trackingOrder!.type);
+                          const currentIndex = arr.findIndex(s => s.id === normalizedCurrent);
+                          const isCompleted = isOrderPaid && idx < currentIndex;
+                          const isActive = isOrderPaid && idx === currentIndex;
+
+                          return (
+                            <div 
+                              key={step.id} 
+                              className="relative z-10 flex items-center justify-center cursor-default"
+                            >
+                              {/* Step Circle Bubble */}
+                              <div className={`h-8 w-8 rounded-full flex items-center justify-center border font-mono text-xs font-black transition-all duration-300 ${
+                                isCompleted 
+                                  ? 'bg-emerald-500 border-emerald-600 text-white shadow-md shadow-emerald-500/10' 
+                                  : isActive 
+                                  ? 'bg-indigo-600 border-indigo-700 text-white ring-4 ring-indigo-100 shadow-md shadow-indigo-600/15 scale-110' 
+                                  : 'bg-white border-slate-250 text-slate-400 hover:border-slate-400 hover:text-slate-600'
+                              }`}>
+                                {isCompleted ? (
+                                  <Check className="h-4 w-4 text-white font-bold" />
+                                ) : (
+                                  idx + 1
+                                )}
+                              </div>
                             </div>
-                            
-                            {/* Labels */}
-                            <span className={`text-[11px] font-bold mt-2 transition-colors ${
-                              isActive ? 'text-indigo-600 font-extrabold' : isCompleted ? 'text-slate-700' : 'text-slate-400'
-                            }`}>
-                              {getStatusLabel(step.label, language as any)}
-                            </span>
-                            <span className="text-[9px] text-slate-400 hidden sm:block mt-0.5 text-center">
-                              {step.desc}
-                            </span>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+                      </div>
+
+                      {/* Step Text Labels Row */}
+                      <div className="flex justify-between w-full px-4">
+                        {getTimelineStepsForOrder(trackingOrder!.type).map((step, idx, arr) => {
+                          const normalizedCurrent = normalizeStatusForTimeline(trackingOrder!.status, trackingOrder!.type);
+                          const currentIndex = arr.findIndex(s => s.id === normalizedCurrent);
+                          const isCompleted = isOrderPaid && idx < currentIndex;
+                          const isActive = isOrderPaid && idx === currentIndex;
+
+                          return (
+                            <div key={step.id} className="w-24 flex flex-col items-center text-center">
+                              <span className={`text-[11px] font-bold transition-colors ${
+                                isActive ? 'text-indigo-600 font-extrabold' : isCompleted ? 'text-slate-700' : 'text-slate-400'
+                              }`}>
+                                {getStatusLabel(step.label, language as any)}
+                              </span>
+                              <span className="text-[9px] text-slate-400 hidden sm:block mt-0.5">
+                                {step.desc}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
 
