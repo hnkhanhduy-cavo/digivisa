@@ -1882,7 +1882,7 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
                 className="bg-white rounded-3xl border border-slate-150 shadow-md p-5 space-y-6"
               >
                 {/* Visual Order Meta Header */}
-                <div className="flex flex-col justify-between items-start gap-4 border-b border-slate-100 pb-5">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 pb-5">
                   <div>
                     <span className="text-[10px] font-mono text-indigo-500 font-bold block uppercase">Operational Clearance Board</span>
                     <div className="flex items-center space-x-2 mt-1">
@@ -1896,6 +1896,18 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
                       </span>
                     </div>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedOrderId(selectedOrder.id);
+                      setOmsSubPage('agency_comms');
+                    }}
+                    className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-extrabold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer border border-indigo-200 shrink-0"
+                  >
+                    <span>{language === 'EN' ? 'Open in Order Management ➜' : 'Mở trong Order Management ➜'}</span>
+                  </button>
+                </div>
 
                   {/* Status controls */}
                   {partnerServiceTab === 'VAT' ? (
@@ -1985,7 +1997,6 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
                       </div>
                     </div>
                   )}
-                </div>
 
                 {/* Horizontal Progress Track */}
                 {partnerServiceTab !== 'VAT' && renderHorizontalProgressTrack(selectedOrder)}

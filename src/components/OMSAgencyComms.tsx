@@ -131,8 +131,6 @@ export default function OMSAgencyComms({
   const [groupLinkSuccess, setGroupLinkSuccess] = useState('');
   const [isSavingGroupLinks, setIsSavingGroupLinks] = useState(false);
 
-  // Track active leg for combo orders (Dual Service coordination)
-  const [activeComboLeg, setActiveComboLeg] = useState<'primary' | 'secondary'>('primary');
 
   const getDossierText = (order: Order, serviceType: string): string => {
     if (!order) return '';
@@ -551,7 +549,7 @@ export default function OMSAgencyComms({
     if (!selectedOrder || !liaisonNote.trim()) return;
 
     const legLabel = isOrderCombo 
-      ? (activeComboLeg === 'primary' ? 'Primary Leg' : 'Secondary Combo Leg')
+      ? (isSecLeg ? 'Secondary Combo Leg' : 'Primary Leg')
       : 'Service';
 
     const formattedNote = `💬 [Bridge Note - ${legLabel}] Staff update: ${liaisonNote}`;
@@ -875,91 +873,90 @@ export default function OMSAgencyComms({
                 {/* Open full details action */}
                 <button
                   onClick={() => onSelectOrder(selectedOrder.id, selectedOrder.type as any)}
-                  className="bg-white/10 hover:bg-white/20 text-white text-xs font-bold px-3.5 py-1.5 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer border border-white/5"
+                  className="bg-white/10 hover:bg-white/20 text-white text-xs font-bold px-3.5 py-1.5 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer border border-white/10 shrink-0"
                 >
                   <FileText className="h-3.5 w-3.5" />
                   <span>Open Fulfillment Card ➜</span>
                 </button>
               </div>
 
-              {/* Combo Order Switcher Bridge (Only if isOrderCombo is true) */}
+              {/* Combo Order Read-Only Indicator Card (Only if isOrderCombo is true) */}
               {isOrderCombo && (
-                <div className="bg-purple-50/50 p-4 border-b border-purple-100 space-y-3">
+                <div className="bg-purple-50/60 p-4 border-b border-purple-100/80 rounded-t-2xl space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
-                      <Layers className="h-4 w-4 text-purple-700 animate-pulse" />
-                      <span className="text-[11px] font-black text-purple-900 uppercase tracking-wider">
-                        Dual Combo Order Detected: Select service leg to bridge
+                      <Layers className="h-4 w-4 text-purple-700" />
+                      <span className="text-xs font-extrabold text-purple-900">
+                        {language === 'EN'
+                          ? `Viewing: ${isSecLeg ? 'Secondary leg' : 'Primary leg'} (${activeServiceType})`
+                          : `Đang xem: ${isSecLeg ? 'Chặng phụ' : 'Chặng chính'} (${activeServiceType})`}
                       </span>
                     </div>
-                    <span className="text-[9px] bg-purple-150 text-purple-800 font-bold px-2 py-0.5 rounded-full uppercase">
-                      Independent Partners
+                    <span className="text-[9px] bg-purple-100 text-purple-800 font-extrabold px-2 py-0.5 rounded-full uppercase border border-purple-200">
+                      Combo Package
                     </span>
                   </div>
-                  
-                  <p className="text-[11px] text-slate-555 leading-relaxed">
-                    Because this is a combo, <strong>different agencies</strong> are responsible for each leg. Select which part of the journey you are coordinating to view their assigned contact details, generate custom chat templates, and transition status.
-                  </p>
 
-                  <div className="grid grid-cols-2 gap-3 pt-1">
-                    
-                    {/* Primary Leg Button */}
-                    <button
-                      onClick={() => setActiveComboLeg('primary')}
-                      className={`p-3 rounded-2xl text-left border transition-all cursor-pointer flex flex-col space-y-1.5 relative overflow-hidden ${
-                        activeComboLeg === 'primary'
-                          ? 'bg-white border-purple-600 shadow-md ring-2 ring-purple-500/10'
-                          : 'bg-slate-50/60 hover:bg-white border-slate-200 text-slate-600'
-                      }`}
-                    >
-                      <div className="flex justify-between items-center">
-                        <span className="text-[9.5px] uppercase font-black tracking-wider text-slate-400">
-                          Leg 1: Primary Service
+                  {/* Partner Assignment Summary for BOTH legs (Read-only) */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-0.5">
+                    {/* Primary Leg Summary */}
+                    <div className={`p-2.5 rounded-xl border transition-all text-xs ${
+                      !isSecLeg 
+                        ? 'bg-white border-purple-400 shadow-sm ring-1 ring-purple-300' 
+                        : 'bg-slate-50/70 border-slate-200 opacity-65'
+                    }`}>
+                      <div className="flex items-center justify-between gap-1 mb-1">
+                        <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">
+                          {language === 'EN' ? 'Primary Leg' : 'Chặng chính'}
                         </span>
-                        {activeComboLeg === 'primary' && (
-                          <span className="w-2 h-2 rounded-full bg-purple-600" />
+                        {!isSecLeg && (
+                          <span className="text-[8.5px] bg-purple-100 text-purple-800 font-bold px-1.5 py-0.2 rounded">
+                            {language === 'EN' ? 'Active' : 'Đang chọn'}
+                          </span>
                         )}
                       </div>
-                      <div className="font-extrabold text-xs text-slate-800 flex items-center gap-1.5">
-                        <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded text-[9px] uppercase font-black">
+                      <div className="font-bold text-slate-800 flex items-center gap-1.5">
+                        <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded text-[9px] font-black uppercase">
                           {selectedOrder.type}
                         </span>
-                        <span>{primaryPartnerObj ? primaryPartnerObj.name : 'Pending Dispatch'}</span>
-                      </div>
-                      <span className="text-[10px] text-slate-500 font-medium truncate">
-                        Liaison: {primaryPartnerObj ? primaryPartnerObj.contact : 'Not Assigned'}
-                      </span>
-                    </button>
-
-                    {/* Secondary Leg Button */}
-                    <button
-                      onClick={() => setActiveComboLeg('secondary')}
-                      className={`p-3 rounded-2xl text-left border transition-all cursor-pointer flex flex-col space-y-1.5 relative overflow-hidden ${
-                        activeComboLeg === 'secondary'
-                          ? 'bg-white border-purple-600 shadow-md ring-2 ring-purple-500/10'
-                          : 'bg-slate-50/60 hover:bg-white border-slate-200 text-slate-600'
-                      }`}
-                    >
-                      <div className="flex justify-between items-center">
-                        <span className="text-[9.5px] uppercase font-black tracking-wider text-slate-400">
-                          Leg 2: Secondary Combo
+                        <span className="truncate">
+                          {primaryPartnerObj ? primaryPartnerObj.name : (language === 'EN' ? 'No partner yet' : 'Chưa giao đối tác')}
                         </span>
-                        {activeComboLeg === 'secondary' && (
-                          <span className="w-2 h-2 rounded-full bg-purple-600" />
+                      </div>
+                    </div>
+
+                    {/* Secondary Leg Summary */}
+                    <div className={`p-2.5 rounded-xl border transition-all text-xs ${
+                      isSecLeg 
+                        ? 'bg-white border-purple-400 shadow-sm ring-1 ring-purple-300' 
+                        : 'bg-slate-50/70 border-slate-200 opacity-65'
+                    }`}>
+                      <div className="flex items-center justify-between gap-1 mb-1">
+                        <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">
+                          {language === 'EN' ? 'Secondary Leg' : 'Chặng phụ'}
+                        </span>
+                        {isSecLeg && (
+                          <span className="text-[8.5px] bg-purple-100 text-purple-800 font-bold px-1.5 py-0.2 rounded">
+                            {language === 'EN' ? 'Active' : 'Đang chọn'}
+                          </span>
                         )}
                       </div>
-                      <div className="font-extrabold text-xs text-slate-800 flex items-center gap-1.5">
-                        <span className="px-1.5 py-0.5 bg-purple-50 text-purple-700 rounded text-[9px] uppercase font-black">
+                      <div className="font-bold text-slate-800 flex items-center gap-1.5">
+                        <span className="px-1.5 py-0.5 bg-purple-50 text-purple-700 rounded text-[9px] font-black uppercase">
                           {secondaryType}
                         </span>
-                        <span>{secondaryPartnerObj ? secondaryPartnerObj.name : 'Pending Dispatch'}</span>
+                        <span className="truncate">
+                          {secondaryPartnerObj ? secondaryPartnerObj.name : (language === 'EN' ? 'No partner yet' : 'Chưa giao đối tác')}
+                        </span>
                       </div>
-                      <span className="text-[10px] text-slate-500 font-medium truncate">
-                        Liaison: {secondaryPartnerObj ? secondaryPartnerObj.contact : 'Not Assigned'}
-                      </span>
-                    </button>
-
+                    </div>
                   </div>
+
+                  <p className="text-[10.5px] text-slate-500 font-medium leading-relaxed">
+                    {language === 'EN'
+                      ? 'To switch between legs of a combo order, please click the corresponding row in the list on the left.'
+                      : 'Để chuyển giữa 2 chặng của đơn combo, vui lòng chọn dòng tương ứng ở danh sách bên trái.'}
+                  </p>
                 </div>
               )}
 
@@ -1758,7 +1755,11 @@ export default function OMSAgencyComms({
                         <span>Staff-Partner Liaison Logs & Memos</span>
                       </h4>
                       <span className="text-[10px] text-slate-400 font-semibold font-sans">
-                        {isOrderCombo ? `Linking to ${activeComboLeg} leg` : 'Standard link'}
+                        {isOrderCombo
+                          ? (language === 'EN'
+                              ? (isSecLeg ? 'Linked to secondary leg' : 'Linked to primary leg')
+                              : (isSecLeg ? 'Gắn với chặng phụ' : 'Gắn với chặng chính'))
+                          : (language === 'EN' ? 'Standard link' : 'Gắn đơn tiêu chuẩn')}
                       </span>
                     </div>
 
