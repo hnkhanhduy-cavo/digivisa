@@ -10,7 +10,7 @@ import {
 import { Order, Currency, CURRENCY_SYMBOLS, OrderEditLogEntry } from '../types';
 import { safeStorage, safeOpen } from '../utils/storage';
 import { getSplitOrders } from '../utils/orderUtils';
-import { formatPhoneE164, isValidInternationalPhone, isValidFlightNumber } from '../utils/validation';
+import { formatPhoneE164, isValidInternationalPhone, isValidFlightNumber, isValidEmail } from '../utils/validation';
 import { auth } from '../utils/firebase';
 import { getServiceStatusOptions, getSubStatusOptions, getSubStatusLabel, getStatusLabel } from '../utils/orderStatus';
 import EditableOrderField from './EditableOrderField';
@@ -675,7 +675,7 @@ export default function OMSAgencyComms({
       if (trimmed !== '' && !isValidInternationalPhone(trimmed)) {
         setStaffPhoneError(
           language === 'EN'
-            ? 'Invalid phone number format. Must be E.164 (e.g. +84909667334).'
+            ? 'Invalid phone number format. Must be international format (e.g. +84909667334).'
             : 'Số điện thoại không hợp lệ. Vui lòng nhập đúng định dạng quốc tế (ví dụ: +84909667334).'
         );
         return; // DO NOT SAVE
@@ -1400,6 +1400,32 @@ export default function OMSAgencyComms({
                             </div>
                           </div>
 
+                          <EditableOrderField
+                            key={selectedOrder.id}
+                            label="Customer Phone"
+                            value={(selectedOrder.details as any).phone || ''}
+                            fieldPath="details.phone"
+                            logLabel="Số điện thoại khách"
+                            language={language}
+                            inputType="tel"
+                            validate={(v) => !isValidInternationalPhone(v) ? (language === 'VI' ? 'Số điện thoại không hợp lệ (VD: 0972286699 hoặc +84972286699)' : 'Invalid phone number (e.g. 0972286699 or +84972286699)') : null}
+                            valueClassName="font-bold text-slate-800"
+                            onSave={handleSaveField}
+                          />
+
+                          <EditableOrderField
+                            key={selectedOrder.id}
+                            label="Customer Email"
+                            value={(selectedOrder.details as any).email || ''}
+                            fieldPath="details.email"
+                            logLabel="Email khách"
+                            language={language}
+                            inputType="email"
+                            validate={(v) => !isValidEmail(v) ? (language === 'VI' ? 'Email không hợp lệ' : 'Invalid email format') : null}
+                            valueClassName="font-bold text-slate-800"
+                            onSave={handleSaveField}
+                          />
+
                           <div className="space-y-1">
                             <span className="text-[9px] font-bold uppercase text-slate-400 block">Nationality & DOB</span>
                             <div className="bg-slate-50 border border-slate-150 rounded-lg px-2.5 py-1.5 text-slate-700 font-medium">
@@ -1421,12 +1447,17 @@ export default function OMSAgencyComms({
                             </div>
                           </div>
 
-                          <div className="space-y-1">
-                            <span className="text-[9px] font-bold uppercase text-slate-400 block">Target Arrival Date</span>
-                            <div className="bg-slate-50 border border-slate-150 rounded-lg px-2.5 py-1.5 text-slate-700 font-medium truncate">
-                              {(selectedOrder.details as any).arrivalDate || 'N/A'}
-                            </div>
-                          </div>
+                          <EditableOrderField
+                            key={selectedOrder.id}
+                            label="Target Arrival Date"
+                            value={(selectedOrder.details as any).arrivalDate || ''}
+                            fieldPath="details.arrivalDate"
+                            logLabel="Ngày nhập cảnh"
+                            language={language}
+                            inputType="date"
+                            valueClassName="text-slate-700 font-medium"
+                            onSave={handleSaveField}
+                          />
 
                           <div className="sm:col-span-2 space-y-1">
                             <span className="text-[9px] font-bold uppercase text-slate-400 block">Passport Scan (Required for submission)</span>
@@ -1468,12 +1499,55 @@ export default function OMSAgencyComms({
                             </div>
                           </div>
 
-                          <div className="space-y-1">
-                            <span className="text-[9px] font-bold uppercase text-slate-400 block">Landing Date & Time</span>
-                            <div className="bg-slate-50 border border-slate-150 rounded-lg px-2.5 py-1.5 text-slate-700 font-medium">
-                              {(selectedOrder.details as any).arrivalDate || 'N/A'} at {(selectedOrder.details as any).arrivalTime || 'N/A'}
-                            </div>
-                          </div>
+                          <EditableOrderField
+                            key={selectedOrder.id}
+                            label="Landing Date"
+                            value={(selectedOrder.details as any).arrivalDate || ''}
+                            fieldPath="details.arrivalDate"
+                            logLabel="Ngày hạ cánh"
+                            language={language}
+                            inputType="date"
+                            valueClassName="text-slate-700 font-medium"
+                            onSave={handleSaveField}
+                          />
+
+                          <EditableOrderField
+                            key={selectedOrder.id}
+                            label="Landing Time"
+                            value={(selectedOrder.details as any).arrivalTime || ''}
+                            fieldPath="details.arrivalTime"
+                            logLabel="Giờ hạ cánh"
+                            language={language}
+                            inputType="time"
+                            valueClassName="text-slate-700 font-medium"
+                            onSave={handleSaveField}
+                          />
+
+                          <EditableOrderField
+                            key={selectedOrder.id}
+                            label="Customer Phone"
+                            value={(selectedOrder.details as any).contactPhone || ''}
+                            fieldPath="details.contactPhone"
+                            logLabel="Số điện thoại khách"
+                            language={language}
+                            inputType="tel"
+                            validate={(v) => !isValidInternationalPhone(v) ? (language === 'VI' ? 'Số điện thoại không hợp lệ (VD: 0972286699 hoặc +84972286699)' : 'Invalid phone number (e.g. 0972286699 or +84972286699)') : null}
+                            valueClassName="font-bold text-slate-800"
+                            onSave={handleSaveField}
+                          />
+
+                          <EditableOrderField
+                            key={selectedOrder.id}
+                            label="Customer Email"
+                            value={(selectedOrder.details as any).contactEmail || ''}
+                            fieldPath="details.contactEmail"
+                            logLabel="Email khách"
+                            language={language}
+                            inputType="email"
+                            validate={(v) => !isValidEmail(v) ? (language === 'VI' ? 'Email không hợp lệ' : 'Invalid email format') : null}
+                            valueClassName="font-bold text-slate-800"
+                            onSave={handleSaveField}
+                          />
 
                           <div className="space-y-1">
                             <span className="text-[9px] font-bold uppercase text-slate-400 block">Concierge Package Tier</span>
@@ -1496,7 +1570,7 @@ export default function OMSAgencyComms({
                               fieldPath="details.specialRequests"
                               logLabel="Ghi chú đặc biệt"
                               language={language}
-                              multiline
+                              inputType="textarea"
                               containerClassName="bg-amber-50/40 border border-amber-200/60 rounded-lg p-2.5 flex items-center justify-between font-mono min-h-[34px]"
                               valueClassName="text-amber-900 font-medium text-[11px] leading-relaxed select-all"
                               emptyText="No special liaison instructions provided."
@@ -1528,12 +1602,55 @@ export default function OMSAgencyComms({
                             </div>
                           </div>
 
-                          <div className="space-y-1">
-                            <span className="text-[9px] font-bold uppercase text-slate-400 block">Pickup Date & Time</span>
-                            <div className="bg-slate-50 border border-slate-150 rounded-lg px-2.5 py-1.5 text-slate-700 font-medium">
-                              {(selectedOrder.details as any).pickupDate || 'N/A'} at {(selectedOrder.details as any).pickupTime || 'N/A'}
-                            </div>
-                          </div>
+                          <EditableOrderField
+                            key={selectedOrder.id}
+                            label="Pickup Date"
+                            value={(selectedOrder.details as any).pickupDate || ''}
+                            fieldPath="details.pickupDate"
+                            logLabel="Ngày đón"
+                            language={language}
+                            inputType="date"
+                            valueClassName="text-slate-700 font-medium"
+                            onSave={handleSaveField}
+                          />
+
+                          <EditableOrderField
+                            key={selectedOrder.id}
+                            label="Pickup Time"
+                            value={(selectedOrder.details as any).pickupTime || ''}
+                            fieldPath="details.pickupTime"
+                            logLabel="Giờ đón"
+                            language={language}
+                            inputType="time"
+                            valueClassName="text-slate-700 font-medium"
+                            onSave={handleSaveField}
+                          />
+
+                          <EditableOrderField
+                            key={selectedOrder.id}
+                            label="Customer Phone"
+                            value={(selectedOrder.details as any).passengerPhone || ''}
+                            fieldPath="details.passengerPhone"
+                            logLabel="Số điện thoại khách"
+                            language={language}
+                            inputType="tel"
+                            validate={(v) => !isValidInternationalPhone(v) ? (language === 'VI' ? 'Số điện thoại không hợp lệ (VD: 0972286699 hoặc +84972286699)' : 'Invalid phone number (e.g. 0972286699 or +84972286699)') : null}
+                            valueClassName="font-bold text-slate-800"
+                            onSave={handleSaveField}
+                          />
+
+                          <EditableOrderField
+                            key={selectedOrder.id}
+                            label="Customer Email"
+                            value={(selectedOrder.details as any).passengerEmail || ''}
+                            fieldPath="details.passengerEmail"
+                            logLabel="Email khách"
+                            language={language}
+                            inputType="email"
+                            validate={(v) => !isValidEmail(v) ? (language === 'VI' ? 'Email không hợp lệ' : 'Invalid email format') : null}
+                            valueClassName="font-bold text-slate-800"
+                            onSave={handleSaveField}
+                          />
 
                           {((selectedOrder.details as any).direction || (selectedOrder.details as any).serviceDirection) !== 'Departure' && (
                             <EditableOrderField
@@ -1586,7 +1703,7 @@ export default function OMSAgencyComms({
                               fieldPath="details.optionalNote"
                               logLabel="Ghi chú cho tài xế"
                               language={language}
-                              multiline
+                              inputType="textarea"
                               containerClassName="bg-blue-50/40 border border-blue-200/60 rounded-lg p-2.5 flex items-center justify-between font-mono min-h-[34px]"
                               valueClassName="text-blue-900 font-medium text-[11px] leading-relaxed select-all"
                               emptyText="No special chauffeur instructions provided."

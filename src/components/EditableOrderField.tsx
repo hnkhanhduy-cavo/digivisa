@@ -4,6 +4,8 @@ import { Pencil } from 'lucide-react';
 // NOTE: Callers MUST provide key={orderId} (e.g. key={selectedOrder.id}) when instantiating this component,
 // so React remounts it from scratch when switching orders and prevents uncommitted drafts from leaking to other orders.
 
+export type FieldInputType = 'text' | 'textarea' | 'date' | 'time' | 'email' | 'tel';
+
 export interface EditableOrderFieldProps {
   key?: string;
   label: string;
@@ -11,7 +13,7 @@ export interface EditableOrderFieldProps {
   fieldPath: string;
   logLabel: string;
   language?: string;
-  multiline?: boolean;
+  inputType?: FieldInputType;
   placeholder?: string;
   uppercase?: boolean;
   validate?: (val: string) => string | null;
@@ -28,7 +30,7 @@ export default function EditableOrderField({
   fieldPath,
   logLabel,
   language = 'VI',
-  multiline = false,
+  inputType = 'text',
   placeholder,
   uppercase = false,
   validate,
@@ -58,7 +60,7 @@ export default function EditableOrderField({
 
   const handleSave = async () => {
     const rawVal = draft.trim();
-    const formattedVal = uppercase ? rawVal.toUpperCase() : rawVal;
+    const formattedVal = (uppercase && inputType !== 'date' && inputType !== 'time') ? rawVal.toUpperCase() : rawVal;
 
     if (validate) {
       const err = validate(formattedVal);
@@ -89,9 +91,11 @@ export default function EditableOrderField({
   };
 
   const defaultContainerClass = "flex items-center justify-between bg-slate-50 border border-slate-150 rounded-lg px-2.5 py-1.5 font-mono min-h-[34px]";
-  const textClass = multiline
+  const textClass = inputType === 'textarea'
     ? (valueClassName || 'font-extrabold text-slate-800')
     : `truncate ${valueClassName || 'font-extrabold text-slate-800'}`;
+
+  const isDateTime = inputType === 'date' || inputType === 'time';
 
   return (
     <div className="space-y-1">
@@ -101,7 +105,7 @@ export default function EditableOrderField({
       {isEditing ? (
         <div className="space-y-1">
           <div className="flex items-start gap-1.5">
-            {multiline ? (
+            {inputType === 'textarea' ? (
               <textarea
                 value={draft}
                 onChange={(e) => setDraft(uppercase ? e.target.value.toUpperCase() : e.target.value)}
@@ -112,11 +116,11 @@ export default function EditableOrderField({
               />
             ) : (
               <input
-                type="text"
+                type={inputType}
                 value={draft}
-                onChange={(e) => setDraft(uppercase ? e.target.value.toUpperCase() : e.target.value)}
+                onChange={(e) => setDraft(uppercase && !isDateTime ? e.target.value.toUpperCase() : e.target.value)}
                 placeholder={placeholder}
-                className="w-full px-2.5 py-1 bg-white border border-indigo-400 rounded-lg text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className={`w-full px-2.5 py-1 bg-white border border-indigo-400 rounded-lg text-xs font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 ${isDateTime ? '' : 'font-mono'}`}
                 autoFocus
               />
             )}
