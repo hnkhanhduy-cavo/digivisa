@@ -1401,7 +1401,7 @@ export default function OMSAgencyComms({
                           </div>
 
                           <EditableOrderField
-                            key={selectedOrder.id}
+                            key={`${selectedOrder.id}::details.phone`}
                             label="Customer Phone"
                             value={(selectedOrder.details as any).phone || ''}
                             fieldPath="details.phone"
@@ -1414,7 +1414,7 @@ export default function OMSAgencyComms({
                           />
 
                           <EditableOrderField
-                            key={selectedOrder.id}
+                            key={`${selectedOrder.id}::details.email`}
                             label="Customer Email"
                             value={(selectedOrder.details as any).email || ''}
                             fieldPath="details.email"
@@ -1448,7 +1448,7 @@ export default function OMSAgencyComms({
                           </div>
 
                           <EditableOrderField
-                            key={selectedOrder.id}
+                            key={`${selectedOrder.id}::details.arrivalDate`}
                             label="Target Arrival Date"
                             value={(selectedOrder.details as any).arrivalDate || ''}
                             fieldPath="details.arrivalDate"
@@ -1472,7 +1472,7 @@ export default function OMSAgencyComms({
                       {activeServiceType === 'FastTrack' && (
                         <>
                           <EditableOrderField
-                            key={selectedOrder.id}
+                            key={`${selectedOrder.id}::details.flightNumber`}
                             label="Flight Number"
                             value={(selectedOrder.details as any).flightNumber || ''}
                             fieldPath="details.flightNumber"
@@ -1500,7 +1500,7 @@ export default function OMSAgencyComms({
                           </div>
 
                           <EditableOrderField
-                            key={selectedOrder.id}
+                            key={`${selectedOrder.id}::details.arrivalDate`}
                             label="Landing Date"
                             value={(selectedOrder.details as any).arrivalDate || ''}
                             fieldPath="details.arrivalDate"
@@ -1512,7 +1512,7 @@ export default function OMSAgencyComms({
                           />
 
                           <EditableOrderField
-                            key={selectedOrder.id}
+                            key={`${selectedOrder.id}::details.arrivalTime`}
                             label="Landing Time"
                             value={(selectedOrder.details as any).arrivalTime || ''}
                             fieldPath="details.arrivalTime"
@@ -1524,7 +1524,7 @@ export default function OMSAgencyComms({
                           />
 
                           <EditableOrderField
-                            key={selectedOrder.id}
+                            key={`${selectedOrder.id}::details.contactPhone`}
                             label="Customer Phone"
                             value={(selectedOrder.details as any).contactPhone || ''}
                             fieldPath="details.contactPhone"
@@ -1537,7 +1537,7 @@ export default function OMSAgencyComms({
                           />
 
                           <EditableOrderField
-                            key={selectedOrder.id}
+                            key={`${selectedOrder.id}::details.contactEmail`}
                             label="Customer Email"
                             value={(selectedOrder.details as any).contactEmail || ''}
                             fieldPath="details.contactEmail"
@@ -1564,7 +1564,7 @@ export default function OMSAgencyComms({
 
                           <div className="sm:col-span-2 space-y-1">
                             <EditableOrderField
-                              key={selectedOrder.id}
+                              key={`${selectedOrder.id}::details.specialRequests`}
                               label="Special Requests"
                               value={(selectedOrder.details as any).specialRequests || ''}
                               fieldPath="details.specialRequests"
@@ -1603,7 +1603,7 @@ export default function OMSAgencyComms({
                           </div>
 
                           <EditableOrderField
-                            key={selectedOrder.id}
+                            key={`${selectedOrder.id}::details.pickupDate`}
                             label="Pickup Date"
                             value={(selectedOrder.details as any).pickupDate || ''}
                             fieldPath="details.pickupDate"
@@ -1615,7 +1615,7 @@ export default function OMSAgencyComms({
                           />
 
                           <EditableOrderField
-                            key={selectedOrder.id}
+                            key={`${selectedOrder.id}::details.pickupTime`}
                             label="Pickup Time"
                             value={(selectedOrder.details as any).pickupTime || ''}
                             fieldPath="details.pickupTime"
@@ -1627,7 +1627,7 @@ export default function OMSAgencyComms({
                           />
 
                           <EditableOrderField
-                            key={selectedOrder.id}
+                            key={`${selectedOrder.id}::details.passengerPhone`}
                             label="Customer Phone"
                             value={(selectedOrder.details as any).passengerPhone || ''}
                             fieldPath="details.passengerPhone"
@@ -1640,7 +1640,7 @@ export default function OMSAgencyComms({
                           />
 
                           <EditableOrderField
-                            key={selectedOrder.id}
+                            key={`${selectedOrder.id}::details.passengerEmail`}
                             label="Customer Email"
                             value={(selectedOrder.details as any).passengerEmail || ''}
                             fieldPath="details.passengerEmail"
@@ -1654,7 +1654,7 @@ export default function OMSAgencyComms({
 
                           {((selectedOrder.details as any).direction || (selectedOrder.details as any).serviceDirection) !== 'Departure' && (
                             <EditableOrderField
-                              key={selectedOrder.id}
+                              key={`${selectedOrder.id}::details.flightNumber`}
                               label="Flight Number"
                               value={(selectedOrder.details as any).flightNumber || ''}
                               fieldPath="details.flightNumber"
@@ -1676,7 +1676,7 @@ export default function OMSAgencyComms({
 
                           <div className="sm:col-span-2 space-y-1">
                             <EditableOrderField
-                              key={selectedOrder.id}
+                              key={`${selectedOrder.id}::details.destinationAddress`}
                               label="Destination Address"
                               value={(selectedOrder.details as any).destinationAddress || ''}
                               fieldPath="details.destinationAddress"
@@ -1697,7 +1697,7 @@ export default function OMSAgencyComms({
 
                           <div className="sm:col-span-2 space-y-1">
                             <EditableOrderField
-                              key={selectedOrder.id}
+                              key={`${selectedOrder.id}::details.optionalNote`}
                               label="Driver & Dispatch Notes"
                               value={(selectedOrder.details as any).optionalNote || ''}
                               fieldPath="details.optionalNote"

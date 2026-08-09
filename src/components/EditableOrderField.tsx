@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Pencil } from 'lucide-react';
 
-// NOTE: Callers MUST provide key={orderId} (e.g. key={selectedOrder.id}) when instantiating this component,
-// so React remounts it from scratch when switching orders and prevents uncommitted drafts from leaking to other orders.
+// NOTE: Callers MUST provide a unique key combining orderId and fieldPath (e.g. key={`${selectedOrder.id}::${fieldPath}`})
+// when instantiating this component. The orderId ensures uncommitted drafts are cleared when switching orders,
+// and the fieldPath ensures sibling fields have unique keys so React does not mis-reconcile components.
 
 export type FieldInputType = 'text' | 'textarea' | 'date' | 'time' | 'email' | 'tel';
 
