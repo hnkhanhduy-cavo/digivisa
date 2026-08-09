@@ -45,7 +45,7 @@ export default function PaymentFailedModal({
 
   return (
     <div className="fixed inset-0 z-[280] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto font-sans">
-      <div className="relative w-full max-w-lg bg-white border border-slate-200 rounded-3xl shadow-2xl overflow-hidden p-6 sm:p-7 text-slate-800 space-y-5 animate-scale-up">
+      <div className="relative w-full max-w-lg bg-white border border-slate-200 rounded-3xl shadow-2xl overflow-x-hidden max-h-[90dvh] overflow-y-auto p-6 sm:p-7 text-slate-800 space-y-5 animate-scale-up">
         {/* Glow Banners */}
         <div className="absolute -top-12 -left-12 w-36 h-36 bg-rose-400/20 rounded-full blur-2xl pointer-events-none" />
         <div className="absolute -top-12 -right-12 w-36 h-36 bg-amber-400/20 rounded-full blur-2xl pointer-events-none" />

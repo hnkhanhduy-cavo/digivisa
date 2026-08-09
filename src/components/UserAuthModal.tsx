@@ -95,7 +95,7 @@ export default function UserAuthModal({ isOpen, onClose, onSuccess, language }: 
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="relative w-full max-w-md bg-white border border-slate-200 rounded-3xl shadow-2xl overflow-hidden p-6 sm:p-8 text-slate-800"
+          className="relative w-full max-w-md bg-white border border-slate-200 rounded-3xl shadow-2xl overflow-x-hidden max-h-[90dvh] overflow-y-auto p-6 sm:p-8 text-slate-800"
         >
           {/* Close Button */}
           <button
@@ -171,7 +171,7 @@ export default function UserAuthModal({ isOpen, onClose, onSuccess, language }: 
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="user@domain.com"
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white focus:ring-1 focus:ring-indigo-500 rounded-xl text-sm text-slate-900 placeholder-slate-400 transition-all outline-none"
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white focus:ring-1 focus:ring-indigo-500 rounded-xl text-base sm:text-sm text-slate-900 placeholder-slate-400 transition-all outline-none"
                 />
               </div>
             </div>
@@ -189,7 +189,7 @@ export default function UserAuthModal({ isOpen, onClose, onSuccess, language }: 
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white focus:ring-1 focus:ring-indigo-500 rounded-xl text-sm text-slate-900 placeholder-slate-400 transition-all outline-none"
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white focus:ring-1 focus:ring-indigo-500 rounded-xl text-base sm:text-sm text-slate-900 placeholder-slate-400 transition-all outline-none"
                 />
               </div>
             </div>
@@ -212,7 +212,7 @@ export default function UserAuthModal({ isOpen, onClose, onSuccess, language }: 
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white focus:ring-1 focus:ring-indigo-500 rounded-xl text-sm text-slate-900 placeholder-slate-400 transition-all outline-none"
+                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white focus:ring-1 focus:ring-indigo-500 rounded-xl text-base sm:text-sm text-slate-900 placeholder-slate-400 transition-all outline-none"
                   />
                 </div>
               </motion.div>

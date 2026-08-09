@@ -74,7 +74,7 @@ export default function AdminLoginModal({ isOpen, onClose, onSuccess, language }
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden p-6 sm:p-8 text-white"
+          className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-x-hidden max-h-[90dvh] overflow-y-auto p-6 sm:p-8 text-white"
         >
           <button
             onClick={onClose}
@@ -114,7 +114,7 @@ export default function AdminLoginModal({ isOpen, onClose, onSuccess, language }
                   placeholder="staff@digivisa.example"
                   autoFocus
                   autoComplete="username"
-                  className="w-full pl-10 pr-4 py-3 bg-slate-950 border border-slate-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-xl text-sm font-mono text-white placeholder-slate-500 transition-all outline-none"
+                  className="w-full pl-10 pr-4 py-3 bg-slate-950 border border-slate-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-xl text-base sm:text-sm font-mono text-white placeholder-slate-500 transition-all outline-none"
                 />
               </div>
             </div>
@@ -133,7 +133,7 @@ export default function AdminLoginModal({ isOpen, onClose, onSuccess, language }
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder={language === 'VI' ? 'Mật khẩu Firebase...' : 'Firebase password...'}
                   autoComplete="current-password"
-                  className="w-full pl-10 pr-10 py-3 bg-slate-950 border border-slate-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-xl text-sm font-mono text-white placeholder-slate-500 transition-all outline-none"
+                  className="w-full pl-10 pr-10 py-3 bg-slate-950 border border-slate-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-xl text-base sm:text-sm font-mono text-white placeholder-slate-500 transition-all outline-none"
                 />
                 <button
                   type="button"
