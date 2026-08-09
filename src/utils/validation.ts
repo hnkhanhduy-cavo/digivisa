@@ -199,6 +199,37 @@ export function getTodayOffsetStr(offsetDays: number): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+/**
+ * Constructs a Date object interpreting the date and time strings in Vietnam Time (+07:00).
+ * If time is omitted or empty, defaults to '23:59:59'.
+ * Returns null if the date format is invalid.
+ */
+export function buildVietnamDate(dateStr: string, timeStr?: string): Date | null {
+  if (!dateStr || typeof dateStr !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr.trim())) {
+    return null;
+  }
+  const cleanDate = dateStr.trim();
+  const cleanTime = timeStr && typeof timeStr === 'string' && /^\d{2}:\d{2}$/.test(timeStr.trim())
+    ? `${timeStr.trim()}:00`
+    : '23:59:59';
+  const isoStr = `${cleanDate}T${cleanTime}+07:00`;
+  const dateObj = new Date(isoStr);
+  if (isNaN(dateObj.getTime())) {
+    return null;
+  }
+  return dateObj;
+}
+
+/**
+ * Returns today's date formatted as 'YYYY-MM-DD' according to Vietnam Time (UTC+7).
+ */
+export function getVietnamToday(): string {
+  const now = new Date();
+  const vnTime = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+  return vnTime.toISOString().split('T')[0];
+}
+
+
 
 
 

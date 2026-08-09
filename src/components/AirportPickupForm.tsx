@@ -9,7 +9,7 @@ import HistoricalAutofill from './HistoricalAutofill';
 import { TimePicker } from './TimePicker';
 import { HistoricalProfile } from '../data/historicalUsers';
 import { safeStorage, safeOpen } from '../utils/storage';
-import { isValidEmail, isValidInternationalPhone, isValidTaxCode, isValidFlightNumber, sanitizeFlightNumber, formatPhoneE164 } from '../utils/validation';
+import { isValidEmail, isValidInternationalPhone, isValidTaxCode, isValidFlightNumber, sanitizeFlightNumber, formatPhoneE164, getVietnamToday, buildVietnamDate } from '../utils/validation';
 import { generateOrderId, generateTrackingToken } from '../utils/orderIds';
 import { Language } from '../utils/translations';
 // @ts-ignore
@@ -314,13 +314,20 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
     if (!formData?.pickupDate) {
       freshErrors.pickupDate = isEn ? 'Pickup date is required' : 'Vui lòng chọn ngày đón';
     } else {
-      const todayStr = new Date().toISOString().split('T')[0];
+      const todayStr = getVietnamToday();
       if (formData.pickupDate < todayStr) {
         freshErrors.pickupDate = isEn ? 'Pickup date cannot be in the past' : 'Ngày đón không thể ở quá khứ';
       }
     }
     if (!formData?.pickupTime) {
       freshErrors.pickupTime = isEn ? 'Pickup time is required' : 'Vui lòng chọn giờ đón';
+    } else if (formData?.pickupDate && formData.pickupDate >= getVietnamToday()) {
+      const pickupDateObj = buildVietnamDate(formData.pickupDate, formData.pickupTime);
+      if (pickupDateObj !== null && pickupDateObj.getTime() < Date.now()) {
+        freshErrors.pickupTime = isEn 
+          ? 'Pickup time has already passed. Please select a future time.' 
+          : 'Giờ đón đã trôi qua. Vui lòng chọn giờ trong tương lai.';
+      }
     }
     if (direction === 'Arrival') {
       if (!fn) {
@@ -762,10 +769,10 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
                     <input
                       type="date"
                       value={formData.pickupDate}
-                      min={new Date().toISOString().split('T')[0]}
+                      min={getVietnamToday()}
                       onChange={(e) => {
                         const val = e.target.value;
-                        const todayStr = new Date().toISOString().split('T')[0];
+                        const todayStr = getVietnamToday();
                         setFormData((prev) => ({ 
                           ...prev, 
                           pickupDate: val,

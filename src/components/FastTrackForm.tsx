@@ -11,7 +11,7 @@ import HistoricalAutofill from './HistoricalAutofill';
 import { TimePicker } from './TimePicker';
 import { HistoricalProfile } from '../data/historicalUsers';
 import { safeStorage, safeOpen } from '../utils/storage';
-import { isValidEmail, isValidInternationalPhone, isValidTaxCode, isValidFlightNumber, sanitizeFlightNumber, formatPhoneE164, getTodayOffsetStr } from '../utils/validation';
+import { isValidEmail, isValidInternationalPhone, isValidTaxCode, isValidFlightNumber, sanitizeFlightNumber, formatPhoneE164, getTodayOffsetStr, getVietnamToday, buildVietnamDate } from '../utils/validation';
 import { generateOrderId, generateTrackingToken } from '../utils/orderIds';
 interface FastTrackFormProps {
   currency: Currency;
@@ -334,25 +334,23 @@ export default function FastTrackForm({ currency, onSuccess, onCancel, language 
     if (!formData?.arrivalDate) {
       freshErrors.arrivalDate = isEn ? `${dateLabel} is required` : `Vui lòng chọn ${dateLabel}`;
     } else {
-      const todayStr = new Date().toISOString().split('T')[0];
+      const todayStr = getVietnamToday();
       if (formData.arrivalDate < todayStr) {
         freshErrors.arrivalDate = isEn 
           ? `${dateLabel} cannot be in the past.` 
           : `Ngày chọn không thể ở quá khứ.`;
       } else {
-        const arrivalDateTimeStr = formData.arrivalTime 
-          ? `${formData.arrivalDate}T${formData.arrivalTime}` 
-          : `${formData.arrivalDate}T23:59:59`;
-        
-        const arrivalDateObj = new Date(arrivalDateTimeStr);
-        const now = new Date();
-        const differenceMs = arrivalDateObj.getTime() - now.getTime();
-        const twentyFourHoursMs = 24 * 60 * 60 * 1000;
+        const arrivalDateObj = buildVietnamDate(formData.arrivalDate, formData.arrivalTime);
+        if (arrivalDateObj !== null) {
+          const now = new Date();
+          const differenceMs = arrivalDateObj.getTime() - now.getTime();
+          const twentyFourHoursMs = 24 * 60 * 60 * 1000;
 
-        if (differenceMs < twentyFourHoursMs) {
-          freshErrors.arrivalDate = isEn
-            ? 'Fast Track service must be ordered at least 24 hours in advance.'
-            : 'Dịch vụ Fast Track cần được đặt trước ít nhất 24 giờ.';
+          if (differenceMs < twentyFourHoursMs) {
+            freshErrors.arrivalDate = isEn
+              ? 'Fast Track service must be ordered at least 24 hours in advance.'
+              : 'Dịch vụ Fast Track cần được đặt trước ít nhất 24 giờ.';
+          }
         }
       }
     }
@@ -926,10 +924,10 @@ export default function FastTrackForm({ currency, onSuccess, onCancel, language 
                     type="date"
                     id="input-arr-date"
                     value={formData.arrivalDate}
-                    min={new Date().toISOString().split('T')[0]}
+                    min={getVietnamToday()}
                     onChange={(e) => {
                       const val = e.target.value;
-                      const todayStr = new Date().toISOString().split('T')[0];
+                      const todayStr = getVietnamToday();
                       setFormData((prev) => ({ 
                         ...prev, 
                         arrivalDate: val,
