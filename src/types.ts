@@ -104,6 +104,16 @@ export interface PublicOrderSummary {
   createdAt: string;
 }
 
+export interface OrderEditLogEntry {
+  field: string;
+  label: string;
+  oldValue: string;
+  newValue: string;
+  by: string;
+  at: string;
+  reason?: string;
+}
+
 export interface Order {
   id: string;
   type: 'Visa' | 'FastTrack' | 'AirportPickup';
@@ -150,6 +160,7 @@ export interface Order {
   secondaryStaffPhoto?: string;
   secondaryLicensePlate?: string;
   secondaryCarPhoto?: string;
+  editLog?: OrderEditLogEntry[];
 }
 
 export type Currency = 'USD' | 'VND';

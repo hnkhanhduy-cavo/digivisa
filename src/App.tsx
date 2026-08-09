@@ -398,7 +398,26 @@ export default function App() {
       lastUpdatedAt: new Date().toISOString()
     };
 
-    const updatedOrders = oldOrders.map(o => o.id === orderId ? { ...o, ...payloadWithAudit } : o);
+    const updatedOrders = oldOrders.map(o => {
+      if (o.id !== orderId) return o;
+      const newOrder = { ...o };
+      let newDetails: any = null;
+      for (const [key, val] of Object.entries(payloadWithAudit)) {
+        if (key.startsWith('details.')) {
+          if (!newDetails) {
+            newDetails = { ...(o.details || {}) };
+          }
+          const subKey = key.slice('details.'.length);
+          newDetails[subKey] = val;
+        } else {
+          (newOrder as any)[key] = val;
+        }
+      }
+      if (newDetails) {
+        newOrder.details = newDetails;
+      }
+      return newOrder;
+    });
     setOrders(updatedOrders);
     safeStorage.setItem(ordersStorageKey(uid), JSON.stringify(updatedOrders));
 
