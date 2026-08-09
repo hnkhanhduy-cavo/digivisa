@@ -5,7 +5,7 @@ import {
   Smartphone, Share2, Clipboard, ArrowRight, UserCheck, AlertCircle, 
   RefreshCw, Layers, FileText, PhoneCall, CheckSquare, Search, Filter,
   ExternalLink, User, Compass, HelpCircle, ClipboardCheck, ArrowUpRight,
-  ChevronRight, Building, ShieldAlert, CheckSquare2, X, Pencil
+  ChevronRight, Building, ShieldAlert, CheckSquare2, X
 } from 'lucide-react';
 import { Order, Currency, CURRENCY_SYMBOLS, OrderEditLogEntry } from '../types';
 import { safeStorage, safeOpen } from '../utils/storage';
@@ -13,6 +13,7 @@ import { getSplitOrders } from '../utils/orderUtils';
 import { formatPhoneE164, isValidInternationalPhone, isValidFlightNumber } from '../utils/validation';
 import { auth } from '../utils/firebase';
 import { getServiceStatusOptions, getSubStatusOptions, getSubStatusLabel, getStatusLabel } from '../utils/orderStatus';
+import EditableOrderField from './EditableOrderField';
 
 interface OMSAgencyCommsProps {
   orders: Order[];
@@ -287,81 +288,36 @@ export default function OMSAgencyComms({
 
   const selectedOrder = getSplitOrders(orders).find(o => o.id === selectedOrderId) || getSplitOrders(orders)[0];
 
-  // Flight Number editing state
-  const [isEditingFlightNumber, setIsEditingFlightNumber] = useState(false);
-  const [flightNumberInput, setFlightNumberInput] = useState('');
-  const [flightNumberError, setFlightNumberError] = useState<string | null>(null);
-  const [isSavingFlightNumber, setIsSavingFlightNumber] = useState(false);
-
-  useEffect(() => {
-    setIsEditingFlightNumber(false);
-    setFlightNumberError(null);
-  }, [selectedOrderId]);
-
-  const handleStartEditFlightNumber = () => {
-    const currentVal = (selectedOrder.details as any)?.flightNumber || '';
-    setFlightNumberInput(currentVal);
-    setFlightNumberError(null);
-    setIsEditingFlightNumber(true);
-  };
-
-  const handleCancelEditFlightNumber = () => {
-    setIsEditingFlightNumber(false);
-    setFlightNumberError(null);
-  };
-
-  const handleSaveFlightNumber = async () => {
-    const val = flightNumberInput.trim().toUpperCase();
-    const oldVal = (((selectedOrder.details as any)?.flightNumber || '') as string).trim();
-
-    // a) Validate format using isValidFlightNumber
-    if (!isValidFlightNumber(val)) {
-      setFlightNumberError(
-        language === 'VI' 
-          ? 'Số hiệu chuyến bay không đúng định dạng (VD: VN214, VJ123)' 
-          : 'Invalid flight number format (e.g. VN214, VJ123)'
-      );
-      return;
-    }
-
-    // b) Unchanged value: treat as cancel
-    if (val === oldVal) {
-      setIsEditingFlightNumber(false);
-      setFlightNumberError(null);
-      return;
-    }
-
-    // Base Order ID (strip _secondary if currently viewing secondary leg)
+  const handleSaveField = async (
+    fieldPath: string,
+    newValue: string,
+    logLabel: string
+  ): Promise<{ success: boolean; error?: string }> => {
     const baseId = selectedOrder.id.replace('_secondary', '');
-    const baseOrder = orders.find(o => o.id === baseId) || selectedOrder;
+    const baseOrder = orders.find((o) => o.id === baseId) || selectedOrder;
+
+    const subKey = fieldPath.startsWith('details.') ? fieldPath.replace('details.', '') : fieldPath;
+    const oldValue = ((((baseOrder.details as any)?.[subKey] ?? (baseOrder as any)?.[subKey]) || '') as string).trim();
+
     const oldEditLog: OrderEditLogEntry[] = (baseOrder as any).editLog || [];
 
     const newLogEntry: OrderEditLogEntry = {
-      field: 'details.flightNumber',
-      label: 'Số hiệu chuyến bay',
-      oldValue: oldVal || 'N/A',
-      newValue: val,
+      field: fieldPath,
+      label: logLabel,
+      oldValue: oldValue || 'N/A',
+      newValue: newValue,
       by: auth.currentUser?.email || 'staff',
       at: new Date().toISOString(),
       reason: ''
     };
 
     const payload = {
-      'details.flightNumber': val,
+      [fieldPath]: newValue,
       editLog: [...oldEditLog, newLogEntry]
     };
 
-    setIsSavingFlightNumber(true);
-    setFlightNumberError(null);
-
     const res = await onUpdateOrder?.(baseId, payload);
-    setIsSavingFlightNumber(false);
-
-    if (res && res.success) {
-      setIsEditingFlightNumber(false);
-    } else {
-      setFlightNumberError(res?.error || (language === 'VI' ? 'Không lưu được thay đổi' : 'Failed to save changes'));
-    }
+    return res || { success: true };
   };
 
   const [staffInputs, setStaffInputs] = useState<{
@@ -1484,64 +1440,26 @@ export default function OMSAgencyComms({
 
                       {activeServiceType === 'FastTrack' && (
                         <>
-                          <div className="space-y-1">
-                            <span className="text-[9px] font-bold uppercase text-slate-400 block font-mono">Flight Number</span>
-                            {isEditingFlightNumber ? (
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-1.5">
-                                  <input
-                                    type="text"
-                                    value={flightNumberInput}
-                                    onChange={(e) => setFlightNumberInput(e.target.value.toUpperCase())}
-                                    placeholder="VN214"
-                                    className="w-full px-2.5 py-1 bg-white border border-indigo-400 rounded-lg text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 uppercase"
-                                    autoFocus
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={handleSaveFlightNumber}
-                                    disabled={isSavingFlightNumber}
-                                    className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-[10px] rounded-lg cursor-pointer shrink-0"
-                                  >
-                                    {isSavingFlightNumber ? '...' : (language === 'VI' ? 'Lưu' : 'Save')}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={handleCancelEditFlightNumber}
-                                    disabled={isSavingFlightNumber}
-                                    className="px-2 py-1 bg-slate-200 hover:bg-slate-300 disabled:opacity-50 text-slate-700 font-bold text-[10px] rounded-lg cursor-pointer shrink-0"
-                                  >
-                                    {language === 'VI' ? 'Huỷ' : 'Cancel'}
-                                  </button>
-                                </div>
-                                {flightNumberError && (
-                                  <span className="text-[10px] text-rose-500 font-semibold block leading-tight">
-                                    {flightNumberError}
-                                  </span>
-                                )}
-                              </div>
-                            ) : (
-                              <div className="flex items-center justify-between bg-slate-50 border border-slate-150 rounded-lg px-2.5 py-1.5 font-mono">
-                                <div className="flex items-center gap-1.5">
-                                  <span className="font-extrabold text-slate-800">{(selectedOrder.details as any).flightNumber || 'N/A'}</span>
-                                  <button
-                                    type="button"
-                                    onClick={handleStartEditFlightNumber}
-                                    className="p-0.5 text-slate-400 hover:text-indigo-600 rounded transition-colors cursor-pointer"
-                                    title={language === 'VI' ? 'Sửa số hiệu chuyến bay' : 'Edit flight number'}
-                                  >
-                                    <Pencil className="h-3 w-3" />
-                                  </button>
-                                </div>
-                                <button 
-                                  onClick={() => handleCopyTemplate((selectedOrder.details as any).flightNumber || '', 'Flight')}
-                                  className="text-[9.5px] text-indigo-600 font-bold hover:underline ml-1"
-                                >
-                                  {copySuccess === 'Flight' ? 'Copied' : 'Copy'}
-                                </button>
-                              </div>
-                            )}
-                          </div>
+                          <EditableOrderField
+                            key={selectedOrder.id}
+                            label="Flight Number"
+                            value={(selectedOrder.details as any).flightNumber || ''}
+                            fieldPath="details.flightNumber"
+                            logLabel="Số hiệu chuyến bay"
+                            language={language}
+                            uppercase
+                            validate={(v) => !isValidFlightNumber(v) ? (language === 'VI' ? 'Số hiệu chuyến bay không đúng định dạng (VD: VN214, VJ123)' : 'Invalid flight number format (e.g. VN214, VJ123)') : null}
+                            valueClassName="font-extrabold text-slate-800"
+                            trailing={
+                              <button 
+                                onClick={() => handleCopyTemplate((selectedOrder.details as any).flightNumber || '', 'Flight')}
+                                className="text-[9.5px] text-indigo-600 font-bold hover:underline ml-1"
+                              >
+                                {copySuccess === 'Flight' ? 'Copied' : 'Copy'}
+                              </button>
+                            }
+                            onSave={handleSaveField}
+                          />
 
                           <div className="space-y-1">
                             <span className="text-[9px] font-bold uppercase text-slate-400 block">Airport Location</span>
@@ -1571,10 +1489,19 @@ export default function OMSAgencyComms({
                           </div>
 
                           <div className="sm:col-span-2 space-y-1">
-                            <span className="text-[9px] font-bold uppercase text-slate-400 block">Special Requests</span>
-                            <div className="bg-amber-50/40 border border-amber-200/60 rounded-lg p-2.5 text-amber-900 font-medium text-[11px] leading-relaxed select-all">
-                              {(selectedOrder.details as any).specialRequests || 'No special liaison instructions provided.'}
-                            </div>
+                            <EditableOrderField
+                              key={selectedOrder.id}
+                              label="Special Requests"
+                              value={(selectedOrder.details as any).specialRequests || ''}
+                              fieldPath="details.specialRequests"
+                              logLabel="Ghi chú đặc biệt"
+                              language={language}
+                              multiline
+                              containerClassName="bg-amber-50/40 border border-amber-200/60 rounded-lg p-2.5 flex items-center justify-between font-mono min-h-[34px]"
+                              valueClassName="text-amber-900 font-medium text-[11px] leading-relaxed select-all"
+                              emptyText="No special liaison instructions provided."
+                              onSave={handleSaveField}
+                            />
                           </div>
                         </>
                       )}
@@ -1609,58 +1536,18 @@ export default function OMSAgencyComms({
                           </div>
 
                           {((selectedOrder.details as any).direction || (selectedOrder.details as any).serviceDirection) !== 'Departure' && (
-                            <div className="space-y-1">
-                              <span className="text-[9px] font-bold uppercase text-slate-400 block font-mono">Flight Number</span>
-                              {isEditingFlightNumber ? (
-                                <div className="space-y-1">
-                                  <div className="flex items-center gap-1.5">
-                                    <input
-                                      type="text"
-                                      value={flightNumberInput}
-                                      onChange={(e) => setFlightNumberInput(e.target.value.toUpperCase())}
-                                      placeholder="VN214"
-                                      className="w-full px-2.5 py-1 bg-white border border-indigo-400 rounded-lg text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 uppercase"
-                                      autoFocus
-                                    />
-                                    <button
-                                      type="button"
-                                      onClick={handleSaveFlightNumber}
-                                      disabled={isSavingFlightNumber}
-                                      className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-[10px] rounded-lg cursor-pointer shrink-0"
-                                    >
-                                      {isSavingFlightNumber ? '...' : (language === 'VI' ? 'Lưu' : 'Save')}
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={handleCancelEditFlightNumber}
-                                      disabled={isSavingFlightNumber}
-                                      className="px-2 py-1 bg-slate-200 hover:bg-slate-300 disabled:opacity-50 text-slate-700 font-bold text-[10px] rounded-lg cursor-pointer shrink-0"
-                                    >
-                                      {language === 'VI' ? 'Huỷ' : 'Cancel'}
-                                    </button>
-                                  </div>
-                                  {flightNumberError && (
-                                    <span className="text-[10px] text-rose-500 font-semibold block leading-tight">
-                                      {flightNumberError}
-                                    </span>
-                                  )}
-                                </div>
-                              ) : (
-                                <div className="flex items-center justify-between bg-slate-50 border border-slate-150 rounded-lg px-2.5 py-1.5 font-mono">
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="font-bold text-green-700 font-mono">{(selectedOrder.details as any).flightNumber || 'N/A'}</span>
-                                    <button
-                                      type="button"
-                                      onClick={handleStartEditFlightNumber}
-                                      className="p-0.5 text-slate-400 hover:text-indigo-600 rounded transition-colors cursor-pointer"
-                                      title={language === 'VI' ? 'Sửa số hiệu chuyến bay' : 'Edit flight number'}
-                                    >
-                                      <Pencil className="h-3 w-3" />
-                                    </button>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
+                            <EditableOrderField
+                              key={selectedOrder.id}
+                              label="Flight Number"
+                              value={(selectedOrder.details as any).flightNumber || ''}
+                              fieldPath="details.flightNumber"
+                              logLabel="Số hiệu chuyến bay"
+                              language={language}
+                              uppercase
+                              validate={(v) => !isValidFlightNumber(v) ? (language === 'VI' ? 'Số hiệu chuyến bay không đúng định dạng (VD: VN214, VJ123)' : 'Invalid flight number format (e.g. VN214, VJ123)') : null}
+                              valueClassName="font-bold text-green-700 font-mono"
+                              onSave={handleSaveField}
+                            />
                           )}
 
                           <div className="space-y-1">
@@ -1671,23 +1558,40 @@ export default function OMSAgencyComms({
                           </div>
 
                           <div className="sm:col-span-2 space-y-1">
-                            <span className="text-[9px] font-bold uppercase text-slate-400 block">Destination Address</span>
-                            <div className="flex items-center justify-between bg-slate-50 border border-slate-150 rounded-lg p-2.5">
-                              <span className="font-extrabold text-slate-800 leading-tight select-all">{(selectedOrder.details as any).destinationAddress || 'N/A'}</span>
-                              <button 
-                                onClick={() => handleCopyTemplate((selectedOrder.details as any).destinationAddress || '', 'Dest')}
-                                className="text-[9.5px] text-indigo-600 font-bold hover:underline ml-2 shrink-0"
-                              >
-                                {copySuccess === 'Dest' ? 'Copied' : 'Copy'}
-                              </button>
-                            </div>
+                            <EditableOrderField
+                              key={selectedOrder.id}
+                              label="Destination Address"
+                              value={(selectedOrder.details as any).destinationAddress || ''}
+                              fieldPath="details.destinationAddress"
+                              logLabel="Địa chỉ điểm đến"
+                              language={language}
+                              valueClassName="font-extrabold text-slate-800 leading-tight select-all"
+                              trailing={
+                                <button 
+                                  onClick={() => handleCopyTemplate((selectedOrder.details as any).destinationAddress || '', 'Dest')}
+                                  className="text-[9.5px] text-indigo-600 font-bold hover:underline ml-2 shrink-0"
+                                >
+                                  {copySuccess === 'Dest' ? 'Copied' : 'Copy'}
+                                </button>
+                              }
+                              onSave={handleSaveField}
+                            />
                           </div>
 
                           <div className="sm:col-span-2 space-y-1">
-                            <span className="text-[9px] font-bold uppercase text-slate-400 block">Driver & Dispatch Notes</span>
-                            <div className="bg-blue-50/40 border border-blue-200/60 rounded-lg p-2.5 text-blue-900 font-medium text-[11px] leading-relaxed select-all">
-                              {(selectedOrder.details as any).optionalNote || 'No special chauffeur instructions provided.'}
-                            </div>
+                            <EditableOrderField
+                              key={selectedOrder.id}
+                              label="Driver & Dispatch Notes"
+                              value={(selectedOrder.details as any).optionalNote || ''}
+                              fieldPath="details.optionalNote"
+                              logLabel="Ghi chú cho tài xế"
+                              language={language}
+                              multiline
+                              containerClassName="bg-blue-50/40 border border-blue-200/60 rounded-lg p-2.5 flex items-center justify-between font-mono min-h-[34px]"
+                              valueClassName="text-blue-900 font-medium text-[11px] leading-relaxed select-all"
+                              emptyText="No special chauffeur instructions provided."
+                              onSave={handleSaveField}
+                            />
                           </div>
                         </>
                       )}
