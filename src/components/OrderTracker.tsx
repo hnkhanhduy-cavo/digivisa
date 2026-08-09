@@ -865,15 +865,9 @@ export default function OrderTracker({
                       </div>
                       
                       <div className="text-right">
-                        {order.id.endsWith('_secondary') && (details?.totalFee === undefined || details?.totalFee === null) ? (
-                          <span className="text-[10px] text-slate-400 italic font-normal font-sans block max-w-[140px] leading-tight">
-                            {isEn ? 'Included in combo' : 'Đã bao gồm trong combo'}
-                          </span>
-                        ) : (
-                          <span className="text-xs font-black text-slate-900 font-display">
-                            {formatCharge(details.totalFee || 0, order)}
-                          </span>
-                        )}
+                        <span className="text-xs font-black text-slate-900 font-display">
+                          {formatCharge(details.totalFee || 0, order)}
+                        </span>
                         <p className="text-[9px] text-slate-400 mt-0.5">
                           {order.createdAt
                             ? new Date(order.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
@@ -1533,7 +1527,7 @@ export default function OrderTracker({
                             ? (isEn ? 'Amount due:' : 'Số tiền cần thanh toán:')
                             : (isEn ? 'Authorized Fee Paid:' : 'Số tiền đã thanh toán:')}
                         </span>
-                        {selectedOrder.id.endsWith('_secondary') && ((selectedOrder.details as any)?.totalFee === undefined || (selectedOrder.details as any)?.totalFee === null) ? (
+                        {isCombo && userActiveComboLeg === 'secondary' ? (
                           <span className="text-[11px] text-slate-400 italic font-normal font-sans">
                             {isEn ? 'Included in the combo package' : 'Đã bao gồm trong gói combo'}
                           </span>
