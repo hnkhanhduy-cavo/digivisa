@@ -10,7 +10,7 @@ import {
 import { Order, Currency, CURRENCY_SYMBOLS, OrderEditLogEntry } from '../types';
 import { safeStorage, safeOpen } from '../utils/storage';
 import { getSplitOrders } from '../utils/orderUtils';
-import { formatPhoneE164, isValidInternationalPhone, isValidFlightNumber, isValidEmail } from '../utils/validation';
+import { formatPhoneE164, isValidInternationalPhone, isValidFlightNumber, isValidEmail, parsePhoneAndChannel } from '../utils/validation';
 import { auth } from '../utils/firebase';
 import { getServiceStatusOptions, getSubStatusOptions, getSubStatusLabel, getStatusLabel } from '../utils/orderStatus';
 import EditableOrderField from './EditableOrderField';
@@ -42,12 +42,14 @@ const getCustomerContact = (order: Order) => {
   const details = order.details as any;
   if (!details) return { email: 'N/A', phone: 'N/A' };
   if (order.type === 'Visa') {
-    return { email: details.email || 'N/A', phone: details.phone ? formatPhoneE164(details.phone) : 'N/A' };
+    const parsed = parsePhoneAndChannel(details.phone, details.contactPref);
+    return { email: details.email || 'N/A', phone: parsed.phone ? formatPhoneE164(parsed.phone) : 'N/A' };
   }
   const rawPhone = details.contactPhone || details.passengerPhone;
+  const parsed = parsePhoneAndChannel(rawPhone, details.contactPref);
   return { 
     email: details.contactEmail || details.passengerEmail || 'N/A', 
-    phone: rawPhone ? formatPhoneE164(rawPhone) : 'N/A' 
+    phone: parsed.phone ? formatPhoneE164(parsed.phone) : 'N/A' 
   };
 };
 
@@ -311,10 +313,21 @@ export default function OMSAgencyComms({
       reason: ''
     };
 
-    const payload = {
+    const payload: Record<string, any> = {
       [fieldPath]: newValue,
       editLog: [...oldEditLog, newLogEntry]
     };
+
+    // If saving a phone field for a legacy order without details.contactPref, extract and preserve the old channel if present
+    if (
+      (subKey === 'contactPhone' || subKey === 'passengerPhone' || subKey === 'phone') &&
+      !(baseOrder.details as any)?.contactPref
+    ) {
+      const parsedOld = parsePhoneAndChannel(oldValue);
+      if (parsedOld.channel) {
+        payload['details.contactPref'] = parsedOld.channel;
+      }
+    }
 
     const res = await onUpdateOrder?.(baseId, payload);
     return res || { success: true };
@@ -1400,18 +1413,29 @@ export default function OMSAgencyComms({
                             </div>
                           </div>
 
-                          <EditableOrderField
-                            key={`${selectedOrder.id}::details.phone`}
-                            label="Customer Phone"
-                            value={(selectedOrder.details as any).phone || ''}
-                            fieldPath="details.phone"
-                            logLabel="Số điện thoại khách"
-                            language={language}
-                            inputType="tel"
-                            validate={(v) => !isValidInternationalPhone(v) ? (language === 'VI' ? 'Số điện thoại không hợp lệ (VD: 0972286699 hoặc +84972286699)' : 'Invalid phone number (e.g. 0972286699 or +84972286699)') : null}
-                            valueClassName="font-bold text-slate-800"
-                            onSave={handleSaveField}
-                          />
+                          <div className="space-y-1">
+                            <EditableOrderField
+                              key={`${selectedOrder.id}::details.phone`}
+                              label="Customer Phone"
+                              value={parsePhoneAndChannel((selectedOrder.details as any).phone, (selectedOrder.details as any).contactPref).phone}
+                              fieldPath="details.phone"
+                              logLabel="Số điện thoại khách"
+                              language={language}
+                              inputType="tel"
+                              validate={(v) => !isValidInternationalPhone(v) ? (language === 'VI' ? 'Số điện thoại không hợp lệ (VD: 0972286699 hoặc +84972286699)' : 'Invalid phone number (e.g. 0972286699 or +84972286699)') : null}
+                              valueClassName="font-bold text-slate-800"
+                              onSave={handleSaveField}
+                            />
+                            {(() => {
+                              const channel = parsePhoneAndChannel((selectedOrder.details as any).phone, (selectedOrder.details as any).contactPref).channel;
+                              if (!channel) return null;
+                              return (
+                                <div className="text-[9.5px] text-slate-400 font-medium px-0.5 -mt-0.5">
+                                  {language === 'EN' ? `Preferred channel: ${channel}` : `Kênh liên lạc: ${channel}`}
+                                </div>
+                              );
+                            })()}
+                          </div>
 
                           <EditableOrderField
                             key={`${selectedOrder.id}::details.email`}
@@ -1523,18 +1547,29 @@ export default function OMSAgencyComms({
                             onSave={handleSaveField}
                           />
 
-                          <EditableOrderField
-                            key={`${selectedOrder.id}::details.contactPhone`}
-                            label="Customer Phone"
-                            value={(selectedOrder.details as any).contactPhone || ''}
-                            fieldPath="details.contactPhone"
-                            logLabel="Số điện thoại khách"
-                            language={language}
-                            inputType="tel"
-                            validate={(v) => !isValidInternationalPhone(v) ? (language === 'VI' ? 'Số điện thoại không hợp lệ (VD: 0972286699 hoặc +84972286699)' : 'Invalid phone number (e.g. 0972286699 or +84972286699)') : null}
-                            valueClassName="font-bold text-slate-800"
-                            onSave={handleSaveField}
-                          />
+                          <div className="space-y-1">
+                            <EditableOrderField
+                              key={`${selectedOrder.id}::details.contactPhone`}
+                              label="Customer Phone"
+                              value={parsePhoneAndChannel((selectedOrder.details as any).contactPhone, (selectedOrder.details as any).contactPref).phone}
+                              fieldPath="details.contactPhone"
+                              logLabel="Số điện thoại khách"
+                              language={language}
+                              inputType="tel"
+                              validate={(v) => !isValidInternationalPhone(v) ? (language === 'VI' ? 'Số điện thoại không hợp lệ (VD: 0972286699 hoặc +84972286699)' : 'Invalid phone number (e.g. 0972286699 or +84972286699)') : null}
+                              valueClassName="font-bold text-slate-800"
+                              onSave={handleSaveField}
+                            />
+                            {(() => {
+                              const channel = parsePhoneAndChannel((selectedOrder.details as any).contactPhone, (selectedOrder.details as any).contactPref).channel;
+                              if (!channel) return null;
+                              return (
+                                <div className="text-[9.5px] text-slate-400 font-medium px-0.5 -mt-0.5">
+                                  {language === 'EN' ? `Preferred channel: ${channel}` : `Kênh liên lạc: ${channel}`}
+                                </div>
+                              );
+                            })()}
+                          </div>
 
                           <EditableOrderField
                             key={`${selectedOrder.id}::details.contactEmail`}
@@ -1626,18 +1661,29 @@ export default function OMSAgencyComms({
                             onSave={handleSaveField}
                           />
 
-                          <EditableOrderField
-                            key={`${selectedOrder.id}::details.passengerPhone`}
-                            label="Customer Phone"
-                            value={(selectedOrder.details as any).passengerPhone || ''}
-                            fieldPath="details.passengerPhone"
-                            logLabel="Số điện thoại khách"
-                            language={language}
-                            inputType="tel"
-                            validate={(v) => !isValidInternationalPhone(v) ? (language === 'VI' ? 'Số điện thoại không hợp lệ (VD: 0972286699 hoặc +84972286699)' : 'Invalid phone number (e.g. 0972286699 or +84972286699)') : null}
-                            valueClassName="font-bold text-slate-800"
-                            onSave={handleSaveField}
-                          />
+                          <div className="space-y-1">
+                            <EditableOrderField
+                              key={`${selectedOrder.id}::details.passengerPhone`}
+                              label="Customer Phone"
+                              value={parsePhoneAndChannel((selectedOrder.details as any).passengerPhone, (selectedOrder.details as any).contactPref).phone}
+                              fieldPath="details.passengerPhone"
+                              logLabel="Số điện thoại khách"
+                              language={language}
+                              inputType="tel"
+                              validate={(v) => !isValidInternationalPhone(v) ? (language === 'VI' ? 'Số điện thoại không hợp lệ (VD: 0972286699 hoặc +84972286699)' : 'Invalid phone number (e.g. 0972286699 or +84972286699)') : null}
+                              valueClassName="font-bold text-slate-800"
+                              onSave={handleSaveField}
+                            />
+                            {(() => {
+                              const channel = parsePhoneAndChannel((selectedOrder.details as any).passengerPhone, (selectedOrder.details as any).contactPref).channel;
+                              if (!channel) return null;
+                              return (
+                                <div className="text-[9.5px] text-slate-400 font-medium px-0.5 -mt-0.5">
+                                  {language === 'EN' ? `Preferred channel: ${channel}` : `Kênh liên lạc: ${channel}`}
+                                </div>
+                              );
+                            })()}
+                          </div>
 
                           <EditableOrderField
                             key={`${selectedOrder.id}::details.passengerEmail`}

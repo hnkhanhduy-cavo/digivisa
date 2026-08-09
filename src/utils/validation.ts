@@ -229,6 +229,39 @@ export function getVietnamToday(): string {
   return vnTime.toISOString().split('T')[0];
 }
 
+/**
+ * Extracts clean phone number and preferred contact channel from stored phone string and/or contactPref field.
+ * Handles legacy orders where contact preference was appended to phone string in parentheses (e.g. '0972286699 (Zalo)').
+ *
+ * Rules:
+ * - Explicit contactPref argument takes precedence if provided.
+ * - If rawPhone contains parenthesized channel at the end (e.g. '0972286699 (Zalo)'), parses phone number and channel.
+ * - Returns { phone: string, channel: string }. Returns empty string for channel if none exists.
+ */
+export function parsePhoneAndChannel(rawPhone?: string | null, contactPref?: string | null): { phone: string; channel: string } {
+  const channelFromPref = (contactPref || '').trim();
+  const raw = (rawPhone || '').trim();
+
+  if (!raw) {
+    return { phone: '', channel: channelFromPref };
+  }
+
+  const match = raw.match(/^(.*?)\s*\(([^)]+)\)$/);
+  if (match) {
+    const parsedPhone = match[1].trim();
+    const parsedChannel = match[2].trim();
+    return {
+      phone: parsedPhone,
+      channel: channelFromPref || parsedChannel
+    };
+  }
+
+  return {
+    phone: raw,
+    channel: channelFromPref
+  };
+}
+
 
 
 

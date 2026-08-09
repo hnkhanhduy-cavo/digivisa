@@ -430,7 +430,8 @@ export default function FastTrackForm({ currency, onSuccess, onCancel, language 
 
     const finalBooking: FastTrackBooking = {
       ...formData,
-      contactPhone: `${formData.contactPhone} (${contactPref})`,
+      contactPhone: formData.contactPhone,
+      contactPref: contactPref,
       hasEsim,
       addAirportPickup,
       selectedPickupVehicle: addAirportPickup ? selectedPickupVehicle : undefined,

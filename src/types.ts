@@ -42,6 +42,7 @@ export interface FastTrackBooking {
   contactName: string;
   contactEmail: string;
   contactPhone: string;
+  contactPref?: 'WhatsApp' | 'Zalo' | 'SMS'; // Kênh liên lạc ưa thích (WhatsApp, Zalo, SMS)
   specialRequests: string;
   totalFee: number;
   // New features
@@ -72,6 +73,7 @@ export interface AirportPickupBooking {
   vehicleType: '4 seats' | '7 seats' | '16 seats';
   passengerName: string;
   passengerPhone: string;
+  contactPref?: 'WhatsApp' | 'Zalo' | 'SMS'; // Kênh liên lạc ưa thích (WhatsApp, Zalo, SMS)
   passengerEmail: string;
   luggageCount?: number;
   terminalNumber: string;

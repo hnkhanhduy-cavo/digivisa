@@ -410,7 +410,8 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
     const finalBooking: AirportPickupBooking = {
       ...formData,
       flightNumber: direction === 'Arrival' ? formData.flightNumber : '',
-      passengerPhone: `${formData.passengerPhone} (${contactPref})`,
+      passengerPhone: formData.passengerPhone,
+      contactPref: contactPref,
       pickupAddress: direction === 'Arrival' ? 'Airport (Inbound Terminal)' : pickupAddress,
       destinationAddress: direction === 'Arrival' ? destinationAddress : 'Airport (Departures Terminal)',
       direction,
