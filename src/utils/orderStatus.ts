@@ -23,13 +23,11 @@ export const SERVICE_FLOW_STEPS: Record<string, StatusStep[]> = {
   ],
   FastTrack: [
     { id: 'Confirmed', labelEn: 'Confirmed', labelVi: 'Đã xác nhận', descEn: 'Order confirmed & paid', descVi: 'Đơn hàng đã thanh toán' },
-    { id: 'Agency Review', labelEn: 'Agency Review', labelVi: 'Chờ đối tác xử lý', descEn: 'Dossier under agency review', descVi: 'Hồ sơ đang được đối tác kiểm tra' },
     { id: 'Staff Assigned', labelEn: 'Staff Assigned', labelVi: 'Đã phân công nhân viên', descEn: 'Staff assigned', descVi: 'Đã phân công nhân viên đón' },
     { id: 'Completed', labelEn: 'Completed', labelVi: 'Hoàn thành', descEn: 'Service completed', descVi: 'Dịch vụ hoàn thành' },
   ],
   AirportPickup: [
     { id: 'Confirmed', labelEn: 'Confirmed', labelVi: 'Đã xác nhận', descEn: 'Order confirmed & paid', descVi: 'Đơn hàng đã thanh toán' },
-    { id: 'Agency Review', labelEn: 'Agency Review', labelVi: 'Chờ đối tác xử lý', descEn: 'Dossier under agency review', descVi: 'Hồ sơ đang được đối tác kiểm tra' },
     { id: 'Staff Assigned', labelEn: 'Staff Assigned', labelVi: 'Đã phân công tài xế', descEn: 'Chauffeur assigned', descVi: 'Đã phân công tài xế' },
     { id: 'Passenger Greet', labelEn: 'Passenger Greet', labelVi: 'Đã đón khách', descEn: 'Passenger met', descVi: 'Tài xế đã đón khách' },
     { id: 'Completed', labelEn: 'Completed', labelVi: 'Hoàn thành', descEn: 'Trip completed', descVi: 'Chuyến đi hoàn thành' },
@@ -119,7 +117,7 @@ export function normalizeStatusForTimeline(status: string | undefined, serviceTy
     return 'Submitted to Embassy';
   }
   if (lower === 'agency review' || lower === 'assigned' || lower === 'partner assigned') {
-    return 'Agency Review';
+    return serviceType === 'Visa' ? 'Agency Review' : 'Confirmed';
   }
   if (lower === 'staff assigned' || lower === 'chauffeur assigned') {
     return 'Staff Assigned';

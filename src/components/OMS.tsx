@@ -766,7 +766,7 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
         opsNotes: [...existingNotes, dispatchNote],
       };
       if (realOrder && (realOrder.secondaryStatus === 'Confirmed' || !realOrder.secondaryStatus)) {
-        payload.secondaryStatus = 'Agency Review';
+        payload.secondaryStatus = 'Staff Assigned';
       }
       await onUpdateOrder?.(baseId, payload);
     } else {
@@ -778,7 +778,7 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
         opsNotes: [...existingNotes, dispatchNote],
       };
       if (realOrder && realOrder.status === 'Confirmed') {
-        payload.status = 'Agency Review';
+        payload.status = realOrder.type === 'Visa' ? 'Agency Review' : 'Staff Assigned';
       }
       await onUpdateOrder?.(baseId, payload);
     }
@@ -809,7 +809,7 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
       opsNotes: [...existingNotes, secDispatchNote],
     };
     if (targetOrder.secondaryStatus === 'Confirmed' || !targetOrder.secondaryStatus) {
-      payload.secondaryStatus = 'Agency Review';
+      payload.secondaryStatus = 'Staff Assigned';
     }
 
     await onUpdateOrder?.(orderId, payload);
