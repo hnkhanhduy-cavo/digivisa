@@ -1882,12 +1882,16 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
                 className="bg-white rounded-3xl border border-slate-150 shadow-md p-5 space-y-6"
               >
                 {/* Visual Order Meta Header */}
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 pb-5">
-                  <div>
-                    <span className="text-[10px] font-mono text-indigo-500 font-bold block uppercase">Operational Clearance Board</span>
-                    <div className="flex items-center space-x-2 mt-1">
-                      <h2 className="text-xl font-display font-extrabold text-slate-900">{selectedOrder.id}</h2>
-                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase font-mono bg-slate-900 text-white">
+                <div className="border-b border-slate-100 pb-4 space-y-3">
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-mono text-indigo-500 font-bold block uppercase tracking-wider">
+                      Operational Clearance Board
+                    </span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-lg font-display font-black text-slate-900 font-mono tracking-tight">
+                        {selectedOrder.id}
+                      </h2>
+                      <span className="px-2 py-0.5 rounded-full text-[9.5px] font-black uppercase font-mono bg-slate-900 text-white shrink-0">
                         {selectedOrder.type === 'AirportPickup' 
                           ? `Car/Bus (${(selectedOrder.details as any)?.direction || 'Arrival'})`
                           : selectedOrder.type === 'FastTrack'
@@ -1903,7 +1907,7 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
                       setSelectedOrderId(selectedOrder.id);
                       setOmsSubPage('agency_comms');
                     }}
-                    className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-extrabold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer border border-indigo-200 shrink-0"
+                    className="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-extrabold text-xs py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-indigo-200/80 shadow-sm"
                   >
                     <span>{language === 'EN' ? 'Open in Order Management ➜' : 'Mở trong Order Management ➜'}</span>
                   </button>
