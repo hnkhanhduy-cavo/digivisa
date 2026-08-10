@@ -1749,8 +1749,8 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
                                   }`}
                                 >
                                   <option value="Draft">1. Draft (Saved)</option>
-                                  <option value="Sent to Customer">2. Sent to Customer</option>
-                                  <option value="Issued & Tax Stamped">3. Issued & Tax Stamped</option>
+                                  <option value="Issued & Tax Stamped">2. Issued & Tax Stamped</option>
+                                  <option value="Sent to Customer">3. Sent to Customer</option>
                                   <option value="Archived">4. Archived</option>
                                 </select>
                               </td>
@@ -2071,10 +2071,41 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
                           }`}
                         >
                           <option value="Draft">1. Draft (Saved)</option>
-                          <option value="Sent to Customer">2. Sent to Customer</option>
-                          <option value="Issued & Tax Stamped">3. Issued & Tax Stamped</option>
+                          <option value="Issued & Tax Stamped">2. Issued & Tax Stamped</option>
+                          <option value="Sent to Customer">3. Sent to Customer</option>
                           <option value="Archived">4. Archived</option>
                         </select>
+
+                        {/* Invoice number — optional, warns only once the invoice is marked issued */}
+                        <label className="text-[10px] text-amber-800 font-extrabold uppercase tracking-wider block mt-1.5">
+                          {language === 'EN' ? 'Invoice Number (optional)' : 'Số hoá đơn (không bắt buộc)'}
+                        </label>
+                        <input
+                          key={`${selBaseId}-invoiceNumber`}
+                          type="text"
+                          defaultValue={selBaseOrder.invoiceNumber || ''}
+                          placeholder={language === 'EN' ? 'e.g. 00012345' : 'VD: 00012345'}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') e.currentTarget.blur();
+                          }}
+                          onBlur={(e) => {
+                            const next = e.target.value.trim();
+                            const current = (selBaseOrder.invoiceNumber || '').trim();
+                            if (next !== current) {
+                              onUpdateOrder?.(selBaseId, { invoiceNumber: next || null });
+                            }
+                          }}
+                          className="w-full bg-white border border-amber-200 rounded-xl px-2.5 py-2 text-base sm:text-xs font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400 transition-all"
+                        />
+
+                        {(selInvStatus === 'Issued & Tax Stamped' || selInvStatus === 'Archived')
+                          && !(selBaseOrder.invoiceNumber || '').trim() && (
+                          <span className="text-[10px] font-bold text-amber-900 bg-amber-100/70 border border-amber-300 rounded-lg px-2 py-1 leading-snug">
+                            {language === 'EN'
+                              ? '⚠️ Marked as issued but no invoice number recorded.'
+                              : '⚠️ Đã đánh dấu xuất hoá đơn nhưng chưa ghi số.'}
+                          </span>
+                        )}
                       </div>
                     );
                   })() : (

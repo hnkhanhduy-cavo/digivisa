@@ -165,6 +165,8 @@ export interface Order {
   checklist?: Record<string, boolean>;
   checklistSecondary?: Record<string, boolean>;
   invoiceStatus?: 'Draft' | 'Sent to Customer' | 'Issued & Tax Stamped' | 'Archived';
+  /** Số hoá đơn VAT do kế toán cấp. Không bắt buộc; chỉ cảnh báo khi đã đánh dấu xuất mà còn trống. */
+  invoiceNumber?: string;
   editLog?: OrderEditLogEntry[];
 }
 
