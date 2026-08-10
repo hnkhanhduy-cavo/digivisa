@@ -5,10 +5,11 @@ import {
   Car, Plane, FileText, Check, AlertCircle, ArrowRight, 
   ExternalLink, Sparkles, User, HelpCircle, UserCheck, ShieldAlert,
   Search, Calendar, CreditCard, X, ArrowUpDown, ArrowDown, ArrowUp,
-  Copy, Download
+  Copy, Download, Wallet
 } from 'lucide-react';
 import { Order, Currency, CURRENCY_SYMBOLS, EXCHANGE_RATES } from '../types';
 import { formatOrderMoney, orderVndTotal, readReferralCommission } from '../utils/orderMoney';
+import OMSMoneyLedger from './OMSMoneyLedger';
 import OMSAlertsBoard from './OMSAlertsBoard';
 import OMSAgencyComms from './OMSAgencyComms';
 import { safeStorage, safeOpen } from '../utils/storage';
@@ -300,7 +301,7 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
   }, [orders]);
 
   // Master navigation subpage: fulfillment queue vs. urgent alerts board vs. agency comms sync
-  const [omsSubPage, setOmsSubPage] = useState<'fulfillment' | 'alerts_board' | 'agency_comms'>('fulfillment');
+  const [omsSubPage, setOmsSubPage] = useState<'fulfillment' | 'alerts_board' | 'agency_comms' | 'money_ledger'>('fulfillment');
 
   // Tabs representing separate partner spaces
   const [partnerServiceTab, setPartnerServiceTab] = useState<'All' | 'Visa' | 'FastTrack' | 'AirportPickup' | 'VAT'>('All');
@@ -1276,6 +1277,20 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
           
           <span className="absolute -top-1 -right-1 h-3 w-3 bg-red-500 rounded-full border-2 border-white animate-ping" />
           <span className="absolute -top-1 -right-1 h-3 w-3 bg-red-500 rounded-full border-2 border-white" />
+        </button>
+        <button
+          onClick={() => {
+            setOmsSubPage('money_ledger');
+            setSelectedOrderId(null);
+          }}
+          className={`flex-1 py-2.5 px-4 font-display font-semibold text-xs rounded-xl flex items-center justify-center space-x-2 transition-all cursor-pointer ${
+            omsSubPage === 'money_ledger'
+              ? 'bg-[#1E293B] text-white shadow-sm'
+              : 'text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Wallet className="h-4 w-4 text-amber-500" />
+          <span>{language === 'EN' ? 'Money Ledger' : 'Sổ tiền'}</span>
         </button>
       </div>
 
@@ -2838,6 +2853,12 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
             setSelectedOrderId(orderId);
             setOmsSubPage('fulfillment');
           }}
+        />
+      ) : omsSubPage === 'money_ledger' ? (
+        <OMSMoneyLedger
+          orders={paidOrders}
+          language={language}
+          onUpdateOrder={onUpdateOrder}
         />
       ) : (
         <OMSAlertsBoard

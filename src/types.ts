@@ -187,6 +187,10 @@ export interface Order {
    * nhà xe), tính bằng VNĐ. Ops tự nhập ở tab Management; chưa nhập thì coi như 0.
    */
   supplierCostVnd?: number;
+  /** Đã trả hoa hồng dẫn khách cho bên giới thiệu chưa. Vắng mặt = chưa trả. */
+  referralPayoutStatus?: 'Paid';
+  referralPaidAt?: string;
+  referralPaidBy?: string;
   editLog?: OrderEditLogEntry[];
 }
 
