@@ -5,7 +5,7 @@ import {
   Smartphone, Share2, Clipboard, ArrowRight, UserCheck, AlertCircle, 
   RefreshCw, Layers, FileText, PhoneCall, CheckSquare, Search, Filter,
   ExternalLink, User, Compass, HelpCircle, ClipboardCheck, ArrowUpRight,
-  ChevronRight, ChevronDown, Building, ShieldAlert, CheckSquare2, X
+  ChevronRight, ChevronDown, Building, ShieldAlert, CheckSquare2, X, Download
 } from 'lucide-react';
 import { Order, Currency, CURRENCY_SYMBOLS, OrderEditLogEntry } from '../types';
 import { safeStorage, safeOpen } from '../utils/storage';
@@ -278,12 +278,12 @@ export default function OMSAgencyComms({
     return 0;
   });
 
-  const [previewPhotoUrl, setPreviewPhotoUrl] = useState<string | null>(null);
+  const [previewPhoto, setPreviewPhoto] = useState<{ url: string; filename: string } | null>(null);
   const [isEditLogOpen, setIsEditLogOpen] = useState<boolean>(false);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setPreviewPhotoUrl(null);
+      if (e.key === 'Escape') setPreviewPhoto(null);
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -2037,7 +2037,10 @@ export default function OMSAgencyComms({
                                 src={staffInputs.staffPhoto}
                                 alt="Preview"
                                 sizeClass="h-8 w-8"
-                                onPreview={(url) => setPreviewPhotoUrl(url)}
+                                onPreview={(url) => setPreviewPhoto({
+                                  url,
+                                  filename: `staff-photo-${selectedOrder.id.replace('_secondary', '')}.jpg`
+                                })}
                               />
                             </div>
                           </div>
@@ -2115,7 +2118,10 @@ export default function OMSAgencyComms({
                                 src={staffInputs.staffPhoto}
                                 alt="Preview"
                                 sizeClass="h-8 w-8"
-                                onPreview={(url) => setPreviewPhotoUrl(url)}
+                                onPreview={(url) => setPreviewPhoto({
+                                  url,
+                                  filename: `staff-photo-${selectedOrder.id.replace('_secondary', '')}.jpg`
+                                })}
                               />
                             </div>
                           </div>
@@ -2518,29 +2524,48 @@ export default function OMSAgencyComms({
 
       </div>
 
-      {previewPhotoUrl && (
+      {/* Staff Photo Preview Modal Popup */}
+      {previewPhoto && (
         <div 
           className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 animate-fade-in select-none"
-          onClick={() => setPreviewPhotoUrl(null)}
+          onClick={() => setPreviewPhoto(null)}
         >
           <div 
-            className="relative max-w-4xl max-h-[90vh] flex flex-col items-center"
+            className="relative max-w-[90vw] max-h-[90vh] bg-slate-900 rounded-2xl p-4 flex flex-col items-center gap-3 border border-slate-700 shadow-2xl overflow-hidden font-sans"
             onClick={(e) => e.stopPropagation()}
           >
-            <button
-              type="button"
-              onClick={() => setPreviewPhotoUrl(null)}
-              className="absolute -top-10 right-0 text-white hover:text-slate-300 bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors cursor-pointer"
-              title="Close (Esc)"
-            >
-              <X className="h-5 w-5" />
-            </button>
-            <img
-              src={previewPhotoUrl}
-              alt="Staff Full Preview"
-              referrerPolicy="no-referrer"
-              className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl border border-white/10"
-            />
+            <div className="w-full flex items-center justify-between gap-4 text-white pb-2 border-b border-slate-800">
+              <span className="text-xs font-bold font-mono text-slate-300 truncate max-w-[60vw]">
+                {previewPhoto.filename}
+              </span>
+              <div className="flex items-center gap-2 shrink-0">
+                <a
+                  href={previewPhoto.url}
+                  download={previewPhoto.filename}
+                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  <span>{language === 'EN' ? 'Download image' : 'Tải ảnh về'}</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setPreviewPhoto(null)}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl flex items-center gap-1 border border-slate-700 transition-all cursor-pointer"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  <span>{language === 'EN' ? 'Close' : 'Đóng'}</span>
+                </button>
+              </div>
+            </div>
+            
+            <div className="flex-1 min-h-0 flex items-center justify-center overflow-auto p-2">
+              <img
+                src={previewPhoto.url}
+                alt="Staff Full Preview"
+                referrerPolicy="no-referrer"
+                className="max-h-[75vh] max-w-[85vw] object-contain rounded-lg shadow-md"
+              />
+            </div>
           </div>
         </div>
       )}

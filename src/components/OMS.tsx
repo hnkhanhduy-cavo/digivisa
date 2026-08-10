@@ -2930,14 +2930,12 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
           setOrders={setOrders}
           currency={currency}
           assignedPartners={assignedPartners}
-          setAssignedPartners={setAssignedPartners}
           PARTNERS={PARTNERS}
-          onUpdateOrder={onUpdateOrder}
-          onSelectOrder={(orderId, tab) => {
-            setPartnerServiceTab(tab);
+          onOpenInManagement={(orderId) => {
             setSelectedOrderId(orderId);
-            setOmsSubPage('fulfillment');
+            setOmsSubPage('agency_comms');
           }}
+          language={language}
         />
       )}
 

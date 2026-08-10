@@ -11,10 +11,9 @@ interface OMSAlertsBoardProps {
   setOrders: (orders: Order[]) => void;
   currency: Currency;
   assignedPartners: Record<string, string>;
-  setAssignedPartners: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-  onSelectOrder: (orderId: string, tab: 'All' | 'Visa' | 'FastTrack' | 'AirportPickup' | 'VAT') => void;
   PARTNERS: Record<string, Array<{ id: string; name: string; contact: string; rating: string; activeOrders: number }>>;
-  onUpdateOrder?: (orderId: string, fields: Record<string, any>) => Promise<{ success: boolean; error?: string }>;
+  onOpenInManagement?: (orderId: string) => void;
+  language?: string;
 }
 
 export default function OMSAlertsBoard({
@@ -22,10 +21,9 @@ export default function OMSAlertsBoard({
   setOrders,
   currency,
   assignedPartners,
-  setAssignedPartners,
-  onSelectOrder,
   PARTNERS,
-  onUpdateOrder,
+  onOpenInManagement,
+  language = 'VI',
 }: OMSAlertsBoardProps) {
   // Let the user mock different system simulation dates to observe the reactive operational queue
   const [simDate, setSimDate] = useState<string>(() => {
@@ -303,11 +301,9 @@ export default function OMSAlertsBoard({
 
   const realToday = getTodayStr();
   const realTomorrow = addDaysToDate(realToday, 1);
-  const realDayAfterTomorrow = addDaysToDate(realToday, 2);
 
   const activeSimDate = simDate;
   const tomorrowSimDate = addDaysToDate(simDate, 1);
-  const dayAfterTomorrowSimDate = addDaysToDate(simDate, 2);
 
   // ----------------------------------------------------
   // ALERT LOGIC GENERATION
@@ -318,8 +314,6 @@ export default function OMSAlertsBoard({
     type: 'critical' | 'warning' | 'info';
     category: string;
     message: string;
-    solutionText: string;
-    onResolve: () => void;
   }
 
   const generatedAlerts: AlertItem[] = [];
@@ -352,11 +346,7 @@ export default function OMSAlertsBoard({
           order,
           type: 'critical',
           category: '🚨 Overdue Visa Clearance',
-          message: `${getPassengerName(order)} is scheduled to land ${daysUntilService === 0 ? 'Today' : daysUntilService === 1 ? 'Tomorrow' : `in ${daysUntilService} days`} (${serviceDate}), but visa status is still "${order.status}".`,
-          solutionText: 'Force Approve & Generate Visa Code',
-          onResolve: () => {
-            setOrders(orders.map(o => o.id === order.id ? { ...o, status: 'Completed' } : o));
-          }
+          message: `${getPassengerName(order)} is scheduled to land ${daysUntilService === 0 ? 'Today' : daysUntilService === 1 ? 'Tomorrow' : `in ${daysUntilService} days`} (${serviceDate}), but visa status is still "${order.status}".`
         });
       }
     }
@@ -369,11 +359,7 @@ export default function OMSAlertsBoard({
           order,
           type: 'critical',
           category: '🚘 Driver Dispatch Overdue',
-          message: `${getPassengerName(order)} transit pickup is scheduled for ${daysUntilService === 0 ? 'Today' : daysUntilService === 1 ? 'Tomorrow' : `in ${daysUntilService} days`} has no designated vehicle dispatch profile.`,
-          solutionText: 'Dispatch Chauffeur & Vehicle',
-          onResolve: () => {
-            setOrders(orders.map(o => o.id === order.id ? { ...o, status: 'Staff Assigned' } : o));
-          }
+          message: `${getPassengerName(order)} transit pickup is scheduled for ${daysUntilService === 0 ? 'Today' : daysUntilService === 1 ? 'Tomorrow' : `in ${daysUntilService} days`} has no designated vehicle dispatch profile.`
         });
       }
     }
@@ -386,24 +372,7 @@ export default function OMSAlertsBoard({
           order,
           type: 'critical',
           category: '✈️ Missing Flight Manifest',
-          message: `FastTrack greeting for ${getPassengerName(order)} is marked soon but flight landing code is missing.`,
-          solutionText: 'Resolve Flight Manifest Details',
-          onResolve: () => {
-            setOrders(orders.map(o => {
-              if (o.id === order.id) {
-                return {
-                  ...o,
-                  status: 'Staff Assigned',
-                  details: {
-                    ...o.details,
-                    flightNumber: 'VN251',
-                    arrivalTime: '14:20'
-                  } as any
-                };
-              }
-              return o;
-            }));
-          }
+          message: `FastTrack greeting for ${getPassengerName(order)} is marked soon but flight landing code is missing.`
         });
       }
     }
@@ -415,12 +384,7 @@ export default function OMSAlertsBoard({
         order,
         type: 'warning',
         category: '👤 Unassigned Partner',
-        message: `Order ${order.id} for ${getPassengerName(order)} is paid but has not been dispatched to any specialized ground partners.`,
-        solutionText: 'Dispatch to Regional Partner',
-        onResolve: () => {
-          const fallbackPartner = PARTNERS[order.type]?.[0]?.id || '';
-          setAssignedPartners(prev => ({ ...prev, [order.id]: fallbackPartner }));
-        }
+        message: `Order ${order.id} for ${getPassengerName(order)} is paid but has not been dispatched to any specialized ground partners.`
       });
     }
 
@@ -438,24 +402,7 @@ export default function OMSAlertsBoard({
           order,
           type: 'critical',
           category: '🚨 Missing Staff Assignment (<24h)',
-          message: `Ground operations for ${getPassengerName(order)} (${order.type}) scheduled on ${serviceDate || 'today'} has NOT received any designated field agent or driver assignment. Immediate dispatch required!`,
-          solutionText: 'Auto-Assign Staff & Vehicle',
-          onResolve: () => {
-            setOrders(orders.map(o => {
-              if (o.id === order.id) {
-                const assignedStatus = order.type === 'AirportPickup' ? 'Driver Assigned' : 'Staff Assigned';
-                return {
-                  ...o,
-                  status: assignedStatus,
-                  staffName: order.type === 'AirportPickup' ? 'Quoc Bao (VIP Chauffeur)' : 'Minh Khue (Senior FastTrack Liaison)',
-                  staffPhone: order.type === 'AirportPickup' ? '+84917654321' : '+84934567890',
-                  staffLocation: order.type === 'AirportPickup' ? 'Lobby A2, Noi Bai T2' : 'Landing Gate B3, Noi Bai T2',
-                  licensePlate: order.type === 'AirportPickup' ? '29A-999.99' : undefined
-                };
-              }
-              return o;
-            }));
-          }
+          message: `Ground operations for ${getPassengerName(order)} (${order.type}) scheduled on ${serviceDate || 'today'} has NOT received any designated field agent or driver assignment. Immediate dispatch required!`
         });
       }
     }
@@ -467,11 +414,7 @@ export default function OMSAlertsBoard({
         order,
         type: 'warning',
         category: '⚡ Extreme VIP Speed Alert',
-        message: `${getPassengerName(order)} ordered SuperExpress 4-hour clearance but application is stagnant or needs document resubmission.`,
-        solutionText: 'Pass Document Quality Check',
-        onResolve: () => {
-          setOrders(orders.map(o => o.id === order.id ? { ...o, status: 'Processing' } : o));
-        }
+        message: `${getPassengerName(order)} ordered SuperExpress 4-hour clearance but application is stagnant or needs document resubmission.`
       });
     }
 
@@ -479,26 +422,20 @@ export default function OMSAlertsBoard({
     if (details.wantsInvoice && isPaid) {
       const invState = order.invoiceStatus || 'Draft';
       if (invState === 'Draft') {
-        const baseId = order.id.replace('_secondary', '');
         generatedAlerts.push({
           id: `invoice_unresolved_${order.id}`,
           order,
           type: 'warning',
           category: '🧾 Tax Billing Unreconciled',
-          message: `Customer requested direct RED VAT Invoice for ${order.id}, but no stamp has been locked.`,
-          solutionText: 'Issue Stamped Tax Invoice',
-          onResolve: () => {
-            onUpdateOrder?.(baseId, { invoiceStatus: 'Issued & Tax Stamped' });
-          }
+          message: `Customer requested direct RED VAT Invoice for ${order.id}, but no stamp has been locked.`
         });
       }
     }
   });
 
-  // Calculate Today's, Tomorrow's and Day After Tomorrow's schedules lists
+  // Calculate Today's and Tomorrow's schedules lists
   const todaysSchedule = orders.filter(o => getServiceDateStr(o) === activeSimDate);
   const tomorrowsSchedule = orders.filter(o => getServiceDateStr(o) === tomorrowSimDate);
-  const dayAfterTomorrowsSchedule = orders.filter(o => getServiceDateStr(o) === dayAfterTomorrowSimDate);
 
   // Overdue listings (scheduled arrival is past the sim date, but service is not completed/approved)
   const overdueSchedule = orders.filter(o => {
@@ -531,10 +468,6 @@ export default function OMSAlertsBoard({
     ? tomorrowsSchedule
     : tomorrowsSchedule.filter(o => o.type === selectedServiceFilter);
 
-  const filteredDayAfterTomorrowsSchedule = selectedServiceFilter === 'All'
-    ? dayAfterTomorrowsSchedule
-    : dayAfterTomorrowsSchedule.filter(o => o.type === selectedServiceFilter);
-
   const filteredOverdueSchedule = selectedServiceFilter === 'All'
     ? overdueSchedule
     : overdueSchedule.filter(o => o.type === selectedServiceFilter);
@@ -552,8 +485,7 @@ export default function OMSAlertsBoard({
           <div className="flex gap-1">
             {[
               { date: realToday, label: 'Today', sub: formatDateSub(realToday) },
-              { date: realTomorrow, label: 'Tomorrow', sub: formatDateSub(realTomorrow) },
-              { date: realDayAfterTomorrow, label: 'Day after tomorrow', sub: formatDateSub(realDayAfterTomorrow) }
+              { date: realTomorrow, label: 'Tomorrow', sub: formatDateSub(realTomorrow) }
             ].map((d) => {
               const isSelected = simDate === d.date;
               return (
@@ -654,7 +586,7 @@ export default function OMSAlertsBoard({
                     </div>
 
                     {/* Quick Jump Buttons inside popover */}
-                    <div className="grid grid-cols-3 gap-1 mb-3">
+                    <div className="grid grid-cols-2 gap-1 mb-3">
                       <button
                         type="button"
                         onClick={() => {
@@ -682,20 +614,6 @@ export default function OMSAlertsBoard({
                         }`}
                       >
                         Tomorrow
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSimDate(realDayAfterTomorrow);
-                          setShowCalendarPopover(false);
-                        }}
-                        className={`py-1 text-[10px] font-bold rounded-md border transition-all ${
-                          simDate === realDayAfterTomorrow
-                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 font-black'
-                            : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
-                        }`}
-                      >
-                        Day after tomorrow
                       </button>
                     </div>
                     
@@ -1063,9 +981,18 @@ export default function OMSAlertsBoard({
                         </div>
 
                         <div className="flex items-center space-x-2 shrink-0">
-
-
-
+                          {onOpenInManagement && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const baseOrderId = alert.order.id.replace('_secondary', '');
+                                onOpenInManagement(baseOrderId);
+                              }}
+                              className="bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-[10px] px-2.5 py-1 rounded-lg border border-purple-200 transition-colors cursor-pointer"
+                            >
+                              {language === 'EN' ? 'Open in Order Management ➜' : 'Mở trong Order Management ➜'}
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1284,69 +1211,6 @@ export default function OMSAlertsBoard({
               )}
             </div>
 
-          {/* DAY AFTER TOMORROW'S PREVIEW BOARD */}
-          <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4 space-y-3">
-              <div className="pb-2 border-b border-indigo-50 flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
-                  <Calendar className="h-4 w-4 text-emerald-500 shrink-0" />
-                  🗓️ Day After Tomorrow Dispatch Board
-                </span>
-                <span className="bg-emerald-50 text-emerald-700 text-[10px] px-2 py-0.5 rounded font-mono font-bold">
-                  {dayAfterTomorrowSimDate}
-                </span>
-              </div>
-
-              {filteredDayAfterTomorrowsSchedule.length === 0 ? (
-                <div className="py-6 text-center text-slate-400 space-y-1">
-                  <Users className="h-5 w-5 text-slate-300 mx-auto" />
-                  <p className="text-[10px] font-bold text-slate-500">No arrivals scheduled day after tomorrow</p>
-                </div>
-              ) : (
-                <div className="space-y-2.5">
-                  {filteredDayAfterTomorrowsSchedule.map((order) => {
-                    const details = order.details as any;
-                    const partnerAssigned = assignedPartners[order.id];
-                    return (
-                      <div key={order.id} className="p-3 bg-emerald-50/30 rounded-lg border border-emerald-100/60 text-xs text-slate-700 space-y-2">
-                        <div className="flex justify-between items-center">
-                          <strong className="text-slate-800 text-[11px] font-bold">{getPassengerName(order)}</strong>
-                          <span className="font-mono text-[10px] font-semibold text-emerald-700">{order.id}</span>
-                        </div>
-                        
-                        <div className="grid grid-cols-2 gap-1 text-[10px] font-medium text-slate-500">
-                          <div>
-                            <span>Service: </span>
-                            <span className="text-emerald-650 font-bold">
-                              {order.type === 'FastTrack'
-                                ? `Fasttrack (${(order.details as any)?.serviceDirection || (order.details as any)?.direction || 'Arrival'})`
-                                : order.type === 'AirportPickup'
-                                  ? `Car/Bus (${(order.details as any)?.direction || 'Arrival'})`
-                                  : order.type}
-                            </span>
-                          </div>
-                          <div>
-                            <span>Flight/Time: </span>
-                            <strong className="text-slate-800">{details.flightNumber || 'N/A'}{details.arrivalTime ? ` @ ${details.arrivalTime}` : ''}</strong>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-between pt-1.5 border-t border-emerald-100/50 text-[10.5px]">
-                          <span className="text-slate-400">
-                            Partner: <span className="font-bold text-slate-600">
-                              {partnerAssigned ? PARTNERS[order.type]?.find(p => p.id === partnerAssigned)?.name : 'Unassigned'}
-                            </span>
-                          </span>
-                          
-                          <span className="bg-emerald-100 text-emerald-800 font-bold rounded px-1.5 text-[9px] uppercase">
-                            {order.status}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
 
         </div>
 
