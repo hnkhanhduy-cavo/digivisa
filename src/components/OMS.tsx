@@ -8,8 +8,7 @@ import {
   Copy, Download
 } from 'lucide-react';
 import { Order, Currency, CURRENCY_SYMBOLS, EXCHANGE_RATES } from '../types';
-import { splitCommission } from '../utils/pricing';
-import { formatOrderMoney, orderVndTotal } from '../utils/orderMoney';
+import { formatOrderMoney, orderVndTotal, readReferralCommission } from '../utils/orderMoney';
 import OMSAlertsBoard from './OMSAlertsBoard';
 import OMSAgencyComms from './OMSAgencyComms';
 import { safeStorage, safeOpen } from '../utils/storage';
@@ -1787,7 +1786,7 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
                               ) : (
                                 <div className="space-y-0.5">
                                   <div>{formatMoney(order.details.totalFee, order)}</div>
-                                  {Number((order.details as any)?.referralCommission) > 0 && (
+                                  {readReferralCommission(order.details).usd > 0 && (
                                     <span className="inline-block text-[8.5px] font-black uppercase tracking-wider text-violet-700 bg-violet-50 border border-violet-200 px-1.5 py-0.2 rounded font-sans">
                                       {language === 'EN' ? 'Referral' : 'Dẫn khách'}
                                     </span>
@@ -1955,10 +1954,7 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
                           const totalUsd = Number(d.totalFee) || 0;
                           if (totalUsd <= 0) return null;
 
-                          const asked = Number(d.referralCommission) || 0;
-                          const comm = asked > 0
-                            ? splitCommission(asked, d.referralCommissionCurrency || 'USD')
-                            : { usd: 0, vnd: 0 };
+                          const comm = readReferralCommission(d);
 
                           // Partner cost is kept in VND. Convert it with the order's own
                           // rate so it lines up with every other figure in this box.

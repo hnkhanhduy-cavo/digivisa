@@ -9,8 +9,8 @@ import {
 import { Order, Currency, CURRENCY_SYMBOLS, EXCHANGE_RATES, OrderEditLogEntry } from '../types';
 import { safeOpen, safeStorage, ordersStorageKey } from '../utils/storage';
 import { Language, TRANSLATIONS } from '../utils/translations';
-import { getVietnamPricing, splitCommission } from '../utils/pricing';
-import { formatOrderMoney } from '../utils/orderMoney';
+import { getVietnamPricing } from '../utils/pricing';
+import { formatOrderMoney, readReferralCommission } from '../utils/orderMoney';
 import { formatPhoneE164 } from '../utils/validation';
 import { hasWhatsApp, hasZalo, buildWhatsAppChatUrl, buildZaloChatUrl } from '../utils/contact';
 import { getCustomerTimelineStepsForOrder, normalizeCustomerStatusForTimeline, getStatusLabel, getSubStatusLabel, getSubStatusOptions } from '../utils/orderStatus';
@@ -487,9 +487,8 @@ export default function OrderTracker({
 
     // A referral commission is part of what the customer paid, so the invoice
     // has to name it rather than let it swell the total unexplained.
-    const askedCommission = Number(details.referralCommission) || 0;
-    if (askedCommission > 0) {
-      const commission = splitCommission(askedCommission, details.referralCommissionCurrency || 'USD');
+    const commission = readReferralCommission(details);
+    if (commission.usd > 0) {
       lines.push({
         label: isVnd ? 'Hoa hồng dẫn khách' : 'Referral commission',
         value: isVnd

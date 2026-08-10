@@ -1,5 +1,5 @@
 import { Currency, EXCHANGE_RATES, Order } from '../types';
-import { getVietnamPricing } from './pricing';
+import { getVietnamPricing, splitCommission } from './pricing';
 
 /**
  * Rebuilds an order's VND total from its option fields. This is how every VND
@@ -234,4 +234,21 @@ export function formatOrderMoney(usdAmount: any, currency: Currency, order?: Ord
       ? Math.round((val / totalUsd) * totalVnd)
       : Math.round(val * EXCHANGE_RATES.VND);
   return `${vnd.toLocaleString('en-US')} ₫`;
+}
+
+/**
+ * Reads the referral commission off an order.
+ *
+ * Orders taken before the field was renamed still carry the old `agencyCommission`
+ * name in Firestore, and nothing migrates them, so both names have to be understood
+ * for as long as those orders exist. Reading only the new name made the commission
+ * silently vanish from the fulfilment ledger for every order already on file.
+ */
+export function readReferralCommission(details: any): { usd: number; vnd: number } {
+  const asked = Number(details?.referralCommission ?? details?.agencyCommission) || 0;
+  if (asked <= 0) return { usd: 0, vnd: 0 };
+  const currency = (details?.referralCommissionCurrency
+    ?? details?.agencyCommissionCurrency
+    ?? 'USD') as Currency;
+  return splitCommission(asked, currency);
 }
