@@ -8,7 +8,7 @@ import {
   Copy, Download
 } from 'lucide-react';
 import { Order, Currency, CURRENCY_SYMBOLS, EXCHANGE_RATES } from '../types';
-import { getVietnamPricing } from '../utils/pricing';
+import { getVietnamPricing, splitCommission } from '../utils/pricing';
 import OMSAlertsBoard from './OMSAlertsBoard';
 import OMSAgencyComms from './OMSAgencyComms';
 import { safeStorage, safeOpen } from '../utils/storage';
@@ -1988,7 +1988,14 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
                                   {language === 'EN' ? 'Included in the combo package' : 'Đã bao gồm trong gói combo'}
                                 </span>
                               ) : (
-                                formatMoney(order.details.totalFee, order)
+                                <div className="space-y-0.5">
+                                  <div>{formatMoney(order.details.totalFee, order)}</div>
+                                  {Number((order.details as any)?.agencyCommission) > 0 && (
+                                    <span className="inline-block text-[8.5px] font-black uppercase tracking-wider text-violet-700 bg-violet-50 border border-violet-200 px-1.5 py-0.2 rounded font-sans">
+                                      {language === 'EN' ? 'Agency' : 'Đại lý'}
+                                    </span>
+                                  )}
+                                </div>
                               )}
                             </td>
 
@@ -2141,6 +2148,38 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
                             ? 'Update status in the Order Management tab.'
                             : 'Cập nhật trạng thái tại tab Order Management.'}
                         </p>
+
+                        {/* Agency commission breakdown — the total is inflated, so say by how much */}
+                        {(() => {
+                          const d = (selectedOrder.details || {}) as any;
+                          const asked = Number(d.agencyCommission) || 0;
+                          if (asked <= 0) return null;
+                          const comm = splitCommission(asked, d.agencyCommissionCurrency || 'USD');
+                          const serviceUsd = (Number(d.totalFee) || 0) - comm.usd;
+                          return (
+                            <div className="space-y-1">
+                              <label className="text-[10px] font-bold text-violet-700 uppercase">
+                                {language === 'EN' ? 'Agency booking' : 'Đơn của đại lý'}
+                              </label>
+                              <div className="w-full bg-violet-50/70 border border-violet-200 rounded-xl px-3 py-2 space-y-1 font-sans">
+                                <div className="flex items-center justify-between text-[11px]">
+                                  <span className="text-slate-600">{language === 'EN' ? 'Service price' : 'Giá dịch vụ'}</span>
+                                  <span className="font-bold text-slate-800 font-mono">{formatMoney(serviceUsd, selectedOrder)}</span>
+                                </div>
+                                <div className="flex items-center justify-between text-[11px]">
+                                  <span className="text-violet-700 font-semibold">
+                                    {language === 'EN' ? 'Agency commission (owed)' : 'Hoa hồng đại lý (phải trả)'}
+                                  </span>
+                                  <span className="font-black text-violet-800 font-mono">{formatMoney(comm.usd, selectedOrder)}</span>
+                                </div>
+                                <div className="flex items-center justify-between text-xs pt-1 border-t border-violet-200">
+                                  <span className="font-bold text-slate-800">{language === 'EN' ? 'Collected' : 'Tổng thu'}</span>
+                                  <span className="font-black text-slate-900 font-mono">{formatMoney(Number(d.totalFee) || 0, selectedOrder)}</span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })()}
 
                         {/* Payment Status (Read-Only) */}
                         <div className="space-y-1">
