@@ -164,15 +164,21 @@ export default function EditableOrderField({
               </button>
             </div>
           </div>
-          {requireReason && (
-            <input
-              type="text"
-              value={reasonDraft}
-              onChange={(e) => setReasonDraft(e.target.value)}
-              placeholder={isEn ? 'Reason for change *' : 'Lý do sửa *'}
-              className="w-full px-2.5 py-1 bg-amber-50/50 border border-amber-300 rounded-lg text-xs font-medium text-slate-900 focus:outline-none focus:ring-1 focus:ring-amber-500"
-            />
-          )}
+          <input
+            type="text"
+            value={reasonDraft}
+            onChange={(e) => setReasonDraft(e.target.value)}
+            placeholder={
+              requireReason 
+                ? (isEn ? 'Reason for change *' : 'Lý do sửa *')
+                : (isEn ? 'Reason (optional)' : 'Lý do (không bắt buộc)')
+            }
+            className={`w-full px-2.5 py-1 text-xs font-medium text-slate-900 rounded-lg focus:outline-none focus:ring-1 transition-all ${
+              requireReason 
+                ? 'bg-amber-50/50 border border-amber-300 focus:ring-amber-500' 
+                : 'bg-slate-50 border border-slate-200 focus:border-indigo-400 focus:ring-indigo-500'
+            }`}
+          />
           {error && (
             <span className="text-[10px] text-rose-500 font-semibold block leading-tight">
               {error}
