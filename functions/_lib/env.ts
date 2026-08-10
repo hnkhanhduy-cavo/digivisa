@@ -14,6 +14,10 @@ export interface Env {
   LARK_BASE_TABLE_ID?: string;
   LARK_CHAT_ID?: string;
   LARK_DOMAIN?: string;
+  /** Resend API key. Absent = confirmation emails are skipped, everything else still works. */
+  RESEND_API_KEY?: string;
+  /** Sender shown to the customer. Defaults to Resend's shared test address until a domain is verified. */
+  ORDER_EMAIL_FROM?: string;
 }
 
 export function requireNinePayEnv(env: Env): {

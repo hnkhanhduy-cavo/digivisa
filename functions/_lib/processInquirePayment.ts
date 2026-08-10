@@ -13,6 +13,7 @@ import {
 } from '../api/_ninepay';
 import { getOrderFromFirestore, markOrderPaidInFirestore } from './firestore';
 import { notifyNewOrder } from './notify';
+import { sendOrderConfirmationEmail } from './email';
 
 export async function processInquireAndMarkPaid(
   env: Env,
@@ -225,6 +226,7 @@ export async function processInquireAndMarkPaid(
 
   if (write.ok) {
     await notifyNewOrder(cleanOrderId, env).catch(() => {});
+    await sendOrderConfirmationEmail(cleanOrderId, env).catch(() => {});
   }
 
   return jsonResponse({

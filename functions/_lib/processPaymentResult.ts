@@ -7,6 +7,7 @@ import {
 } from '../api/_ninepay';
 import { getOrderFromFirestore, markOrderPaidInFirestore } from './firestore';
 import { notifyNewOrder } from './notify';
+import { sendOrderConfirmationEmail } from './email';
 
 export async function processVerifiedPaymentResult(
   env: Env,
@@ -142,6 +143,7 @@ export async function processVerifiedPaymentResult(
 
   if (write.ok) {
     await notifyNewOrder(orderId, env).catch(() => {});
+    await sendOrderConfirmationEmail(orderId, env).catch(() => {});
   }
 
   return jsonResponse({

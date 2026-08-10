@@ -32,6 +32,7 @@ export interface FirestoreOrderFields {
   groupLinkUpdatedAt?: string;
   larkRecordId?: string;
   larkNotifiedAt?: string;
+  confirmationEmailSentAt?: string;
   paymentAttempt?: number;
   ninepayInvoiceNos?: string[];
 }
@@ -127,6 +128,7 @@ export async function getOrderFromFirestore(
       groupLinkUpdatedAt: readStringField(f, 'groupLinkUpdatedAt'),
       larkRecordId: readStringField(f, 'larkRecordId'),
       larkNotifiedAt: readStringField(f, 'larkNotifiedAt'),
+      confirmationEmailSentAt: readStringField(f, 'confirmationEmailSentAt'),
       paymentAttempt: readNumberField(f, 'paymentAttempt'),
       ninepayInvoiceNos: readStringArrayField(f, 'ninepayInvoiceNos'),
     },
@@ -324,6 +326,34 @@ export async function setGroupLinksInFirestore(
 
   const body = await res.text();
   return { ok: res.ok, status: res.status, body, groupLinkUpdatedAt };
+}
+
+/**
+ * Records that the customer's confirmation email went out, so a second delivery
+ * attempt for the same order does not send it twice. Kept separate from the Lark
+ * flag: either channel can be unconfigured or fail without silencing the other.
+ */
+export async function setConfirmationEmailFlagInFirestore(
+  orderId: string,
+  sentAt: string,
+  env: Env
+): Promise<{ ok: boolean; status: number; body?: string }> {
+  const token = await getAccessToken(env);
+  const url = firestoreDocUrl(projectId(env), orderId, ['confirmationEmailSentAt']);
+
+  const res = await fetch(url, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      fields: { confirmationEmailSentAt: { stringValue: sentAt } },
+    }),
+  });
+
+  const body = await res.text();
+  return { ok: res.ok, status: res.status, body };
 }
 
 export async function setNotifyFlagInFirestore(
