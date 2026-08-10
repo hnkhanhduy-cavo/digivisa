@@ -294,7 +294,8 @@ export default function OMSAgencyComms({
   const handleSaveField = async (
     fieldPath: string,
     newValue: string,
-    logLabel: string
+    logLabel: string,
+    reason?: string
   ): Promise<{ success: boolean; error?: string }> => {
     const baseId = selectedOrder.id.replace('_secondary', '');
     const baseOrder = orders.find((o) => o.id === baseId) || selectedOrder;
@@ -311,7 +312,7 @@ export default function OMSAgencyComms({
       newValue: newValue,
       by: auth.currentUser?.email || 'staff',
       at: new Date().toISOString(),
-      reason: ''
+      reason: (reason || '').trim()
     };
 
     const payload: Record<string, any> = {
