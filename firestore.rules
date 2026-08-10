@@ -37,13 +37,13 @@ service cloud.firestore {
         );
       }
 
-      // Payment fields + trackingToken immutable for clients.
-      // Only owner or staff may update other fields. SA writes bypass rules.
+      // Payment fields + trackingToken immutable.
+      // Only staff users (custom claim staff == true) may update existing orders.
+      // Customers can only create and read orders. SA (Pages Functions) writes bypass rules.
       allow update: if paymentFieldsUnchanged()
         && trackingTokenUnchanged()
         && request.auth != null
-        && (resource.data.userId == request.auth.uid
-            || request.auth.token.staff == true);
+        && request.auth.token.staff == true;
 
       allow delete: if false;
     }
