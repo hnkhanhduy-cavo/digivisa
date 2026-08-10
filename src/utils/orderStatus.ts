@@ -36,6 +36,10 @@ export const SERVICE_FLOW_STEPS: Record<string, StatusStep[]> = {
 
 // 2. Sub-status options mapping (Visa only)
 export const VISA_SUB_STATUS_MAP: Record<string, SubStatusOption[]> = {
+  'Submitted to Embassy': [
+    { id: 'Standard doc check', labelEn: 'Standard doc check', labelVi: 'Kiểm tra hồ sơ tiêu chuẩn' },
+    { id: 'More docs required', labelEn: 'More docs required', labelVi: 'Yêu cầu bổ sung giấy tờ' },
+  ],
   'Completed': [
     { id: 'Approved', labelEn: 'Approved', labelVi: 'Đã duyệt' },
     { id: 'Rejected', labelEn: 'Rejected', labelVi: 'Từ chối' },

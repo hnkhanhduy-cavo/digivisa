@@ -12,7 +12,7 @@ import { Language, TRANSLATIONS } from '../utils/translations';
 import { getVietnamPricing } from '../utils/pricing';
 import { formatPhoneE164 } from '../utils/validation';
 import { hasWhatsApp, hasZalo, buildWhatsAppChatUrl, buildZaloChatUrl } from '../utils/contact';
-import { getCustomerTimelineStepsForOrder, normalizeCustomerStatusForTimeline, getStatusLabel, getSubStatusLabel } from '../utils/orderStatus';
+import { getCustomerTimelineStepsForOrder, normalizeCustomerStatusForTimeline, getStatusLabel, getSubStatusLabel, getSubStatusOptions } from '../utils/orderStatus';
 
 interface OrderTrackerProps {
   orders: Order[];
@@ -1107,11 +1107,13 @@ export default function OrderTracker({
                         <h5 className="font-bold text-slate-800 flex items-center gap-1.5 flex-wrap">
                           Status Detail: 
                           <span className="text-indigo-600 font-mono font-black">{getStatusLabel(normalizeCustomerStatusForTimeline(trackingOrder!.status, trackingOrder!.type), language as any)}</span>
-                          {trackingOrder!.type === 'Visa' && trackingOrder!.subStatus && ['Approved', 'Rejected', 'Declined'].includes(trackingOrder!.subStatus) && (
+                          {trackingOrder!.type === 'Visa' && trackingOrder!.subStatus && getSubStatusOptions(trackingOrder!.status, trackingOrder!.type).includes(trackingOrder!.subStatus) && (
                             (() => {
                               const subVal = trackingOrder!.subStatus;
                               let style = 'bg-slate-100 text-slate-800 border-slate-200';
-                              if (subVal === 'Approved') {
+                              if (subVal === 'More docs required') {
+                                style = 'bg-amber-100 text-amber-800 border-amber-200 animate-pulse';
+                              } else if (subVal === 'Approved') {
                                 style = 'bg-emerald-100 text-emerald-800 border-emerald-200';
                               } else if (subVal === 'Rejected' || subVal === 'Declined') {
                                 style = 'bg-rose-100 text-rose-800 border-rose-200';
