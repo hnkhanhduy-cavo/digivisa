@@ -15,6 +15,11 @@ export interface VisaApplication {
   photoScan: string; // Simulated file name
   photoScanDataUrl?: string; // Base64 Image Data URL saved to Firebase
   totalFee: number;
+  /** Exact VND total. Set only when an agency commission applies, so ordinary orders keep converting from totalFee as before. */
+  totalVnd?: number;
+  /** Commission an agency asked for on this booking, in the currency they typed it in. */
+  agencyCommission?: number;
+  agencyCommissionCurrency?: Currency;
   // Dynamic Visa Readiness Check metadata
   readinessPercent?: number;
   readinessChecks?: Array<{ id: string; name: string; description: string; status: 'passed' | 'warning' | 'pending' }>;
@@ -45,6 +50,11 @@ export interface FastTrackBooking {
   contactPref?: 'WhatsApp' | 'Zalo' | 'SMS'; // Kênh liên lạc ưa thích (WhatsApp, Zalo, SMS)
   specialRequests: string;
   totalFee: number;
+  /** Exact VND total. Set only when an agency commission applies, so ordinary orders keep converting from totalFee as before. */
+  totalVnd?: number;
+  /** Commission an agency asked for on this booking, in the currency they typed it in. */
+  agencyCommission?: number;
+  agencyCommissionCurrency?: Currency;
   // New features
   hasEsim: boolean;
   addAirportPickup: boolean;
@@ -79,6 +89,11 @@ export interface AirportPickupBooking {
   terminalNumber: string;
   optionalNote?: string;
   totalFee: number;
+  /** Exact VND total. Set only when an agency commission applies, so ordinary orders keep converting from totalFee as before. */
+  totalVnd?: number;
+  /** Commission an agency asked for on this booking, in the currency they typed it in. */
+  agencyCommission?: number;
+  agencyCommissionCurrency?: Currency;
   // New options
   addFastTrack: boolean;
   fastTrackType?: 'VIP Meet & Assist' | 'Premium Fast Track' | 'Elite Lounges Gate-to-Gate';

@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { VisaApplication, Currency, CURRENCY_SYMBOLS, EXCHANGE_RATES, NATIONALITIES, Order } from '../types';
 import { Language, TRANSLATIONS } from '../utils/translations';
-import { getVietnamPricing } from '../utils/pricing';
+import { getVietnamPricing, splitCommission } from '../utils/pricing';
 import VisaFormV2 from './VisaFormV2';
 import { HistoricalProfile } from '../data/historicalUsers';
 import { safeStorage, safeOpen } from '../utils/storage';
@@ -19,9 +19,10 @@ interface VisaFormProps {
   onSuccess: (newOrder: Order) => Promise<boolean | void> | boolean | void;
   onCancel: () => void;
   orders?: Order[];
+  isAgency?: boolean;
 }
 
-export default function VisaForm({ language, currency, onSuccess, onCancel, orders }: VisaFormProps) {
+export default function VisaForm({ language, currency, onSuccess, onCancel, orders, isAgency = false }: VisaFormProps) {
   const isEn = language === 'EN';
   const initialDraft = React.useMemo(() => {
     try {
@@ -223,12 +224,21 @@ export default function VisaForm({ language, currency, onSuccess, onCancel, orde
   };
 
   const getCalculatedFees = () => {
+    const commission = splitCommission(parseFloat(agencyCommission) || 0, currency);
+    const withCommission = <T extends { total: number; totalVnd: number }>(f: T) => ({
+      ...f,
+      total: f.total + commission.usd,
+      totalVnd: f.totalVnd + commission.vnd,
+      commissionUsd: commission.usd,
+      commissionVnd: commission.vnd,
+    });
+
     if (formData.destinationCountry === 'Vietnam') {
-      return getVietnamPricing(
+      return withCommission(getVietnamPricing(
         formData.visaType,
         formData.resultsOption || '',
         formData.submissionTiming || ''
-      );
+      ));
     } else {
       const base = VISA_PRICES[formData.visaType] || 120;
       const speed = 0;
@@ -253,7 +263,7 @@ export default function VisaForm({ language, currency, onSuccess, onCancel, orde
       const taxVnd = 0;
       const totalVnd = subtotalVnd;
 
-      return {
+      return withCommission({
         base,
         speed,
         tax,
@@ -262,7 +272,7 @@ export default function VisaForm({ language, currency, onSuccess, onCancel, orde
         speedVnd,
         taxVnd,
         totalVnd,
-      };
+      });
     }
   };
 
@@ -300,6 +310,7 @@ export default function VisaForm({ language, currency, onSuccess, onCancel, orde
     return `${CURRENCY_SYMBOLS[currency]}${val.toFixed(2)}`;
   };
 
+  const [agencyCommission, setAgencyCommission] = useState<string>('');
   const [uploadErrorModal, setUploadErrorModal] = useState<UploadErrorModalData | null>(null);
 
   // Remove/Cancel uploaded file and revert to empty initial state
@@ -507,6 +518,13 @@ export default function VisaForm({ language, currency, onSuccess, onCancel, orde
       ...formData,
       phone: `${formData.phone} (${contactPref})`,
       totalFee: fees.total,
+      ...(fees.commissionVnd > 0
+        ? {
+            totalVnd: fees.totalVnd,
+            agencyCommission: parseFloat(agencyCommission) || 0,
+            agencyCommissionCurrency: currency,
+          }
+        : {}),
       wantsInvoice,
       companyName: wantsInvoice ? companyName : undefined,
       taxCode: wantsInvoice ? taxCode : undefined,
@@ -676,6 +694,9 @@ export default function VisaForm({ language, currency, onSuccess, onCancel, orde
               passportInputRef={passportInputRef}
               photoInputRef={photoInputRef}
               fees={fees}
+              isAgency={isAgency}
+              agencyCommission={agencyCommission}
+              setAgencyCommission={setAgencyCommission}
               formatCharge={formatCharge}
               handleSubmit={handleSubmit}
               VISA_PRICES={VISA_PRICES}

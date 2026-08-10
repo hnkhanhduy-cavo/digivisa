@@ -11,6 +11,8 @@ import { HistoricalProfile } from '../data/historicalUsers';
 import { safeStorage, safeOpen } from '../utils/storage';
 import { isValidEmail, isValidInternationalPhone, isValidTaxCode, isValidFlightNumber, sanitizeFlightNumber, formatPhoneE164, getVietnamToday, buildVietnamDate } from '../utils/validation';
 import { generateOrderId, generateTrackingToken } from '../utils/orderIds';
+import { splitCommission } from '../utils/pricing';
+import AgencyCommissionField from './AgencyCommissionField';
 import { Language } from '../utils/translations';
 // @ts-ignore
 import ecoSedanImg from '../assets/images/eco_sedan_1781328905917.jpg';
@@ -25,9 +27,10 @@ interface AirportPickupFormProps {
   onSuccess: (newOrder: Order) => Promise<boolean | void> | boolean | void;
   onCancel: () => void;
   orders?: Order[];
+  isAgency?: boolean;
 }
 
-export default function AirportPickupForm({ currency, language, onSuccess, onCancel, orders }: AirportPickupFormProps) {
+export default function AirportPickupForm({ currency, language, onSuccess, onCancel, orders, isAgency = false }: AirportPickupFormProps) {
   const isEn = language === 'EN';
 
   const initialDraft = React.useMemo(() => {
@@ -84,6 +87,7 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
   const [pickupAddress, setPickupAddress] = useState<string>(() => (initialDraft && initialDraft.pickupAddress) ?? '');
   const [destinationAddress, setDestinationAddress] = useState<string>(() => (initialDraft && initialDraft.destinationAddress) ?? '');
   const [optionalNote, setOptionalNote] = useState<string>(() => (initialDraft && initialDraft.optionalNote) ?? '');
+  const [agencyCommission, setAgencyCommission] = useState<string>('');
   const [contactPref, setContactPref] = useState<'WhatsApp' | 'Zalo' | 'SMS'>(() => (initialDraft && initialDraft.contactPref) ?? 'WhatsApp');
   
   const [addFastTrack, setAddFastTrack] = useState<boolean>(() => (initialDraft && initialDraft.addFastTrack) ?? false);
@@ -214,7 +218,13 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
       totalVnd = Math.max(0, totalVnd - 200000);
     }
 
+    const commission = splitCommission(parseFloat(agencyCommission) || 0, currency);
+    total += commission.usd;
+    totalVnd += commission.vnd;
+
     return {
+      commissionUsd: commission.usd,
+      commissionVnd: commission.vnd,
       base,
       baseVnd,
       fastTrackCost,
@@ -421,6 +431,13 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
       fastTrackType: addFastTrack ? fastTrackType : undefined,
       paymentMethod,
       totalFee: fees.total,
+      ...(fees.commissionVnd > 0
+        ? {
+            totalVnd: fees.totalVnd,
+            agencyCommission: parseFloat(agencyCommission) || 0,
+            agencyCommissionCurrency: currency,
+          }
+        : {}),
       wantsInvoice,
       companyName: wantsInvoice ? companyName : undefined,
       taxCode: wantsInvoice ? taxCode : undefined,
@@ -1077,6 +1094,17 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
               </motion.div>
             )}
           </div>
+
+          {isAgency && (
+            <div className="pt-2">
+              <AgencyCommissionField
+                value={agencyCommission}
+                onChange={setAgencyCommission}
+                currency={currency}
+                language={language}
+              />
+            </div>
+          )}
 
           {/* Pricing Box bottom & checkout action */}
           <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">

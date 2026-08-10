@@ -8,6 +8,7 @@ import { Language } from '../utils/translations';
 import { getVietnamPricing } from '../utils/pricing';
 import { sanitizePassportInput, isValidInternationalPhone, isValidTaxCode, isValidEmail } from '../utils/validation';
 import HistoricalAutofill from './HistoricalAutofill';
+import AgencyCommissionField from './AgencyCommissionField';
 
 interface VisaFormV2Props {
   language: Language;
@@ -42,6 +43,9 @@ interface VisaFormV2Props {
   passportInputRef: React.RefObject<HTMLInputElement | null>;
   photoInputRef: React.RefObject<HTMLInputElement | null>;
   fees: { base: number; speed: number; tax: number; total: number; baseVnd: number; speedVnd: number; taxVnd: number; totalVnd: number };
+  isAgency?: boolean;
+  agencyCommission?: string;
+  setAgencyCommission?: (next: string) => void;
   formatCharge: (usdAmount: number, type?: 'base' | 'speed' | 'tax' | 'total') => string;
   handleSubmit: (e: React.FormEvent) => void;
   VISA_PRICES: Record<string, number>;
@@ -82,6 +86,9 @@ export default function VisaFormV2({
   fees,
   formatCharge,
   handleSubmit,
+  isAgency = false,
+  agencyCommission = '',
+  setAgencyCommission,
   VISA_PRICES,
 }: VisaFormV2Props) {
 
@@ -1432,6 +1439,17 @@ export default function VisaFormV2({
                 </div>
               )}
             </>
+          )}
+
+          {isAgency && setAgencyCommission && (
+            <div className="mb-3">
+              <AgencyCommissionField
+                value={agencyCommission}
+                onChange={setAgencyCommission}
+                currency={currency}
+                language={isEn ? 'EN' : 'VI'}
+              />
+            </div>
           )}
 
           {/* Total Row */}

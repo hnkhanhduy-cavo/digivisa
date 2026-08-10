@@ -13,15 +13,18 @@ import { HistoricalProfile } from '../data/historicalUsers';
 import { safeStorage, safeOpen } from '../utils/storage';
 import { isValidEmail, isValidInternationalPhone, isValidTaxCode, isValidFlightNumber, sanitizeFlightNumber, formatPhoneE164, getVietnamToday, buildVietnamDate } from '../utils/validation';
 import { generateOrderId, generateTrackingToken } from '../utils/orderIds';
+import { splitCommission } from '../utils/pricing';
+import AgencyCommissionField from './AgencyCommissionField';
 interface FastTrackFormProps {
   currency: Currency;
   onSuccess: (newOrder: Order) => Promise<boolean | void> | boolean | void;
   onCancel: () => void;
   language?: Language;
   orders?: Order[];
+  isAgency?: boolean;
 }
 
-export default function FastTrackForm({ currency, onSuccess, onCancel, language = 'EN', orders }: FastTrackFormProps) {
+export default function FastTrackForm({ currency, onSuccess, onCancel, language = 'EN', orders, isAgency = false }: FastTrackFormProps) {
   const isEn = language === 'EN';
 
   const initialDraft = React.useMemo(() => {
@@ -89,6 +92,7 @@ export default function FastTrackForm({ currency, onSuccess, onCancel, language 
   const [paymentMethod, setPaymentMethod] = useState<'9pay' | 'bank_transfer'>(() => (initialDraft && initialDraft.paymentMethod) ?? '9pay');
 
   const [isRedirecting, setIsRedirecting] = useState(false);
+  const [agencyCommission, setAgencyCommission] = useState<string>('');
   const [contactPref, setContactPref] = useState<'WhatsApp' | 'Zalo' | 'SMS'>(() => (initialDraft && initialDraft.contactPref) ?? 'WhatsApp');
 
   const [hasRestoredDraft, setHasRestoredDraft] = useState<boolean>(() => {
@@ -210,7 +214,13 @@ export default function FastTrackForm({ currency, onSuccess, onCancel, language 
       totalVnd = Math.max(0, totalVnd - 200000);
     }
 
+    const commission = splitCommission(parseFloat(agencyCommission) || 0, currency);
+    total += commission.usd;
+    totalVnd += commission.vnd;
+
     return {
+      commissionUsd: commission.usd,
+      commissionVnd: commission.vnd,
       basePerPax: base,
       basePerPaxVnd: baseVnd,
       esimCost,
@@ -438,6 +448,13 @@ export default function FastTrackForm({ currency, onSuccess, onCancel, language 
       pickupDestination: addAirportPickup ? pickupDestination : undefined,
       paymentMethod,
       totalFee: fees.total,
+      ...(fees.commissionVnd > 0
+        ? {
+            totalVnd: fees.totalVnd,
+            agencyCommission: parseFloat(agencyCommission) || 0,
+            agencyCommissionCurrency: currency,
+          }
+        : {}),
       wantsInvoice,
       companyName: wantsInvoice ? companyName : undefined,
       taxCode: wantsInvoice ? taxCode : undefined,
@@ -1281,6 +1298,17 @@ export default function FastTrackForm({ currency, onSuccess, onCancel, language 
               </motion.div>
             )}
           </div>
+
+          {isAgency && (
+            <div className="pt-2">
+              <AgencyCommissionField
+                value={agencyCommission}
+                onChange={setAgencyCommission}
+                currency={currency}
+                language={language}
+              />
+            </div>
+          )}
 
           {/* Pricing & Checkout Block */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6 border-t border-slate-100 flex-wrap">

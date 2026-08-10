@@ -90,6 +90,8 @@ class SafeServiceBoundary extends React.Component<SafeServiceBoundaryProps, { ha
 
 export default function App() {
   const [userRole, setUserRole] = useState<'customer' | 'staff'>('customer');
+  /** Set from the `agency` custom claim. Only Firebase can grant it, so nobody can self-serve a markup. */
+  const [isAgency, setIsAgency] = useState(false);
 
   const [activeTab, setActiveTab] = useState<'services' | 'tracker' | 'faqs' | 'oms'>('services');
   const [activeService, setActiveService] = useState<'visa' | 'fasttrack' | 'pickup' | null>(null);
@@ -164,6 +166,7 @@ export default function App() {
         setCurrentUser({ uid: user.uid, email: user.email, displayName: user.displayName });
         try {
           const token = await user.getIdTokenResult();
+          setIsAgency(token.claims.agency === true);
           if (token.claims.staff === true) {
             setUserRole('staff');
             safeStorage.setItem('digivisa_user_role', 'staff');
@@ -173,11 +176,13 @@ export default function App() {
           }
         } catch {
           setUserRole('customer');
+          setIsAgency(false);
         }
       } else {
         prevUidRef.current = null;
         setCurrentUser(null);
         setUserRole('customer');
+        setIsAgency(false);
         setOrders([]);
         safeStorage.setItem('digivisa_user_role', 'customer');
       }
@@ -1087,6 +1092,7 @@ export default function App() {
                         onCancel={() => setActiveService(null)}
                         language={language}
                         orders={orders}
+                        isAgency={isAgency}
                       />
                     )}
                     {activeService === 'fasttrack' && (
@@ -1096,6 +1102,7 @@ export default function App() {
                         onCancel={() => setActiveService(null)}
                         language={language}
                         orders={orders}
+                        isAgency={isAgency}
                       />
                     )}
                     {activeService === 'pickup' && (
@@ -1105,6 +1112,7 @@ export default function App() {
                         onCancel={() => setActiveService(null)}
                         language={language}
                         orders={orders}
+                        isAgency={isAgency}
                       />
                     )}
                   </div>

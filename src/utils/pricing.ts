@@ -112,6 +112,25 @@ export function formatConvertedPrice(usdAmount: number, currency: Currency): str
 }
 
 /**
+ * An agency types their commission in whichever currency is on screen. Both totals
+ * need it, so express it in each: the one they typed is kept exact, the other is
+ * converted. Charging happens in VND, so a commission entered in VND reaches 9Pay
+ * to the dong with no round trip through USD.
+ */
+export function splitCommission(
+  amount: number,
+  currency: Currency
+): { usd: number; vnd: number } {
+  if (!amount || !Number.isFinite(amount) || amount <= 0) {
+    return { usd: 0, vnd: 0 };
+  }
+  if (currency === 'VND') {
+    return { usd: amount / EXCHANGE_RATES.VND, vnd: Math.round(amount) };
+  }
+  return { usd: amount, vnd: usdToVnd(amount) };
+}
+
+/**
  * Resolve chargeable VND for an order. Prefer explicit amountVnd / totalVnd;
  * never invent a sub-minimum placeholder amount.
  */
