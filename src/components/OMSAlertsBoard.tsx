@@ -436,6 +436,15 @@ export default function OMSAlertsBoard({
               <span className="italic">Operational Alert Centre</span>
             )}
           </span>
+          {onOpenInManagement && (
+            <button
+              type="button"
+              onClick={() => onOpenInManagement(order.id)}
+              className="text-purple-700 hover:text-purple-900 font-bold text-[10px] cursor-pointer transition-colors"
+            >
+              {language === 'EN' ? 'Open in Order Management ➜' : 'Mở trong Order Management ➜'}
+            </button>
+          )}
         </div>
       </div>
     );
