@@ -12,10 +12,9 @@ interface OMSAlertsBoardProps {
   currency: Currency;
   assignedPartners: Record<string, string>;
   setAssignedPartners: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-  invoiceStatuses: Record<string, 'Draft' | 'Sent to Customer' | 'Issued & Tax Stamped' | 'Archived'>;
-  setInvoiceStatuses: React.Dispatch<React.SetStateAction<Record<string, 'Draft' | 'Sent to Customer' | 'Issued & Tax Stamped' | 'Archived'>>>;
   onSelectOrder: (orderId: string, tab: 'All' | 'Visa' | 'FastTrack' | 'AirportPickup' | 'VAT') => void;
   PARTNERS: Record<string, Array<{ id: string; name: string; contact: string; rating: string; activeOrders: number }>>;
+  onUpdateOrder?: (orderId: string, fields: Record<string, any>) => Promise<{ success: boolean; error?: string }>;
 }
 
 export default function OMSAlertsBoard({
@@ -24,10 +23,9 @@ export default function OMSAlertsBoard({
   currency,
   assignedPartners,
   setAssignedPartners,
-  invoiceStatuses,
-  setInvoiceStatuses,
   onSelectOrder,
-  PARTNERS
+  PARTNERS,
+  onUpdateOrder,
 }: OMSAlertsBoardProps) {
   // Let the user mock different system simulation dates to observe the reactive operational queue
   const [simDate, setSimDate] = useState<string>(() => {
@@ -479,8 +477,9 @@ export default function OMSAlertsBoard({
 
     // 6. Alert: Invoice explicitly requested, order paid, but invoice state is still Draft or Sent (needs Issued & Tax Stamped)
     if (details.wantsInvoice && isPaid) {
-      const invState = invoiceStatuses[order.id];
-      if (!invState || invState === 'Draft') {
+      const invState = order.invoiceStatus || 'Draft';
+      if (invState === 'Draft') {
+        const baseId = order.id.replace('_secondary', '');
         generatedAlerts.push({
           id: `invoice_unresolved_${order.id}`,
           order,
@@ -489,7 +488,7 @@ export default function OMSAlertsBoard({
           message: `Customer requested direct RED VAT Invoice for ${order.id}, but no stamp has been locked.`,
           solutionText: 'Issue Stamped Tax Invoice',
           onResolve: () => {
-            setInvoiceStatuses(prev => ({ ...prev, [order.id]: 'Issued & Tax Stamped' }));
+            onUpdateOrder?.(baseId, { invoiceStatus: 'Issued & Tax Stamped' });
           }
         });
       }

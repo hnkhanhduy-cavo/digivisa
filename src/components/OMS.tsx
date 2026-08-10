@@ -307,17 +307,6 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOrder, setSortOrder] = useState<'created_desc' | 'created_asc' | 'service_desc' | 'service_asc'>('created_desc');
   const [hoveredStepName, setHoveredStepName] = useState<string | null>(null);
-  
-  // Local state for invoice statuses (Draft, Issued, Paid, Sent)
-  const [invoiceStatuses, setInvoiceStatuses] = useState<Record<string, 'Draft' | 'Sent to Customer' | 'Issued & Tax Stamped' | 'Archived'>>(() => {
-    const saved = safeStorage.getItem('digivisa_invoice_statuses');
-    return saved ? JSON.parse(saved) : {
-      'DV-VISA-88991': 'Sent to Customer',
-      'DV-FAST-40112': 'Draft',
-      'DV-PICK-33880': 'Issued & Tax Stamped'
-    };
-  });
-
   // Derived map for partner assignment directly from server orders list
   const assignedPartners = React.useMemo(() => {
     const map: Record<string, string> = {};
@@ -371,24 +360,7 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
     return map;
   }, [orders]);
 
-  // Checklist verification states per order (saved locally to make the partner QA check persistent)
-  const [checklists, setChecklists] = useState<Record<string, Record<string, boolean>>>(() => {
-    const saved = safeStorage.getItem('digivisa_checklists');
-    return saved ? JSON.parse(saved) : {
-      'DV-774910': { 'scanVerified': true, 'tierVerified': true, 'escrowAllocated': true },
-      'DV-FT4015': { 'liaisonRostered': true, 'wheelchairCheck': true }
-    };
-  });
-
   const [chatInput, setChatInput] = useState('');
-
-  useEffect(() => {
-    safeStorage.setItem('digivisa_checklists', JSON.stringify(checklists));
-  }, [checklists]);
-
-  useEffect(() => {
-    safeStorage.setItem('digivisa_invoice_statuses', JSON.stringify(invoiceStatuses));
-  }, [invoiceStatuses]);
 
 
 
@@ -971,16 +943,19 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
   };
 
   const toggleChecklist = (orderId: string, itemKey: string) => {
-    setChecklists(prev => {
-      const orderCheckables = prev[orderId] || {};
-      return {
-        ...prev,
-        [orderId]: {
-          ...orderCheckables,
-          [itemKey]: !orderCheckables[itemKey]
-        }
-      };
-    });
+    const isSec = orderId.endsWith('_secondary');
+    const baseId = isSec ? orderId.replace('_secondary', '') : orderId;
+    const baseOrder = (orders || paidOrders || []).find((o) => o.id === baseId);
+    if (!baseOrder) return;
+
+    const currentChecklist = (isSec ? baseOrder.checklistSecondary : baseOrder.checklist) || {};
+    const updatedChecklist = {
+      ...currentChecklist,
+      [itemKey]: !currentChecklist[itemKey]
+    };
+
+    const fieldKey = isSec ? 'checklistSecondary' : 'checklist';
+    onUpdateOrder?.(baseId, { [fieldKey]: updatedChecklist });
   };
 
   const updateOrderStatus = async (orderId: string, newStatus: Order['status']) => {
@@ -1171,11 +1146,20 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
   const selectedOrder = getSplitOrders(paidOrders).find(o => o.id === selectedOrderId);
   const selectedOrderPartner = selectedOrder ? PARTNERS[selectedOrder.type].find(p => p.id === assignedPartners[selectedOrder.id]) : null;
   const selectedOrderDiscussion = selectedOrder ? (discussions[selectedOrder.id] || []) : [];
-  const selectedOrderChecklist = selectedOrder ? (checklists[selectedOrder.id] || {}) : {};
+  const selectedOrderChecklist = (() => {
+    if (!selectedOrder) return {};
+    const isSec = selectedOrder.id.endsWith('_secondary');
+    const baseId = isSec ? selectedOrder.id.replace('_secondary', '') : selectedOrder.id;
+    const baseOrder = (orders || paidOrders || []).find((o) => o.id === baseId) || selectedOrder;
+    return (isSec ? baseOrder.checklistSecondary : baseOrder.checklist) || {};
+  })();
 
   // Render appropriate checklist template based on service type
   const renderPartnerChecklist = (order: Order) => {
-    const orderChecklist = checklists[order.id] || {};
+    const isSec = order.id.endsWith('_secondary');
+    const baseId = isSec ? order.id.replace('_secondary', '') : order.id;
+    const baseOrder = (orders || paidOrders || []).find((o) => o.id === baseId) || order;
+    const orderChecklist = (isSec ? baseOrder.checklistSecondary : baseOrder.checklist) || {};
 
     if (order.type === 'Visa') {
       const details = order.details as any;
@@ -1693,7 +1677,9 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
 
                         if (partnerServiceTab === 'VAT') {
                           const details = order.details as any;
-                          const invStatus = invoiceStatuses[order.id] || 'Draft';
+                          const baseId = order.id.replace('_secondary', '');
+                          const baseOrder = (orders || paidOrders || []).find((o) => o.id === baseId) || order;
+                          const invStatus = baseOrder.invoiceStatus || 'Draft';
                           return (
                             <tr
                               key={order.id}
@@ -1736,10 +1722,7 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
                                 <select
                                   value={invStatus}
                                   onChange={(e) => {
-                                    setInvoiceStatuses(prev => ({
-                                      ...prev,
-                                      [order.id]: e.target.value as any
-                                    }));
+                                    onUpdateOrder?.(baseId, { invoiceStatus: e.target.value as any });
                                   }}
                                   className={`text-[10px] font-black rounded-lg px-2.5 py-1.5 border focus:outline-none focus:ring-2 focus:ring-red-400/20 cursor-pointer ${
                                     invStatus === 'Draft'
@@ -2042,36 +2025,39 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
                 </div>
 
                   {/* Status controls */}
-                  {partnerServiceTab === 'VAT' ? (
-                    <div className="flex flex-col gap-1.5 w-full bg-amber-50/50 border border-amber-200 p-3.5 rounded-2xl">
-                      <span className="text-[10px] text-amber-800 font-extrabold uppercase tracking-wider block">
-                        VAT Invoice Workflow Status
-                      </span>
-                      <select
-                        value={invoiceStatuses[selectedOrder.id] || 'Draft'}
-                        onChange={(e) => {
-                          setInvoiceStatuses(prev => ({
-                            ...prev,
-                            [selectedOrder.id]: e.target.value as any
-                          }));
-                        }}
-                        className={`text-xs font-bold rounded-xl px-2.5 py-2 border focus:outline-none focus:ring-2 focus:ring-amber-500/20 cursor-pointer w-full font-sans transition-all ${
-                          (invoiceStatuses[selectedOrder.id] || 'Draft') === 'Draft'
-                            ? 'bg-slate-50 text-slate-800 border-slate-200'
-                            : (invoiceStatuses[selectedOrder.id] || 'Draft') === 'Sent to Customer'
-                              ? 'bg-blue-50 text-blue-850 border-blue-200'
-                              : (invoiceStatuses[selectedOrder.id] || 'Draft') === 'Issued & Tax Stamped'
-                                ? 'bg-emerald-50 text-emerald-850 border-emerald-200'
-                                : 'bg-slate-550 text-slate-800 border-slate-200'
-                        }`}
-                      >
-                        <option value="Draft">1. Draft (Saved)</option>
-                        <option value="Sent to Customer">2. Sent to Customer</option>
-                        <option value="Issued & Tax Stamped">3. Issued & Tax Stamped</option>
-                        <option value="Archived">4. Archived</option>
-                      </select>
-                    </div>
-                  ) : (
+                  {partnerServiceTab === 'VAT' ? (() => {
+                    const selBaseId = selectedOrder.id.replace('_secondary', '');
+                    const selBaseOrder = (orders || paidOrders || []).find((o) => o.id === selBaseId) || selectedOrder;
+                    const selInvStatus = selBaseOrder.invoiceStatus || 'Draft';
+
+                    return (
+                      <div className="flex flex-col gap-1.5 w-full bg-amber-50/50 border border-amber-200 p-3.5 rounded-2xl">
+                        <span className="text-[10px] text-amber-800 font-extrabold uppercase tracking-wider block">
+                          VAT Invoice Workflow Status
+                        </span>
+                        <select
+                          value={selInvStatus}
+                          onChange={(e) => {
+                            onUpdateOrder?.(selBaseId, { invoiceStatus: e.target.value as any });
+                          }}
+                          className={`text-xs font-bold rounded-xl px-2.5 py-2 border focus:outline-none focus:ring-2 focus:ring-amber-500/20 cursor-pointer w-full font-sans transition-all ${
+                            selInvStatus === 'Draft'
+                              ? 'bg-slate-50 text-slate-800 border-slate-200'
+                              : selInvStatus === 'Sent to Customer'
+                                ? 'bg-blue-50 text-blue-850 border-blue-200'
+                                : selInvStatus === 'Issued & Tax Stamped'
+                                  ? 'bg-emerald-50 text-emerald-850 border-emerald-200'
+                                  : 'bg-slate-550 text-slate-800 border-slate-200'
+                          }`}
+                        >
+                          <option value="Draft">1. Draft (Saved)</option>
+                          <option value="Sent to Customer">2. Sent to Customer</option>
+                          <option value="Issued & Tax Stamped">3. Issued & Tax Stamped</option>
+                          <option value="Archived">4. Archived</option>
+                        </select>
+                      </div>
+                    );
+                  })() : (
                     <div className="flex flex-col gap-2 w-full">
                       <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Gateway Status Controller</span>
                       
@@ -2930,9 +2916,8 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
           currency={currency}
           assignedPartners={assignedPartners}
           setAssignedPartners={setAssignedPartners}
-          invoiceStatuses={invoiceStatuses}
-          setInvoiceStatuses={setInvoiceStatuses}
           PARTNERS={PARTNERS}
+          onUpdateOrder={onUpdateOrder}
           onSelectOrder={(orderId, tab) => {
             setPartnerServiceTab(tab);
             setSelectedOrderId(orderId);

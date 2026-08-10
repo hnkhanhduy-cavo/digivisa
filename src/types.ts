@@ -162,6 +162,9 @@ export interface Order {
   secondaryStaffPhoto?: string;
   secondaryLicensePlate?: string;
   secondaryCarPhoto?: string;
+  checklist?: Record<string, boolean>;
+  checklistSecondary?: Record<string, boolean>;
+  invoiceStatus?: 'Draft' | 'Sent to Customer' | 'Issued & Tax Stamped' | 'Archived';
   editLog?: OrderEditLogEntry[];
 }
 
