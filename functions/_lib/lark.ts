@@ -6,6 +6,7 @@ export interface TicketPayload {
   serviceLabel: string;
   customerName: string;
   customerPhone: string;
+  contactPref?: string;
   customerEmail: string;
   serviceDate: string;
   flightNumber?: string;
@@ -152,6 +153,14 @@ export async function sendLarkChatMessage(payload: TicketPayload, env: Env): Pro
           is_short: true,
           text: { tag: 'lark_md', content: `**SĐT:**\n${payload.customerPhone}` },
         },
+        ...(payload.contactPref
+          ? [
+              {
+                is_short: true,
+                text: { tag: 'lark_md', content: `**Kênh liên lạc:**\n${payload.contactPref}` },
+              },
+            ]
+          : []),
         {
           is_short: true,
           text: { tag: 'lark_md', content: `**Email:**\n${payload.customerEmail}` },

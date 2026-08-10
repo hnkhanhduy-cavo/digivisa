@@ -33,6 +33,7 @@ export function buildTicketPayload(orderId: string, rawDoc: any): TicketPayload 
 
   let customerName = '';
   let customerPhone = '';
+  let contactPref: string | undefined = undefined;
   let customerEmail = '';
   let serviceDate = '';
   let flightNumber: string | undefined = undefined;
@@ -52,6 +53,7 @@ export function buildTicketPayload(orderId: string, rawDoc: any): TicketPayload 
     serviceLabel = 'Fast Track';
     customerName = genericName;
     customerPhone = getRawString(detailsFields.contactPhone) || getRawString(detailsFields.phone) || '';
+    contactPref = getRawString(detailsFields.contactPref);
     customerEmail = getRawString(detailsFields.contactEmail) || getRawString(detailsFields.email) || '';
     flightNumber = getRawString(detailsFields.flightNumber);
     airport = getRawString(detailsFields.airport);
@@ -62,6 +64,7 @@ export function buildTicketPayload(orderId: string, rawDoc: any): TicketPayload 
     serviceLabel = 'Đưa đón sân bay';
     customerName = genericName;
     customerPhone = getRawString(detailsFields.passengerPhone) || getRawString(detailsFields.phone) || '';
+    contactPref = getRawString(detailsFields.contactPref);
     customerEmail = getRawString(detailsFields.passengerEmail) || getRawString(detailsFields.email) || '';
     flightNumber = getRawString(detailsFields.flightNumber);
     airport = getRawString(detailsFields.airport);
@@ -73,16 +76,24 @@ export function buildTicketPayload(orderId: string, rawDoc: any): TicketPayload 
     serviceLabel = 'Visa';
     customerName = genericName;
     customerPhone = getRawString(detailsFields.phone) || getRawString(detailsFields.contactPhone) || '';
+    contactPref = getRawString(detailsFields.contactPref);
     customerEmail = getRawString(detailsFields.email) || getRawString(detailsFields.contactEmail) || '';
     serviceDate = getRawString(detailsFields.arrivalDate) || '';
   }
 
-  // Deduplicate repeated (WhatsApp) / (Zalo) suffixes in phone string
+  // Strips all trailing parenthesized channel suffixes from legacy phone string (e.g. '0972286699 (Zalo)' or '0972286699 (WhatsApp) (WhatsApp)').
+  // Matches parsing behavior with parsePhoneAndChannel in src/utils/validation.ts.
   if (customerPhone) {
-    customerPhone = customerPhone
-      .replace(/(\(WhatsApp\)\s*)+/gi, '(WhatsApp) ')
-      .replace(/(\(Zalo\)\s*)+/gi, '(Zalo) ')
-      .trim();
+    const raw = customerPhone.trim();
+    const match = raw.match(/^(.*?)(?:\s*\(([^)]+)\))+$/);
+    if (match) {
+      customerPhone = match[1].trim();
+      if (!contactPref) {
+        contactPref = match[2].trim();
+      }
+    } else {
+      customerPhone = raw;
+    }
   }
 
   const isCombo =
@@ -94,6 +105,7 @@ export function buildTicketPayload(orderId: string, rawDoc: any): TicketPayload 
     serviceLabel,
     customerName,
     customerPhone,
+    contactPref,
     customerEmail,
     serviceDate,
     flightNumber,

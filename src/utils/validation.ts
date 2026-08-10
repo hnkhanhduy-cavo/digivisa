@@ -236,6 +236,8 @@ export function getVietnamToday(): string {
  * Rules:
  * - Explicit contactPref argument takes precedence if provided.
  * - If rawPhone contains parenthesized channel at the end (e.g. '0972286699 (Zalo)'), parses phone number and channel.
+ * - Strips all trailing parenthesized channel suffixes if duplicated (e.g. '0972286699 (WhatsApp) (WhatsApp)').
+ * - NOTE: This parsing logic and regex must stay synchronized with buildTicketPayload in functions/_lib/notify.ts.
  * - Returns { phone: string, channel: string }. Returns empty string for channel if none exists.
  */
 export function parsePhoneAndChannel(rawPhone?: string | null, contactPref?: string | null): { phone: string; channel: string } {
@@ -246,7 +248,7 @@ export function parsePhoneAndChannel(rawPhone?: string | null, contactPref?: str
     return { phone: '', channel: channelFromPref };
   }
 
-  const match = raw.match(/^(.*?)\s*\(([^)]+)\)$/);
+  const match = raw.match(/^(.*?)(?:\s*\(([^)]+)\))+$/);
   if (match) {
     const parsedPhone = match[1].trim();
     const parsedChannel = match[2].trim();
