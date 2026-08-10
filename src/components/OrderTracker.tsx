@@ -152,8 +152,8 @@ export default function OrderTracker({
     const qDigits = q.replace(/\D/g, '');
 
     return userVisibleOrders.filter((o) => {
-      // 1. Match Order ID or Service Type
-      if ((o.id || '').toLowerCase().includes(q) || (o.type || '').toLowerCase().includes(q)) {
+      // 1. Match Order ID or Service Type (service type requires query length >= 3)
+      if ((o.id || '').toLowerCase().includes(q) || (q.length >= 3 && (o.type || '').toLowerCase().includes(q))) {
         return true;
       }
 
@@ -181,23 +181,23 @@ export default function OrderTracker({
         }
       }
 
-      // 4. Match Phone Number (digits-only comparison in both directions, plus 0/84 normalization)
-      if (qDigits.length > 0) {
+      // 4. Match Phone Number (requires at least 3 digits, single-direction comparison, plus 0/84 normalization)
+      if (qDigits.length >= 3) {
         const phoneList = [
           details.phone,
           details.contactPhone,
           details.passengerPhone
         ];
+        const normQ = qDigits.startsWith('84') ? '0' + qDigits.slice(2) : qDigits;
         for (const ph of phoneList) {
           if (ph && typeof ph === 'string' && ph.toLowerCase() !== 'n/a') {
             const phDigits = ph.replace(/\D/g, '');
             if (phDigits.length > 0) {
-              if (phDigits.includes(qDigits) || qDigits.includes(phDigits)) {
+              if (phDigits.includes(qDigits)) {
                 return true;
               }
               const normPh = phDigits.startsWith('84') ? '0' + phDigits.slice(2) : phDigits;
-              const normQ = qDigits.startsWith('84') ? '0' + qDigits.slice(2) : qDigits;
-              if (normPh.includes(normQ) || normQ.includes(normPh)) {
+              if (normPh.includes(normQ)) {
                 return true;
               }
             }

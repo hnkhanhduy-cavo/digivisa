@@ -453,15 +453,42 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
     
     if (!searchQuery.trim()) return true;
     
-    const query = searchQuery.toLowerCase();
-    const details = o.details as any;
+    const query = searchQuery.trim().toLowerCase();
+    const details = (o.details || {}) as any;
     const leadName = o.type === 'Visa' 
       ? `${details.firstName || ''} ${details.lastName || ''}`.toLowerCase() 
       : (details.contactName || details.passengerName || '').toLowerCase();
-    
+
+    const qDigits = query.replace(/\D/g, '');
+    let matchesPhone = false;
+    if (qDigits.length >= 3) {
+      const phoneList = [
+        details.contactPhone,
+        details.passengerPhone,
+        details.phone
+      ];
+      const normQ = qDigits.startsWith('84') ? '0' + qDigits.slice(2) : qDigits;
+      for (const ph of phoneList) {
+        if (ph && typeof ph === 'string' && ph.toLowerCase() !== 'n/a') {
+          const phDigits = ph.replace(/\D/g, '');
+          if (phDigits.length > 0) {
+            if (phDigits.includes(qDigits)) {
+              matchesPhone = true;
+              break;
+            }
+            const normPh = phDigits.startsWith('84') ? '0' + phDigits.slice(2) : phDigits;
+            if (normPh.includes(normQ)) {
+              matchesPhone = true;
+              break;
+            }
+          }
+        }
+      }
+    }
+
     return o.id.toLowerCase().includes(query) || 
            leadName.includes(query) ||
-           (details.contactPhone || details.passengerPhone || details.phone || '').includes(query) ||
+           matchesPhone ||
            (details.contactEmail || details.passengerEmail || details.email || '').toLowerCase().includes(query);
   });
 

@@ -219,25 +219,25 @@ export default function OMSAgencyComms({
       }
     }
 
-    // 4. Match Phone Number (digits-only comparison in both directions, plus 0/84 normalization)
+    // 4. Match Phone Number (requires at least 3 digits, single-direction comparison, plus 0/84 normalization)
     const qDigits = q.replace(/\D/g, '');
-    if (qDigits.length > 0) {
+    if (qDigits.length >= 3) {
       const phoneList = [
         contact.phone,
         details.phone,
         details.contactPhone,
         details.passengerPhone
       ];
+      const normQ = qDigits.startsWith('84') ? '0' + qDigits.slice(2) : qDigits;
       for (const ph of phoneList) {
         if (ph && typeof ph === 'string' && ph.toLowerCase() !== 'n/a') {
           const phDigits = ph.replace(/\D/g, '');
           if (phDigits.length > 0) {
-            if (phDigits.includes(qDigits) || qDigits.includes(phDigits)) {
+            if (phDigits.includes(qDigits)) {
               return true;
             }
             const normPh = phDigits.startsWith('84') ? '0' + phDigits.slice(2) : phDigits;
-            const normQ = qDigits.startsWith('84') ? '0' + qDigits.slice(2) : qDigits;
-            if (normPh.includes(normQ) || normQ.includes(normPh)) {
+            if (normPh.includes(normQ)) {
               return true;
             }
           }
