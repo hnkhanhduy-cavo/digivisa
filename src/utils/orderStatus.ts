@@ -36,14 +36,6 @@ export const SERVICE_FLOW_STEPS: Record<string, StatusStep[]> = {
 
 // 2. Sub-status options mapping (Visa only)
 export const VISA_SUB_STATUS_MAP: Record<string, SubStatusOption[]> = {
-  'Agency Review': [
-    { id: 'Standard doc check', labelEn: 'Standard doc check', labelVi: 'Kiểm tra hồ sơ tiêu chuẩn' },
-    { id: 'More docs required', labelEn: 'More docs required', labelVi: 'Yêu cầu bổ sung giấy tờ' },
-  ],
-  'Submitted to Embassy': [
-    { id: 'Standard doc check', labelEn: 'Standard doc check', labelVi: 'Kiểm tra hồ sơ tiêu chuẩn' },
-    { id: 'More docs required', labelEn: 'More docs required', labelVi: 'Yêu cầu bổ sung giấy tờ' },
-  ],
   'Completed': [
     { id: 'Approved', labelEn: 'Approved', labelVi: 'Đã duyệt' },
     { id: 'Rejected', labelEn: 'Rejected', labelVi: 'Từ chối' },
@@ -73,7 +65,7 @@ export function getSubStatusOptions(status: string, serviceType?: string): strin
 }
 
 /**
- * Returns step list for customer OrderTracker timeline.
+ * Returns master operational step list for OrderTracker timeline.
  */
 export function getTimelineStepsForOrder(serviceType: string): { id: string; label: string; desc: string }[] {
   const steps = SERVICE_FLOW_STEPS[serviceType] || SERVICE_FLOW_STEPS['Visa'];
@@ -85,7 +77,19 @@ export function getTimelineStepsForOrder(serviceType: string): { id: string; lab
 }
 
 /**
- * Normalizes status strings for customer OrderTracker timeline indexing.
+ * Returns customer-facing timeline step list.
+ * Excludes internal operational steps (e.g. 'Agency Review' for Visa) so customers see a clean 4-step progress flow.
+ */
+export function getCustomerTimelineStepsForOrder(serviceType: string): { id: string; label: string; desc: string }[] {
+  const steps = getTimelineStepsForOrder(serviceType);
+  if (serviceType === 'Visa') {
+    return steps.filter((step) => step.id !== 'Agency Review');
+  }
+  return steps;
+}
+
+/**
+ * Master operational status normalizer for OrderTracker timeline indexing.
  */
 export function normalizeStatusForTimeline(status: string | undefined, serviceType: string): string {
   if (!status || !status.trim()) {
@@ -127,6 +131,18 @@ export function normalizeStatusForTimeline(status: string | undefined, serviceTy
   }
 
   return s;
+}
+
+/**
+ * Customer-facing status normalizer for timeline display.
+ * Maps internal operational statuses like 'Agency Review' to customer-visible statuses (e.g. 'Confirmed').
+ */
+export function normalizeCustomerStatusForTimeline(status: string | undefined, serviceType: string): string {
+  const normalized = normalizeStatusForTimeline(status, serviceType);
+  if (serviceType === 'Visa' && normalized === 'Agency Review') {
+    return 'Confirmed';
+  }
+  return normalized;
 }
 
 /**

@@ -12,7 +12,7 @@ import { Language, TRANSLATIONS } from '../utils/translations';
 import { getVietnamPricing } from '../utils/pricing';
 import { formatPhoneE164 } from '../utils/validation';
 import { hasWhatsApp, hasZalo, buildWhatsAppChatUrl, buildZaloChatUrl } from '../utils/contact';
-import { getTimelineStepsForOrder, normalizeStatusForTimeline, getStatusLabel, getSubStatusLabel } from '../utils/orderStatus';
+import { getCustomerTimelineStepsForOrder, normalizeCustomerStatusForTimeline, getStatusLabel, getSubStatusLabel } from '../utils/orderStatus';
 
 interface OrderTrackerProps {
   orders: Order[];
@@ -241,7 +241,7 @@ export default function OrderTracker({
   };
 
   const getStatusMessage = (order: Order) => {
-    const s = normalizeStatusForTimeline(order.status, order.type);
+    const s = normalizeCustomerStatusForTimeline(order.status, order.type);
     
     if (order.type === 'Visa') {
       if (s === 'Confirmed') {
@@ -847,8 +847,8 @@ export default function OrderTracker({
                           </span>
                         )}
                       </div>
-                      <span className={`text-[9px] font-bold border px-2 py-0.5 rounded-full ${getStatusColor(order.status)}`}>
-                        {order.status}
+                      <span className={`text-[9px] font-bold border px-2 py-0.5 rounded-full ${getStatusColor(normalizeCustomerStatusForTimeline(order.status, order.type))}`}>
+                        {normalizeCustomerStatusForTimeline(order.status, order.type)}
                       </span>
                     </div>
 
@@ -910,8 +910,8 @@ export default function OrderTracker({
                   </div>
                   <div className="flex items-center space-x-2 mt-1">
                     <h2 className="font-display font-bold text-2xl text-slate-900">{selectedOrder.id}</h2>
-                    <span className={`text-xs font-mono font-bold px-3 py-1 border rounded-lg ${getStatusColor(trackingOrder.status)}`}>
-                      {trackingOrder.status}
+                    <span className={`text-xs font-mono font-bold px-3 py-1 border rounded-lg ${getStatusColor(normalizeCustomerStatusForTimeline(trackingOrder.status, trackingOrder.type))}`}>
+                      {normalizeCustomerStatusForTimeline(trackingOrder.status, trackingOrder.type)}
                     </span>
                   </div>
                 </div>
@@ -1017,9 +1017,9 @@ export default function OrderTracker({
                       </div>
                     </div>
                   ) : (() => {
-                    const stepsForOrder = getTimelineStepsForOrder(trackingOrder!.type);
+                    const stepsForOrder = getCustomerTimelineStepsForOrder(trackingOrder!.type);
                     const totalSteps = stepsForOrder.length;
-                    const normalizedCurrent = normalizeStatusForTimeline(trackingOrder!.status, trackingOrder!.type);
+                    const normalizedCurrent = normalizeCustomerStatusForTimeline(trackingOrder!.status, trackingOrder!.type);
                     const currentIndex = stepsForOrder.findIndex(step => step.id === normalizedCurrent);
 
                     return (
@@ -1055,7 +1055,7 @@ export default function OrderTracker({
                         </div>
 
                         {/* Combined Steps Column Row */}
-                        <div className="relative flex w-full">
+                        <div className="relative flex w-full gap-1 sm:gap-1.5">
                           {stepsForOrder.map((step, idx) => {
                             const isCompleted = isOrderPaid && idx < currentIndex;
                             const isActive = isOrderPaid && idx === currentIndex;
@@ -1081,7 +1081,7 @@ export default function OrderTracker({
 
                                 {/* Step Label & Description */}
                                 <div className="mt-2.5 flex flex-col items-center w-full px-0.5">
-                                  <span className={`text-[11px] font-bold transition-colors leading-tight break-words text-center ${
+                                  <span className={`text-[10px] sm:text-[11px] font-bold transition-colors leading-tight break-words text-center ${
                                     isActive ? 'text-indigo-600 font-extrabold' : isCompleted ? 'text-slate-700' : 'text-slate-400'
                                   }`}>
                                     {getStatusLabel(step.label, language as any)}
@@ -1106,14 +1106,12 @@ export default function OrderTracker({
                       <div>
                         <h5 className="font-bold text-slate-800 flex items-center gap-1.5 flex-wrap">
                           Status Detail: 
-                          <span className="text-indigo-600 font-mono font-black">{getStatusLabel(trackingOrder!.status, language as any)}</span>
-                          {trackingOrder!.type === 'Visa' && trackingOrder!.subStatus && (
+                          <span className="text-indigo-600 font-mono font-black">{getStatusLabel(normalizeCustomerStatusForTimeline(trackingOrder!.status, trackingOrder!.type), language as any)}</span>
+                          {trackingOrder!.type === 'Visa' && trackingOrder!.subStatus && ['Approved', 'Rejected', 'Declined'].includes(trackingOrder!.subStatus) && (
                             (() => {
                               const subVal = trackingOrder!.subStatus;
                               let style = 'bg-slate-100 text-slate-800 border-slate-200';
-                              if (subVal === 'More docs required') {
-                                style = 'bg-amber-100 text-amber-800 border-amber-200 animate-pulse';
-                              } else if (subVal === 'Approved') {
+                              if (subVal === 'Approved') {
                                 style = 'bg-emerald-100 text-emerald-800 border-emerald-200';
                               } else if (subVal === 'Rejected' || subVal === 'Declined') {
                                 style = 'bg-rose-100 text-rose-800 border-rose-200';
@@ -1144,7 +1142,7 @@ export default function OrderTracker({
                   {isOrderPaid && Boolean(trackingOrder!.staffName) && (
                     trackingOrder!.type === 'Visa' 
                       ? true 
-                      : ['Staff Assigned', 'Flying', 'Passenger Greet', 'Completed'].includes(normalizeStatusForTimeline(trackingOrder!.status, trackingOrder!.type))
+                      : ['Staff Assigned', 'Flying', 'Passenger Greet', 'Completed'].includes(normalizeCustomerStatusForTimeline(trackingOrder!.status, trackingOrder!.type))
                   ) && (
                   <div className="bg-gradient-to-r from-slate-50 to-indigo-50/20 border border-indigo-100 rounded-2xl p-4.5 space-y-3.5 shadow-sm mt-2.5">
                     <div className="flex items-center justify-between">
