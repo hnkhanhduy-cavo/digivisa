@@ -61,6 +61,9 @@ export function getServiceStatusOptions(serviceType: string): string[] {
  * Sub-statuses are ONLY applicable for Visa service. Returns [] for all other services.
  */
 export function getSubStatusOptions(status: string, serviceType?: string): string[] {
+  if (status === 'Cancelled') {
+    return ['Refunded'];
+  }
   if (serviceType !== 'Visa') {
     return [];
   }
@@ -169,6 +172,9 @@ export function getStatusLabel(status: string, lang: 'EN' | 'VI' = 'VI'): string
  * Gets bilingual label for sub-status.
  */
 export function getSubStatusLabel(subStatus: string, lang: 'EN' | 'VI' = 'VI'): string {
+  if (subStatus === 'Refunded') {
+    return lang === 'EN' ? 'Refunded' : 'Đã hoàn tiền';
+  }
   for (const list of Object.values(VISA_SUB_STATUS_MAP)) {
     const found = (list as SubStatusOption[]).find((s) => s.id === subStatus);
     if (found) {

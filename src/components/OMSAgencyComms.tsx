@@ -603,14 +603,12 @@ export default function OMSAgencyComms({
     if (isSec) {
       await onUpdateOrder?.(baseId, { secondaryStatus: newStatus, secondarySubStatus: null, opsNotes: updatedOpsNotes });
     } else {
-      const subOpts = getSubStatusOptions(newStatus, activeServiceType);
-      const subStatus = subOpts.length > 0 ? subOpts[0] : null;
-      await onUpdateOrder?.(baseId, { status: newStatus, subStatus, opsNotes: updatedOpsNotes });
+      await onUpdateOrder?.(baseId, { status: newStatus, subStatus: null, opsNotes: updatedOpsNotes });
     }
   };
 
   // Quick Action: Change Order Sub-Status & record log
-  const handleUpdateSubStatus = async (newSubStatus: string) => {
+  const handleUpdateSubStatus = async (newSubStatus: string | null) => {
     if (!selectedOrder) return;
 
     const isSec = selectedOrder.id.endsWith('_secondary');
@@ -619,7 +617,9 @@ export default function OMSAgencyComms({
     const existingNotes = (parentOrder as any)?.opsNotes || [];
 
     const legLabel = isSec ? 'Secondary Combo Leg' : 'Primary Leg';
-    const noteText = `System update: ${legLabel} (${activeServiceType}) sub-status set to "${newSubStatus}".`;
+    const noteText = newSubStatus
+      ? `System update: ${legLabel} (${activeServiceType}) sub-status set to "${newSubStatus}".`
+      : `System update: ${legLabel} (${activeServiceType}) sub-status cleared.`;
 
     const newNote = {
       text: noteText,
@@ -1944,17 +1944,20 @@ export default function OMSAgencyComms({
                           </div>
                           <div className="flex gap-2">
                             {getSubStatusOptions(selectedOrder.status, activeServiceType).map((subVal) => {
-                              const isSel = (selectedOrder.subStatus || getSubStatusOptions(selectedOrder.status, activeServiceType)[0]) === subVal;
+                              const currentSubStatus = selectedOrder.subStatus;
+                              const isSel = Boolean(currentSubStatus && currentSubStatus === subVal);
                               return (
                                 <button
                                   key={subVal}
                                   type="button"
-                                  onClick={() => handleUpdateSubStatus(subVal)}
+                                  onClick={() => handleUpdateSubStatus(isSel ? null : subVal)}
                                   className={`flex-1 text-[11px] font-bold py-1.5 px-2 rounded-lg border transition-all cursor-pointer ${
                                     isSel 
                                       ? subVal === 'Rejected'
                                         ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
-                                        : 'bg-amber-600 text-white border-amber-600 shadow-sm' 
+                                        : subVal === 'Refunded'
+                                          ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
+                                          : 'bg-amber-600 text-white border-amber-600 shadow-sm' 
                                       : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
                                   }`}
                                 >

@@ -228,7 +228,8 @@ function buildOrderExportFields(order: any): Array<{ label: string; value: strin
 
   const custPhone = getF(d, ['phone', 'phoneNumber', 'contactPhone', 'passengerPhone', 'mobile', 'tel', 'phoneNo'], getF(order, ['phone', 'phoneNumber'], 'Chưa có'));
   const custEmail = getF(d, ['email', 'contactEmail', 'passengerEmail', 'userEmail', 'mail'], getF(order, ['email', 'userEmail'], 'Chưa có'));
-  const paymentStatus = order.paymentStatus || 'Chưa có';
+  const isRefunded = order.paymentStatus === 'Refunded' || order.subStatus === 'Refunded';
+  const paymentStatus = isRefunded ? 'Refunded (Đã hoàn tiền)' : (order.paymentStatus || 'Chưa có');
 
   if (effectiveType === 'Visa') {
     return [
@@ -1914,17 +1915,23 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
 
                             {/* Payment */}
                             <td className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
-                              <span className={`inline-block text-[10px] font-bold rounded-lg px-2.5 py-1.5 border font-sans ${
-                                order.paymentStatus?.startsWith('Paid')
-                                  ? 'bg-emerald-50 text-emerald-800 border-emerald-250'
-                                  : order.paymentStatus === 'Refunded'
-                                    ? 'bg-rose-50 text-rose-805 border-rose-200'
-                                    : 'bg-amber-50 text-amber-805 border-amber-250'
-                              }`}>
-                                {order.paymentStatus?.startsWith('Paid') ? '✅ ' + order.paymentStatus :
-                                 order.paymentStatus === 'Refunded' ? '↩️ Refunded' :
-                                 '⏳ Pending'}
-                              </span>
+                              {(() => {
+                                const isRefunded = order.paymentStatus === 'Refunded' || order.subStatus === 'Refunded';
+                                const isPaid = !isRefunded && order.paymentStatus?.startsWith('Paid');
+                                return (
+                                  <span className={`inline-block text-[10px] font-bold rounded-lg px-2.5 py-1.5 border font-sans ${
+                                    isPaid
+                                      ? 'bg-emerald-50 text-emerald-800 border-emerald-250'
+                                      : isRefunded
+                                        ? 'bg-rose-50 text-rose-805 border-rose-200'
+                                        : 'bg-amber-50 text-amber-805 border-amber-250'
+                                  }`}>
+                                    {isPaid ? '✅ ' + order.paymentStatus :
+                                     isRefunded ? '↩️ Refunded' :
+                                     '⏳ Pending'}
+                                  </span>
+                                );
+                              })()}
                             </td>
 
                             {/* Progress */}
@@ -2103,22 +2110,28 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
                         {/* Payment Status (Read-Only) */}
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-slate-500 uppercase">Payment Status:</label>
-                          <div className={`w-full text-xs font-bold rounded-xl px-3 py-2 border flex items-center justify-between ${
-                            selectedOrder.paymentStatus?.startsWith('Paid')
-                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                              : selectedOrder.paymentStatus === 'Refunded'
-                                ? 'bg-rose-50 text-rose-800 border-rose-200'
-                                : 'bg-amber-50 text-amber-800 border-amber-200'
-                          }`}>
-                            <span>
-                              {selectedOrder.paymentStatus?.startsWith('Paid') ? '✅ Paid (Completed)' :
-                               selectedOrder.paymentStatus === 'Refunded' ? '↩️ Refunded' :
-                               '⏳ Pending Payment'}
-                            </span>
-                            <span className="text-[9px] font-extrabold uppercase bg-white/70 px-1.5 py-0.5 rounded border border-current opacity-75">
-                              Auto Sync
-                            </span>
-                          </div>
+                          {(() => {
+                            const isRefunded = selectedOrder.paymentStatus === 'Refunded' || selectedOrder.subStatus === 'Refunded';
+                            const isPaid = !isRefunded && selectedOrder.paymentStatus?.startsWith('Paid');
+                            return (
+                              <div className={`w-full text-xs font-bold rounded-xl px-3 py-2 border flex items-center justify-between ${
+                                isPaid
+                                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                  : isRefunded
+                                    ? 'bg-rose-50 text-rose-800 border-rose-200'
+                                    : 'bg-amber-50 text-amber-800 border-amber-200'
+                              }`}>
+                                <span>
+                                  {isPaid ? '✅ Paid (Completed)' :
+                                   isRefunded ? '↩️ Refunded' :
+                                   '⏳ Pending Payment'}
+                                </span>
+                                <span className="text-[9px] font-extrabold uppercase bg-white/70 px-1.5 py-0.5 rounded border border-current opacity-75">
+                                  Auto Sync
+                                </span>
+                              </div>
+                            );
+                          })()}
                           <p className="text-[9.5px] text-slate-400 font-medium italic leading-tight">
                             {language === 'EN'
                               ? 'Payment status is set automatically by 9Pay and cannot be edited here.'
