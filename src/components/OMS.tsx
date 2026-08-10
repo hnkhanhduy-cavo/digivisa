@@ -307,6 +307,19 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOrder, setSortOrder] = useState<'created_desc' | 'created_asc' | 'service_desc' | 'service_asc'>('created_desc');
   const [hoveredStepName, setHoveredStepName] = useState<string | null>(null);
+  const [previewImage, setPreviewImage] = useState<{ url: string; filename: string } | null>(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setPreviewImage(null);
+      }
+    };
+    if (previewImage) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [previewImage]);
   // Derived map for partner assignment directly from server orders list
   const assignedPartners = React.useMemo(() => {
     const map: Record<string, string> = {};
@@ -2285,6 +2298,65 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
                       </div>
                     </div>
 
+                    {/* Combo Order Leg Switcher Button */}
+                    {(() => {
+                      const isSecLeg = selectedOrder.id?.endsWith('_secondary');
+                      const baseId = isSecLeg ? selectedOrder.id.replace('_secondary', '') : selectedOrder.id;
+                      const baseOrder = (paidOrders || orders || []).find((o) => o.id === baseId) || selectedOrder;
+                      const isCombo = isSecLeg || ((baseOrder.type === 'FastTrack' && (baseOrder.details as any)?.addAirportPickup) ||
+                                      (baseOrder.type === 'AirportPickup' && (baseOrder.details as any)?.addFastTrack) ||
+                                      Boolean((paidOrders || orders || []).find((o) => o.id === baseId + '_secondary')));
+
+                      if (!isCombo) return null;
+
+                      const formatServiceName = (type: string) => {
+                        if (type === 'FastTrack') return 'Fast Track';
+                        if (type === 'AirportPickup') return language === 'EN' ? 'Airport Pickup' : 'Đưa đón sân bay';
+                        return type;
+                      };
+
+                      if (isSecLeg) {
+                        const primaryType = baseOrder.type;
+                        const targetName = formatServiceName(primaryType);
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedOrderId(baseId)}
+                            className="w-full py-2 px-3 bg-purple-50 hover:bg-purple-100 text-purple-700 hover:text-purple-800 text-xs font-extrabold rounded-xl border border-purple-200 transition-colors cursor-pointer flex items-center justify-between shadow-xs font-sans"
+                          >
+                            <span>
+                              {language === 'EN'
+                                ? `⬅ Switch to primary leg (${targetName})`
+                                : `⬅ Chuyển về chặng chính (${targetName})`}
+                            </span>
+                            <span className="font-mono text-[10px] font-bold bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded border border-purple-200">
+                              {baseId}
+                            </span>
+                          </button>
+                        );
+                      } else {
+                        const secondaryType = selectedOrder.type === 'FastTrack' ? 'AirportPickup' : 'FastTrack';
+                        const targetName = formatServiceName(secondaryType);
+                        const targetId = baseId + '_secondary';
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedOrderId(targetId)}
+                            className="w-full py-2 px-3 bg-purple-50 hover:bg-purple-100 text-purple-700 hover:text-purple-800 text-xs font-extrabold rounded-xl border border-purple-200 transition-colors cursor-pointer flex items-center justify-between shadow-xs font-sans"
+                          >
+                            <span>
+                              {language === 'EN'
+                                ? `Switch to secondary leg (${targetName}) ➜`
+                                : `Chuyển sang chặng phụ (${targetName}) ➜`}
+                            </span>
+                            <span className="font-mono text-[10px] font-bold bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded border border-purple-200">
+                              {targetId}
+                            </span>
+                          </button>
+                        );
+                      }
+                    })()}
+
                     {/* Specialized Partner dispatch section */}
                     <div className="p-4 bg-slate-50 rounded-2xl border border-slate-250/60 space-y-3.5">
                       <div className="flex justify-between items-center">
@@ -2404,28 +2476,9 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
                                   )}
                                 </div>
                               ) : (
-                                <div className="space-y-2 pt-1 font-sans">
-                                  <div className="flex items-start space-x-1.5 text-amber-805 text-[10.5px] bg-amber-50/50 rounded-xl p-2.5 border border-amber-100">
-                                    <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-                                    <div className="space-y-1">
-                                      <p className="leading-tight font-bold text-amber-900">Primary coordinator assignment is pending.</p>
-                                      <p className="leading-tight text-amber-800 text-[10px]">
-                                        Partners cannot be modified from the status tracking tab. Please assign an operations partner from the Partner Liaison tab.
-                                      </p>
-                                    </div>
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const baseId = selectedOrder.parentId || selectedOrder.id;
-                                      setSelectedOrderId(baseId);
-                                      setOmsSubPage('agency_comms');
-                                    }}
-                                    className="w-full py-2 px-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 hover:text-indigo-800 text-[10.5px] font-extrabold rounded-xl text-center border border-indigo-200 transition-colors cursor-pointer"
-                                  >
-                                    Go to Partner Liaison & Operations Bridge ➜
-                                  </button>
-                                </div>
+                                <p className="text-xs text-slate-400 font-medium py-1 font-sans">
+                                  {language === 'EN' ? 'No partner assigned' : 'Chưa giao đối tác'}
+                                </p>
                               )}
                             </div>
 
@@ -2469,28 +2522,9 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
                                     </div>
                                   </div>
                                 ) : (
-                                  <div className="space-y-2 font-sans">
-                                    <div className="flex items-start space-x-1.5 text-purple-800 text-[10.5px] bg-purple-50 rounded-xl p-2.5 border border-purple-100">
-                                      <AlertCircle className="h-4 w-4 text-purple-600 shrink-0 mt-0.5" />
-                                      <div className="space-y-1">
-                                        <p className="leading-tight font-bold text-purple-900">Combo ground coordinator assignment is pending.</p>
-                                        <p className="leading-tight text-purple-800 text-[10px]">
-                                          Partners cannot be modified from the status tracking tab. Please assign an operations partner from the Partner Liaison tab.
-                                        </p>
-                                      </div>
-                                    </div>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        const baseId = selectedOrder.parentId || selectedOrder.id;
-                                        setSelectedOrderId(baseId + '_secondary');
-                                        setOmsSubPage('agency_comms');
-                                      }}
-                                      className="w-full py-2 px-3 bg-purple-50 hover:bg-purple-100 text-purple-700 hover:text-purple-800 text-[10.5px] font-extrabold rounded-xl text-center border border-purple-200 transition-colors cursor-pointer"
-                                    >
-                                      Go to Partner Liaison & Operations Bridge ➜
-                                    </button>
-                                  </div>
+                                  <p className="text-xs text-slate-400 font-medium py-1 font-sans">
+                                    {language === 'EN' ? 'No partner assigned' : 'Chưa giao đối tác'}
+                                  </p>
                                 )}
                               </div>
                             )}
@@ -2507,7 +2541,7 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
                           <span className="text-xs font-extrabold text-indigo-900 tracking-wider">📷 ATTACHED APPLICANT BIOMETRICS & PASSPORT</span>
                         </div>
                         
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 font-sans">
+                        <div className="grid grid-cols-1 gap-3 pt-1 font-sans">
                           {/* Passport scan preview */}
                           <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-2">
                             <span className="text-[10px] font-bold text-slate-500 block uppercase">Passport Info Page</span>
@@ -2516,36 +2550,17 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
                                 <img
                                   src={(selectedOrder.details as any).passportScanDataUrl}
                                   alt="Passport Scan"
-                                  className="w-full h-32 object-cover rounded-lg border border-slate-200 shadow-sm cursor-pointer hover:opacity-90 transition-opacity"
-                                  onClick={() => window.open((selectedOrder.details as any).passportScanDataUrl, '_blank')}
-                                  title="Click to view full resolution"
+                                  className="w-full h-48 object-contain bg-slate-900/5 rounded-lg border border-slate-200 shadow-sm cursor-pointer hover:opacity-90 transition-opacity"
+                                  onClick={() => setPreviewImage({
+                                    url: (selectedOrder.details as any).passportScanDataUrl,
+                                    filename: (selectedOrder.details as any).passportScan || `passport-${selectedOrder.id}.jpg`
+                                  })}
+                                  title={language === 'EN' ? 'Click to view full image' : 'Bấm để xem ảnh phóng to'}
                                 />
-                                <span className="text-[9px] font-mono text-indigo-600 block truncate">📂 {(selectedOrder.details as any).passportScan}</span>
                               </div>
                             ) : (
                               <div className="p-3 bg-slate-50 rounded-lg text-center border border-dashed border-slate-200">
                                 <p className="text-[10px] text-slate-400 font-mono">{(selectedOrder.details as any).passportScan || 'No Passport Image'}</p>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Portrait photo preview */}
-                          <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-2">
-                            <span className="text-[10px] font-bold text-slate-500 block uppercase">Portrait Headshot (4x6)</span>
-                            {(selectedOrder.details as any).photoScanDataUrl ? (
-                              <div className="space-y-1.5 flex flex-col items-center">
-                                <img
-                                  src={(selectedOrder.details as any).photoScanDataUrl}
-                                  alt="Portrait Headshot"
-                                  className="w-24 h-32 object-cover rounded-lg border border-slate-200 shadow-sm cursor-pointer hover:opacity-90 transition-opacity"
-                                  onClick={() => window.open((selectedOrder.details as any).photoScanDataUrl, '_blank')}
-                                  title="Click to view full resolution"
-                                />
-                                <span className="text-[9px] font-mono text-indigo-600 block truncate max-w-full">👤 {(selectedOrder.details as any).photoScan}</span>
-                              </div>
-                            ) : (
-                              <div className="p-3 bg-slate-50 rounded-lg text-center border border-dashed border-slate-200">
-                                <p className="text-[10px] text-slate-400 font-mono">{(selectedOrder.details as any).photoScan || 'No Portrait Image'}</p>
                               </div>
                             )}
                           </div>
@@ -2924,6 +2939,51 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
             setOmsSubPage('fulfillment');
           }}
         />
+      )}
+
+      {/* Passport Image Preview Modal Popup */}
+      {previewImage && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 animate-fade-in"
+          onClick={() => setPreviewImage(null)}
+        >
+          <div 
+            className="relative max-w-[90vw] max-h-[90vh] bg-slate-900 rounded-2xl p-4 flex flex-col items-center gap-3 border border-slate-700 shadow-2xl overflow-hidden font-sans"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-full flex items-center justify-between gap-4 text-white pb-2 border-b border-slate-800">
+              <span className="text-xs font-bold font-mono text-slate-300 truncate max-w-[60vw]">
+                {previewImage.filename}
+              </span>
+              <div className="flex items-center gap-2 shrink-0">
+                <a
+                  href={previewImage.url}
+                  download={previewImage.filename}
+                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  <span>{language === 'EN' ? 'Download image' : 'Tải ảnh về'}</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setPreviewImage(null)}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl flex items-center gap-1 border border-slate-700 transition-all cursor-pointer"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  <span>{language === 'EN' ? 'Close' : 'Đóng'}</span>
+                </button>
+              </div>
+            </div>
+            
+            <div className="flex-1 min-h-0 flex items-center justify-center overflow-auto p-2">
+              <img
+                src={previewImage.url}
+                alt="Passport Preview"
+                className="max-h-[75vh] max-w-[85vw] object-contain rounded-lg shadow-md"
+              />
+            </div>
+          </div>
+        </div>
       )}
 
     </div>
