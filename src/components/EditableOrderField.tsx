@@ -17,12 +17,13 @@ export interface EditableOrderFieldProps {
   inputType?: FieldInputType;
   placeholder?: string;
   uppercase?: boolean;
+  requireReason?: boolean;
   validate?: (val: string) => string | null;
   valueClassName?: string;
   containerClassName?: string;
   emptyText?: string;
   trailing?: React.ReactNode;
-  onSave: (fieldPath: string, newValue: string, logLabel: string) => Promise<{ success: boolean; error?: string }>;
+  onSave: (fieldPath: string, newValue: string, logLabel: string, reason?: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 export default function EditableOrderField({
@@ -34,6 +35,7 @@ export default function EditableOrderField({
   inputType = 'text',
   placeholder,
   uppercase = false,
+  requireReason = false,
   validate,
   valueClassName,
   containerClassName,
@@ -43,6 +45,7 @@ export default function EditableOrderField({
 }: EditableOrderFieldProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState('');
+  const [reasonDraft, setReasonDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -50,12 +53,14 @@ export default function EditableOrderField({
 
   const handleStartEdit = () => {
     setDraft(value || '');
+    setReasonDraft('');
     setError(null);
     setIsEditing(true);
   };
 
   const handleCancel = () => {
     setIsEditing(false);
+    setReasonDraft('');
     setError(null);
   };
 
@@ -74,18 +79,26 @@ export default function EditableOrderField({
     const currentTrimmed = (value || '').trim();
     if (formattedVal === currentTrimmed) {
       setIsEditing(false);
+      setReasonDraft('');
       setError(null);
+      return;
+    }
+
+    const trimmedReason = reasonDraft.trim();
+    if (requireReason && !trimmedReason) {
+      setError(isEn ? 'Please enter a reason' : 'Vui lòng nhập lý do sửa');
       return;
     }
 
     setIsSaving(true);
     setError(null);
 
-    const res = await onSave(fieldPath, formattedVal, logLabel);
+    const res = await onSave(fieldPath, formattedVal, logLabel, trimmedReason);
     setIsSaving(false);
 
     if (res && res.success) {
       setIsEditing(false);
+      setReasonDraft('');
     } else {
       setError(res?.error || (isEn ? 'Failed to save changes' : 'Không lưu được thay đổi'));
     }
@@ -100,11 +113,18 @@ export default function EditableOrderField({
 
   return (
     <div className="space-y-1">
-      <span className="text-[9px] font-bold uppercase text-slate-400 block font-mono">
-        {label}
-      </span>
+      <div className="flex items-center gap-1.5 font-mono">
+        <span className="text-[9px] font-bold uppercase text-slate-400 block">
+          {label}
+        </span>
+        {requireReason && (
+          <span className="text-[8.5px] font-bold text-amber-700 bg-amber-50 border border-amber-200/80 px-1 py-0.2 rounded">
+            {isEn ? 'Reason required' : 'Cần lý do'}
+          </span>
+        )}
+      </div>
       {isEditing ? (
-        <div className="space-y-1">
+        <div className="space-y-1.5">
           <div className="flex items-start gap-1.5">
             {inputType === 'textarea' ? (
               <textarea
@@ -144,6 +164,15 @@ export default function EditableOrderField({
               </button>
             </div>
           </div>
+          {requireReason && (
+            <input
+              type="text"
+              value={reasonDraft}
+              onChange={(e) => setReasonDraft(e.target.value)}
+              placeholder={isEn ? 'Reason for change *' : 'Lý do sửa *'}
+              className="w-full px-2.5 py-1 bg-amber-50/50 border border-amber-300 rounded-lg text-xs font-medium text-slate-900 focus:outline-none focus:ring-1 focus:ring-amber-500"
+            />
+          )}
           {error && (
             <span className="text-[10px] text-rose-500 font-semibold block leading-tight">
               {error}

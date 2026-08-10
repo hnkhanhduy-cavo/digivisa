@@ -10,7 +10,7 @@ import {
 import { Order, Currency, CURRENCY_SYMBOLS, OrderEditLogEntry } from '../types';
 import { safeStorage, safeOpen } from '../utils/storage';
 import { getSplitOrders } from '../utils/orderUtils';
-import { formatPhoneE164, isValidInternationalPhone, isValidFlightNumber, isValidEmail, parsePhoneAndChannel } from '../utils/validation';
+import { formatPhoneE164, isValidInternationalPhone, isValidFlightNumber, isValidEmail, parsePhoneAndChannel, isValidPassportNumber } from '../utils/validation';
 import { auth } from '../utils/firebase';
 import { getServiceStatusOptions, getSubStatusOptions, getSubStatusLabel, getStatusLabel } from '../utils/orderStatus';
 import EditableOrderField from './EditableOrderField';
@@ -1400,18 +1400,53 @@ export default function OMSAgencyComms({
                             </div>
                           </div>
 
-                          <div className="space-y-1">
-                            <span className="text-[9px] font-bold uppercase text-slate-400 block">Passport Number</span>
-                            <div className="flex items-center justify-between bg-slate-50 border border-slate-150 rounded-lg px-2.5 py-1.5 font-mono">
-                              <span className="font-extrabold text-slate-800 select-all">{(selectedOrder.details as any).passportNumber || 'N/A'}</span>
+                          <EditableOrderField
+                            key={`${selectedOrder.id}::details.firstName`}
+                            label="First Name"
+                            value={(selectedOrder.details as any).firstName || ''}
+                            fieldPath="details.firstName"
+                            logLabel="Tên"
+                            language={language}
+                            requireReason
+                            validate={(v) => !v.trim() ? (language === 'VI' ? 'Không được để trống' : 'This field cannot be empty') : null}
+                            valueClassName="font-extrabold text-slate-800"
+                            onSave={handleSaveField}
+                          />
+
+                          <EditableOrderField
+                            key={`${selectedOrder.id}::details.lastName`}
+                            label="Last Name"
+                            value={(selectedOrder.details as any).lastName || ''}
+                            fieldPath="details.lastName"
+                            logLabel="Họ"
+                            language={language}
+                            requireReason
+                            validate={(v) => !v.trim() ? (language === 'VI' ? 'Không được để trống' : 'This field cannot be empty') : null}
+                            valueClassName="font-extrabold text-slate-800"
+                            onSave={handleSaveField}
+                          />
+
+                          <EditableOrderField
+                            key={`${selectedOrder.id}::details.passportNumber`}
+                            label="Passport Number"
+                            value={(selectedOrder.details as any).passportNumber || ''}
+                            fieldPath="details.passportNumber"
+                            logLabel="Số hộ chiếu"
+                            language={language}
+                            uppercase
+                            requireReason
+                            validate={(v) => !v.trim() ? (language === 'VI' ? 'Không được để trống' : 'This field cannot be empty') : (!isValidPassportNumber(v) ? (language === 'VI' ? 'Số hộ chiếu không hợp lệ (VD: N1234567)' : 'Invalid passport number format') : null)}
+                            valueClassName="font-extrabold text-slate-800 font-mono"
+                            trailing={
                               <button 
                                 onClick={() => handleCopyTemplate((selectedOrder.details as any).passportNumber || '', 'Passport')}
                                 className="text-[9.5px] text-indigo-600 font-bold hover:underline ml-1"
                               >
                                 {copySuccess === 'Passport' ? 'Copied' : 'Copy'}
                               </button>
-                            </div>
-                          </div>
+                            }
+                            onSave={handleSaveField}
+                          />
 
                           <div className="space-y-1">
                             <EditableOrderField
@@ -1450,12 +1485,32 @@ export default function OMSAgencyComms({
                             onSave={handleSaveField}
                           />
 
-                          <div className="space-y-1">
-                            <span className="text-[9px] font-bold uppercase text-slate-400 block">Nationality & DOB</span>
-                            <div className="bg-slate-50 border border-slate-150 rounded-lg px-2.5 py-1.5 text-slate-700 font-medium">
-                              {(selectedOrder.details as any).nationality || 'N/A'} ({(selectedOrder.details as any).dateOfBirth || 'N/A'})
-                            </div>
-                          </div>
+                          <EditableOrderField
+                            key={`${selectedOrder.id}::details.nationality`}
+                            label="Nationality"
+                            value={(selectedOrder.details as any).nationality || ''}
+                            fieldPath="details.nationality"
+                            logLabel="Quốc tịch"
+                            language={language}
+                            requireReason
+                            validate={(v) => !v.trim() ? (language === 'VI' ? 'Không được để trống' : 'This field cannot be empty') : null}
+                            valueClassName="text-slate-700 font-medium"
+                            onSave={handleSaveField}
+                          />
+
+                          <EditableOrderField
+                            key={`${selectedOrder.id}::details.dateOfBirth`}
+                            label="Date of Birth"
+                            value={(selectedOrder.details as any).dateOfBirth || ''}
+                            fieldPath="details.dateOfBirth"
+                            logLabel="Ngày sinh"
+                            language={language}
+                            inputType="date"
+                            requireReason
+                            validate={(v) => !v.trim() ? (language === 'VI' ? 'Không được để trống' : 'This field cannot be empty') : null}
+                            valueClassName="text-slate-700 font-medium"
+                            onSave={handleSaveField}
+                          />
 
                           <div className="space-y-1">
                             <span className="text-[9px] font-bold uppercase text-slate-400 block">Destination Country</span>
@@ -1495,6 +1550,19 @@ export default function OMSAgencyComms({
 
                       {activeServiceType === 'FastTrack' && (
                         <>
+                          <EditableOrderField
+                            key={`${selectedOrder.id}::details.contactName`}
+                            label="Contact Name"
+                            value={(selectedOrder.details as any).contactName || ''}
+                            fieldPath="details.contactName"
+                            logLabel="Tên khách"
+                            language={language}
+                            requireReason
+                            validate={(v) => !v.trim() ? (language === 'VI' ? 'Không được để trống' : 'This field cannot be empty') : null}
+                            valueClassName="font-extrabold text-slate-800"
+                            onSave={handleSaveField}
+                          />
+
                           <EditableOrderField
                             key={`${selectedOrder.id}::details.flightNumber`}
                             label="Flight Number"
@@ -1617,18 +1685,26 @@ export default function OMSAgencyComms({
 
                       {activeServiceType === 'AirportPickup' && (
                         <>
-                          <div className="space-y-1">
-                            <span className="text-[9px] font-bold uppercase text-slate-400 block">Passenger Name</span>
-                            <div className="flex items-center justify-between bg-slate-50 border border-slate-150 rounded-lg px-2.5 py-1.5">
-                              <span className="font-extrabold text-slate-800 truncate">{(selectedOrder.details as any).passengerName || 'N/A'}</span>
+                          <EditableOrderField
+                            key={`${selectedOrder.id}::details.passengerName`}
+                            label="Passenger Name"
+                            value={(selectedOrder.details as any).passengerName || ''}
+                            fieldPath="details.passengerName"
+                            logLabel="Tên hành khách"
+                            language={language}
+                            requireReason
+                            validate={(v) => !v.trim() ? (language === 'VI' ? 'Không được để trống' : 'This field cannot be empty') : null}
+                            valueClassName="font-extrabold text-slate-800"
+                            trailing={
                               <button 
                                 onClick={() => handleCopyTemplate((selectedOrder.details as any).passengerName || '', 'PassName')}
                                 className="text-[9.5px] text-indigo-600 font-bold hover:underline ml-1"
                               >
                                 {copySuccess === 'PassName' ? 'Copied' : 'Copy'}
                               </button>
-                            </div>
-                          </div>
+                            }
+                            onSave={handleSaveField}
+                          />
 
                           <div className="space-y-1">
                             <span className="text-[9px] font-bold uppercase text-slate-400 block">Airport Location</span>
