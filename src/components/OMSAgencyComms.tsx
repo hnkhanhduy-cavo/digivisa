@@ -12,7 +12,7 @@ import { safeStorage, safeOpen } from '../utils/storage';
 import { getSplitOrders } from '../utils/orderUtils';
 import { formatPhoneE164, isValidInternationalPhone, isValidFlightNumber, isValidEmail, parsePhoneAndChannel, isValidPassportNumber } from '../utils/validation';
 import { auth } from '../utils/firebase';
-import { getServiceStatusOptions, getSubStatusOptions, getSubStatusLabel, getStatusLabel } from '../utils/orderStatus';
+import { getServiceStatusOptions, getSubStatusOptions, getSubStatusLabel, getStatusLabel, isOrderLegClosed } from '../utils/orderStatus';
 import EditableOrderField from './EditableOrderField';
 
 interface OMSAgencyCommsProps {
@@ -877,12 +877,17 @@ export default function OMSAgencyComms({
         <div className="flex gap-2">
           <div className="bg-white/5 backdrop-blur-sm px-4 py-2.5 rounded-2xl text-center border border-white/5 shadow-inner">
             <span className="text-[9px] text-slate-400 block uppercase font-bold tracking-wider">Operational Ledgers</span>
-            <span className="text-lg font-black text-white">{orders.length} Bookings</span>
+            <span className="text-lg font-black text-white">
+              {getSplitOrders(orders).filter((o) => !isOrderLegClosed(o.status)).length}{' '}
+              {language === 'EN' ? 'Open legs' : 'Chặng đang mở'}
+            </span>
           </div>
           <div className="bg-emerald-500/10 backdrop-blur-sm px-4 py-2.5 rounded-2xl text-center border border-emerald-500/20">
             <span className="text-[9px] text-emerald-400 block uppercase font-bold tracking-wider">Active Agency Network</span>
             <span className="text-lg font-black text-emerald-400 flex items-center justify-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" /> 3 Partners
+              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+              {Object.values(PARTNERS || {}).reduce((total, list) => total + (list?.length || 0), 0)}{' '}
+              {language === 'EN' ? 'Partners' : 'Đối tác'}
             </span>
           </div>
         </div>
