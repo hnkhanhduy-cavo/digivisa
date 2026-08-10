@@ -1049,6 +1049,11 @@ export default function OrderTracker({
                             ? 'This service has been cancelled by operations. Please contact support for assistance.'
                             : 'Dịch vụ này đã được nhân viên huỷ. Vui lòng liên hệ hỗ trợ để biết thêm chi tiết.'}
                         </p>
+                        {trackingOrder?.subStatus === 'Refunded' && (
+                          <p className="text-xs font-bold text-purple-900 mt-1.5">
+                            {language === 'EN' ? '✓ This order has been refunded.' : '✓ Đơn này đã được hoàn tiền.'}
+                          </p>
+                        )}
                       </div>
                     </div>
                   ) : (() => {
@@ -1142,7 +1147,7 @@ export default function OrderTracker({
                         <h5 className="font-bold text-slate-800 flex items-center gap-1.5 flex-wrap">
                           Status Detail: 
                           <span className="text-indigo-600 font-mono font-black">{getStatusLabel(normalizeCustomerStatusForTimeline(trackingOrder!.status, trackingOrder!.type), language as any)}</span>
-                          {trackingOrder!.type === 'Visa' && trackingOrder!.subStatus && getSubStatusOptions(trackingOrder!.status, trackingOrder!.type).includes(trackingOrder!.subStatus) && (
+                          {trackingOrder!.subStatus && getSubStatusOptions(trackingOrder!.status, trackingOrder!.type).includes(trackingOrder!.subStatus) && (
                             (() => {
                               const subVal = trackingOrder!.subStatus;
                               let style = 'bg-slate-100 text-slate-800 border-slate-200';
@@ -1152,6 +1157,8 @@ export default function OrderTracker({
                                 style = 'bg-emerald-100 text-emerald-800 border-emerald-200';
                               } else if (subVal === 'Rejected' || subVal === 'Declined') {
                                 style = 'bg-rose-100 text-rose-800 border-rose-200';
+                              } else if (subVal === 'Refunded') {
+                                style = 'bg-purple-100 text-purple-800 border-purple-200';
                               }
                               return (
                                 <span className={`px-1.5 py-0.2 rounded text-[9.5px] font-bold border ${style}`}>
@@ -1578,7 +1585,9 @@ export default function OrderTracker({
                     <div className="mt-6 pt-4 border-t border-slate-200/60 w-full text-xs">
                       <div className="flex justify-between items-center bg-slate-100 rounded-xl p-3">
                         <span className="text-slate-500 font-medium">
-                          {isUnpaidOrder(selectedOrder)
+                          {trackingOrder?.subStatus === 'Refunded'
+                            ? (isEn ? 'Amount refunded:' : 'Số tiền đã hoàn:')
+                            : isUnpaidOrder(selectedOrder)
                             ? (isEn ? 'Amount due:' : 'Số tiền cần thanh toán:')
                             : (isEn ? 'Authorized Fee Paid:' : 'Số tiền đã thanh toán:')}
                         </span>
