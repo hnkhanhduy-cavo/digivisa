@@ -259,6 +259,188 @@ export default function OMSAlertsBoard({
     return details.contactName || details.passengerName || 'No Name';
   };
 
+  const renderScheduleCard = (order: Order) => {
+    const details = (order.details as any) || {};
+    const partnerAssigned = assignedPartners[order.id];
+    
+    const isGround = order.type === 'FastTrack' || order.type === 'AirportPickup';
+    const wantsVAT = !!details.wantsInvoice;
+    const isVATStamped = order.invoiceStatus === 'Issued & Tax Stamped';
+    const isRefunded = order.paymentStatus === 'Refunded' || order.subStatus === 'Refunded';
+    const isCancelled = order.status === 'Cancelled';
+    const hasIssue = order.status === 'Needs Resubmission' || order.status === 'Pending Documents' || order.status === 'Declined';
+    const isCombo = (order.type === 'FastTrack' && !!details?.addAirportPickup) ||
+                    (order.type === 'AirportPickup' && !!details?.addFastTrack);
+    
+    const hasStaffOrPartner = isGround && (
+      !!partnerAssigned || 
+      order.status === 'Staff Assigned' || 
+      order.status === 'Driver Assigned' || 
+      order.status === 'Driver Waiting At Gate' || 
+      order.status === 'In Transit' || 
+      order.status === 'Passenger Greeted' || 
+      order.status === 'Luggage Handover Completed' || 
+      order.status === 'Service Completed' || 
+      order.status === 'Journey Completed' || 
+      order.status === 'Completed'
+    );
+
+    // Dynamic styling based on severity/state
+    let cardStyles = "border-slate-100 bg-slate-50/40";
+    let textAccent = "text-slate-800";
+    if (isCancelled || isRefunded) {
+      cardStyles = "border-slate-250 bg-slate-100/40 opacity-80";
+      textAccent = "text-slate-500";
+    } else if (hasIssue) {
+      cardStyles = "border-rose-200 bg-rose-50/15";
+    } else if (isGround && !hasStaffOrPartner) {
+      cardStyles = "border-rose-200 bg-rose-50/20";
+    } else if (wantsVAT && !isVATStamped) {
+      cardStyles = "border-amber-200 bg-amber-50/20";
+    } else {
+      cardStyles = "border-indigo-100 bg-indigo-50/15";
+    }
+
+    return (
+      <div key={order.id} className={`p-3 rounded-lg border text-xs text-slate-700 space-y-2 transition-all ${cardStyles}`}>
+        <div className="flex justify-between items-center">
+          <strong className={`text-[11px] font-bold ${textAccent}`}>{getPassengerName(order)}</strong>
+          <span className="font-mono text-[9px] font-semibold text-slate-400 bg-slate-100 px-1 py-0.2 rounded">{order.id}</span>
+        </div>
+        
+        {isCombo && (
+          <div className="bg-amber-50 text-amber-800 border border-amber-250/50 rounded px-1.5 py-0.5 text-[8.5px] font-black w-fit uppercase flex items-center gap-1 select-none">
+            <span>⚡ Combo Pack: FT + Car</span>
+          </div>
+        )}
+
+        {isCombo ? (
+          <div className="space-y-1.5 bg-slate-100/50 border border-slate-200 rounded-lg p-2 text-slate-750">
+            <div className="flex items-center justify-between text-[10px] pb-1 border-b border-slate-200">
+              <span className="font-bold text-slate-500">Service Legs:</span>
+              <span className="text-[9px] text-amber-750 font-black font-mono">2 Services</span>
+            </div>
+            
+            {/* Leg 1: Primary Service */}
+            <div className="flex items-center justify-between text-[10px]">
+              <span className="text-slate-650 font-bold flex items-center gap-1">
+                {order.type === 'FastTrack' ? '✈️ Leg 1: VIP Fast-Track' : '🚘 Leg 1: Airport Transfer'}
+              </span>
+              <span className="bg-indigo-50 text-indigo-800 font-extrabold px-1.5 py-0.2 rounded text-[8.5px] uppercase border border-indigo-100">
+                {order.status}
+              </span>
+            </div>
+
+            {/* Leg 2: Secondary Service */}
+            <div className="flex items-center justify-between text-[10px]">
+              <span className="text-slate-650 font-bold flex items-center gap-1">
+                {order.type === 'FastTrack' ? '🚘 Leg 2: Airport Transfer' : '✈️ Leg 2: VIP Fast-Track'}
+              </span>
+              <span className="bg-purple-50 text-purple-800 font-extrabold px-1.5 py-0.2 rounded text-[8.5px] uppercase border border-purple-100/50">
+                {order.secondaryStatus || 'Confirmed'}
+              </span>
+            </div>
+
+            {/* Flight & Info */}
+            <div className="grid grid-cols-2 gap-1 pt-1 border-t border-slate-200 text-[9.5px] text-slate-500 font-medium">
+              <div>
+                <span>Payment: </span>
+                <span className="font-bold text-slate-750">{isRefunded ? 'Refunded' : order.paymentStatus}</span>
+              </div>
+              <div>
+                <span>Flight: </span>
+                <strong className="text-slate-800">
+                  {details.flightNumber || 'N/A'}{details.arrivalTime ? ` @ ${details.arrivalTime}` : ''}
+                </strong>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-1 text-[10px] font-medium text-slate-500">
+            <div>
+              <span>Service: </span>
+              <span className="text-indigo-700 font-bold">
+                {order.type === 'FastTrack'
+                  ? `Fasttrack (${details.serviceDirection || details.direction || 'Arrival'})`
+                  : order.type === 'AirportPickup'
+                    ? `Car/Bus (${details.direction || 'Arrival'})`
+                    : order.type}
+              </span>
+            </div>
+            <div>
+              <span>Payment: </span>
+              <span className={`font-bold ${isRefunded ? 'text-purple-600' : 'text-slate-700'}`}>
+                {isRefunded ? 'Refunded' : order.paymentStatus}
+              </span>
+            </div>
+            <div>
+              <span>Flight/Time: </span>
+              <strong className="text-slate-800">
+                {order.type === 'Visa' 
+                  ? (details.processingSpeed || 'Standard') 
+                  : `${details.flightNumber || 'N/A'}${details.arrivalTime ? ` @ ${details.arrivalTime}` : ''}`
+                }
+              </strong>
+            </div>
+            <div>
+              <span>Status: </span>
+              <span className="bg-indigo-50 text-indigo-800 font-bold px-1.5 py-0.5 rounded text-[9px] uppercase border border-indigo-100">
+                {order.status}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Interactive dynamic status flags */}
+        <div className="flex flex-wrap gap-1 pt-1">
+          {isGround && (
+            <span className={`px-1.5 py-0.2 rounded-[3px] text-[8.5px] font-bold ${
+              hasStaffOrPartner 
+                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/50' 
+                : 'bg-rose-50 text-rose-700 border border-rose-200/50'
+            }`}>
+              {hasStaffOrPartner ? '✓ Staff Assigned' : '🚨 Staff Unassigned'}
+            </span>
+          )}
+          {wantsVAT && (
+            <span className={`px-1.5 py-0.2 rounded-[3px] text-[8.5px] font-bold ${
+              isVATStamped 
+                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/50' 
+                : 'bg-amber-50 text-amber-700 border border-amber-200/50'
+            }`}>
+              {isVATStamped ? '🧾 VAT Tax Stamped' : '🧾 VAT Stamp Required'}
+            </span>
+          )}
+          {hasIssue && (
+            <span className="bg-red-50 text-red-700 border border-red-200/50 px-1.5 py-0.2 rounded-[3px] text-[8.5px] font-bold animate-pulse">
+              ⚠️ Attention: {order.status}
+            </span>
+          )}
+          {isCancelled && !isRefunded && (
+            <span className="bg-purple-50 text-purple-700 border border-purple-200/50 px-1.5 py-0.2 rounded-[3px] text-[8.5px] font-bold">
+              💸 Cancelled / Refund Due
+            </span>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-[10px]">
+          <span className="text-slate-400">
+            {isGround ? (
+              <>
+                Agent: <span className="font-bold text-slate-600">
+                  {partnerAssigned ? PARTNERS[order.type]?.find(p => p.id === partnerAssigned)?.name : 'None'}
+                </span>
+              </>
+            ) : (
+              <span className="italic">Operational Alert Centre</span>
+            )}
+          </span>
+        </div>
+      </div>
+    );
+  };
+
   // Helper to get real today date string YYYY-MM-DD
   const getTodayStr = () => {
     const d = new Date();
@@ -1058,187 +1240,7 @@ export default function OMSAlertsBoard({
                 </div>
               ) : (
                 <div className="space-y-2.5">
-                  {filteredTodaysSchedule.map((order) => {
-                    const details = (order.details as any) || {};
-                    const partnerAssigned = assignedPartners[order.id];
-                    
-                    const isGround = order.type === 'FastTrack' || order.type === 'AirportPickup';
-                    const wantsVAT = !!details.wantsInvoice;
-                    const isVATStamped = order.invoiceStatus === 'Issued & Tax Stamped';
-                    const isRefunded = order.paymentStatus === 'Refunded' || order.subStatus === 'Refunded';
-                    const isCancelled = order.status === 'Cancelled';
-                    const hasIssue = order.status === 'Needs Resubmission' || order.status === 'Pending Documents' || order.status === 'Declined';
-                    const isCombo = (order.type === 'FastTrack' && !!details?.addAirportPickup) ||
-                                    (order.type === 'AirportPickup' && !!details?.addFastTrack);
-                    
-                    const hasStaffOrPartner = isGround && (
-                      !!partnerAssigned || 
-                      order.status === 'Staff Assigned' || 
-                      order.status === 'Driver Assigned' || 
-                      order.status === 'Driver Waiting At Gate' || 
-                      order.status === 'In Transit' || 
-                      order.status === 'Passenger Greeted' || 
-                      order.status === 'Luggage Handover Completed' || 
-                      order.status === 'Service Completed' || 
-                      order.status === 'Journey Completed' || 
-                      order.status === 'Completed'
-                    );
-
-                    // Dynamic styling based on severity/state
-                    let cardStyles = "border-slate-100 bg-slate-50/40";
-                    let textAccent = "text-slate-800";
-                    if (isCancelled || isRefunded) {
-                      cardStyles = "border-slate-250 bg-slate-100/40 opacity-80";
-                      textAccent = "text-slate-500";
-                    } else if (hasIssue) {
-                      cardStyles = "border-rose-200 bg-rose-50/15";
-                    } else if (isGround && !hasStaffOrPartner) {
-                      cardStyles = "border-rose-200 bg-rose-50/20";
-                    } else if (wantsVAT && !isVATStamped) {
-                      cardStyles = "border-amber-200 bg-amber-50/20";
-                    } else {
-                      cardStyles = "border-indigo-100 bg-indigo-50/15";
-                    }
-
-                    return (
-                      <div key={order.id} className={`p-3 rounded-lg border text-xs text-slate-700 space-y-2 transition-all ${cardStyles}`}>
-                        <div className="flex justify-between items-center">
-                          <strong className={`text-[11px] font-bold ${textAccent}`}>{getPassengerName(order)}</strong>
-                          <span className="font-mono text-[9px] font-semibold text-slate-400 bg-slate-100 px-1 py-0.2 rounded">{order.id}</span>
-                        </div>
-                        
-                        {isCombo && (
-                          <div className="bg-amber-50 text-amber-800 border border-amber-250/50 rounded px-1.5 py-0.5 text-[8.5px] font-black w-fit uppercase flex items-center gap-1 select-none">
-                            <span>⚡ Combo Pack: FT + Car</span>
-                          </div>
-                        )}
-
-                        {isCombo ? (
-                          <div className="space-y-1.5 bg-slate-100/50 border border-slate-200 rounded-lg p-2 text-slate-750">
-                            <div className="flex items-center justify-between text-[10px] pb-1 border-b border-slate-200">
-                              <span className="font-bold text-slate-500">Service Legs:</span>
-                              <span className="text-[9px] text-amber-750 font-black font-mono">2 Services</span>
-                            </div>
-                            
-                            {/* Leg 1: Primary Service */}
-                            <div className="flex items-center justify-between text-[10px]">
-                              <span className="text-slate-650 font-bold flex items-center gap-1">
-                                {order.type === 'FastTrack' ? '✈️ Leg 1: VIP Fast-Track' : '🚘 Leg 1: Airport Transfer'}
-                              </span>
-                              <span className="bg-indigo-50 text-indigo-800 font-extrabold px-1.5 py-0.2 rounded text-[8.5px] uppercase border border-indigo-100">
-                                {order.status}
-                              </span>
-                            </div>
-
-                            {/* Leg 2: Secondary Service */}
-                            <div className="flex items-center justify-between text-[10px]">
-                              <span className="text-slate-650 font-bold flex items-center gap-1">
-                                {order.type === 'FastTrack' ? '🚘 Leg 2: Airport Transfer' : '✈️ Leg 2: VIP Fast-Track'}
-                              </span>
-                              <span className="bg-purple-50 text-purple-800 font-extrabold px-1.5 py-0.2 rounded text-[8.5px] uppercase border border-purple-100/50">
-                                {order.secondaryStatus || 'Confirmed'}
-                              </span>
-                            </div>
-
-                            {/* Flight & Info */}
-                            <div className="grid grid-cols-2 gap-1 pt-1 border-t border-slate-200 text-[9.5px] text-slate-500 font-medium">
-                              <div>
-                                <span>Payment: </span>
-                                <span className="font-bold text-slate-750">{isRefunded ? 'Refunded' : order.paymentStatus}</span>
-                              </div>
-                              <div>
-                                <span>Flight: </span>
-                                <strong className="text-slate-800">
-                                  {details.flightNumber || 'N/A'}{details.arrivalTime ? ` @ ${details.arrivalTime}` : ''}
-                                </strong>
-                              </div>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="grid grid-cols-2 gap-1 text-[10px] font-medium text-slate-500">
-                            <div>
-                              <span>Service: </span>
-                              <span className="text-indigo-700 font-bold">
-                                {order.type === 'FastTrack'
-                                  ? `Fasttrack (${details.serviceDirection || details.direction || 'Arrival'})`
-                                  : order.type === 'AirportPickup'
-                                    ? `Car/Bus (${details.direction || 'Arrival'})`
-                                    : order.type}
-                              </span>
-                            </div>
-                            <div>
-                              <span>Payment: </span>
-                              <span className={`font-bold ${isRefunded ? 'text-purple-600' : 'text-slate-700'}`}>
-                                {isRefunded ? 'Refunded' : order.paymentStatus}
-                              </span>
-                            </div>
-                            <div>
-                              <span>Flight/Time: </span>
-                              <strong className="text-slate-800">
-                                {order.type === 'Visa' 
-                                  ? (details.processingSpeed || 'Standard') 
-                                  : `${details.flightNumber || 'N/A'}${details.arrivalTime ? ` @ ${details.arrivalTime}` : ''}`
-                                }
-                              </strong>
-                            </div>
-                            <div>
-                              <span>Status: </span>
-                              <span className="bg-indigo-50 text-indigo-800 font-bold px-1.5 py-0.5 rounded text-[9px] uppercase border border-indigo-100">
-                                {order.status}
-                              </span>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Interactive dynamic status flags */}
-                        <div className="flex flex-wrap gap-1 pt-1">
-                          {isGround && (
-                            <span className={`px-1.5 py-0.2 rounded-[3px] text-[8.5px] font-bold ${
-                              hasStaffOrPartner 
-                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/50' 
-                                : 'bg-rose-50 text-rose-700 border border-rose-200/50'
-                            }`}>
-                              {hasStaffOrPartner ? '✓ Staff Assigned' : '🚨 Staff Unassigned'}
-                            </span>
-                          )}
-                          {wantsVAT && (
-                            <span className={`px-1.5 py-0.2 rounded-[3px] text-[8.5px] font-bold ${
-                              isVATStamped 
-                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/50' 
-                                : 'bg-amber-50 text-amber-700 border border-amber-200/50'
-                            }`}>
-                              {isVATStamped ? '🧾 VAT Tax Stamped' : '🧾 VAT Stamp Required'}
-                            </span>
-                          )}
-                          {hasIssue && (
-                            <span className="bg-red-50 text-red-700 border border-red-200/50 px-1.5 py-0.2 rounded-[3px] text-[8.5px] font-bold animate-pulse">
-                              ⚠️ Attention: {order.status}
-                            </span>
-                          )}
-                          {isCancelled && !isRefunded && (
-                            <span className="bg-purple-50 text-purple-700 border border-purple-200/50 px-1.5 py-0.2 rounded-[3px] text-[8.5px] font-bold">
-                              💸 Cancelled / Refund Due
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Footer */}
-                        <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-[10px]">
-                          <span className="text-slate-400">
-                            {isGround ? (
-                              <>
-                                Agent: <span className="font-bold text-slate-600">
-                                  {partnerAssigned ? PARTNERS[order.type]?.find(p => p.id === partnerAssigned)?.name : 'None'}
-                                </span>
-                              </>
-                            ) : (
-                              <span className="italic">Operational Alert Centre</span>
-                            )}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
+                  {filteredTodaysSchedule.map((order) => renderScheduleCard(order))}
                 </div>
               )}
             </div>
@@ -1262,49 +1264,7 @@ export default function OMSAlertsBoard({
                 </div>
               ) : (
                 <div className="space-y-2.5">
-                  {filteredTomorrowsSchedule.map((order) => {
-                    const details = order.details as any;
-                    const partnerAssigned = assignedPartners[order.id];
-                    return (
-                      <div key={order.id} className="p-3 bg-purple-50/30 rounded-lg border border-purple-100/60 text-xs text-slate-700 space-y-2">
-                        <div className="flex justify-between items-center">
-                          <strong className="text-slate-800 text-[11px] font-bold">{getPassengerName(order)}</strong>
-                          <span className="font-mono text-[10px] font-semibold text-purple-700">{order.id}</span>
-                        </div>
-                        
-                        <div className="grid grid-cols-2 gap-1 text-[10px] font-medium text-slate-500">
-                          <div>
-                            <span>Service: </span>
-                            <span className="text-purple-650 font-bold">
-                              {order.type === 'FastTrack'
-                                ? `Fasttrack (${(order.details as any)?.serviceDirection || (order.details as any)?.direction || 'Arrival'})`
-                                : order.type === 'AirportPickup'
-                                  ? `Car/Bus (${(order.details as any)?.direction || 'Arrival'})`
-                                  : order.type}
-                            </span>
-                          </div>
-                          <div>
-                            <span>Flight/Time: </span>
-                            <strong className="text-slate-800">{details.flightNumber || 'N/A'}{details.arrivalTime ? ` @ ${details.arrivalTime}` : ''}</strong>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-between pt-1.5 border-t border-purple-100/50 text-[10.5px]">
-                          <span className="text-slate-400">
-                            Partner: <span className="font-bold text-slate-600">
-                              {partnerAssigned ? PARTNERS[order.type]?.find(p => p.id === partnerAssigned)?.name : 'Unassigned'}
-                            </span>
-                          </span>
-                          
-                          <span className="bg-purple-100 text-purple-800 font-bold rounded px-1.5 text-[9px] uppercase">
-                            {order.status}
-                          </span>
-                        </div>
-
-
-                      </div>
-                    );
-                  })}
+                  {filteredTomorrowsSchedule.map((order) => renderScheduleCard(order))}
                 </div>
               )}
             </div>
