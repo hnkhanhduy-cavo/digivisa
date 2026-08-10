@@ -223,6 +223,8 @@ export default function VisaForm({ language, currency, onSuccess, onCancel, orde
     SuperExpress: 75,
   };
 
+  const [agencyCommission, setAgencyCommission] = useState<string>('');
+
   const getCalculatedFees = () => {
     const commission = splitCommission(parseFloat(agencyCommission) || 0, currency);
     const withCommission = <T extends { total: number; totalVnd: number }>(f: T) => ({
@@ -310,7 +312,6 @@ export default function VisaForm({ language, currency, onSuccess, onCancel, orde
     return `${CURRENCY_SYMBOLS[currency]}${val.toFixed(2)}`;
   };
 
-  const [agencyCommission, setAgencyCommission] = useState<string>('');
   const [uploadErrorModal, setUploadErrorModal] = useState<UploadErrorModalData | null>(null);
 
   // Remove/Cancel uploaded file and revert to empty initial state
