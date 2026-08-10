@@ -14,17 +14,17 @@ import { safeStorage, safeOpen } from '../utils/storage';
 import { isValidEmail, isValidInternationalPhone, isValidTaxCode, isValidFlightNumber, sanitizeFlightNumber, formatPhoneE164, getVietnamToday, buildVietnamDate } from '../utils/validation';
 import { generateOrderId, generateTrackingToken } from '../utils/orderIds';
 import { splitCommission } from '../utils/pricing';
-import AgencyCommissionField from './AgencyCommissionField';
+import ReferralCommissionField from './ReferralCommissionField';
 interface FastTrackFormProps {
   currency: Currency;
   onSuccess: (newOrder: Order) => Promise<boolean | void> | boolean | void;
   onCancel: () => void;
   language?: Language;
   orders?: Order[];
-  isAgency?: boolean;
+  isReferrer?: boolean;
 }
 
-export default function FastTrackForm({ currency, onSuccess, onCancel, language = 'EN', orders, isAgency = false }: FastTrackFormProps) {
+export default function FastTrackForm({ currency, onSuccess, onCancel, language = 'EN', orders, isReferrer = false }: FastTrackFormProps) {
   const isEn = language === 'EN';
 
   const initialDraft = React.useMemo(() => {
@@ -92,7 +92,7 @@ export default function FastTrackForm({ currency, onSuccess, onCancel, language 
   const [paymentMethod, setPaymentMethod] = useState<'9pay' | 'bank_transfer'>(() => (initialDraft && initialDraft.paymentMethod) ?? '9pay');
 
   const [isRedirecting, setIsRedirecting] = useState(false);
-  const [agencyCommission, setAgencyCommission] = useState<string>('');
+  const [referralCommission, setReferralCommission] = useState<string>('');
   const [contactPref, setContactPref] = useState<'WhatsApp' | 'Zalo' | 'SMS'>(() => (initialDraft && initialDraft.contactPref) ?? 'WhatsApp');
 
   const [hasRestoredDraft, setHasRestoredDraft] = useState<boolean>(() => {
@@ -214,7 +214,7 @@ export default function FastTrackForm({ currency, onSuccess, onCancel, language 
       totalVnd = Math.max(0, totalVnd - 200000);
     }
 
-    const commission = splitCommission(parseFloat(agencyCommission) || 0, currency);
+    const commission = splitCommission(parseFloat(referralCommission) || 0, currency);
     total += commission.usd;
     totalVnd += commission.vnd;
 
@@ -451,8 +451,8 @@ export default function FastTrackForm({ currency, onSuccess, onCancel, language 
       ...(fees.commissionVnd > 0
         ? {
             totalVnd: fees.totalVnd,
-            agencyCommission: parseFloat(agencyCommission) || 0,
-            agencyCommissionCurrency: currency,
+            referralCommission: parseFloat(referralCommission) || 0,
+            referralCommissionCurrency: currency,
           }
         : {}),
       wantsInvoice,
@@ -1299,11 +1299,11 @@ export default function FastTrackForm({ currency, onSuccess, onCancel, language 
             )}
           </div>
 
-          {isAgency && (
+          {isReferrer && (
             <div className="pt-2">
-              <AgencyCommissionField
-                value={agencyCommission}
-                onChange={setAgencyCommission}
+              <ReferralCommissionField
+                value={referralCommission}
+                onChange={setReferralCommission}
                 currency={currency}
                 language={language}
               />
@@ -1350,6 +1350,12 @@ export default function FastTrackForm({ currency, onSuccess, onCancel, language 
                       <span>-{formatCharge(9, 200000)}</span>
                     </div>
                   </>
+                )}
+                {(fees.commissionUsd || 0) > 0 && (
+                  <div className="flex justify-between text-purple-300 font-medium pb-2 border-b border-slate-800">
+                    <span>{isEn ? 'Referral commission' : 'Hoa hồng dẫn khách'}</span>
+                    <span>+{formatCharge(fees.commissionUsd, fees.commissionVnd)}</span>
+                  </div>
                 )}
                 <div className="flex justify-between items-center text-sm pt-1">
                   <span className="font-bold text-white">{isEn ? 'Grand Fee' : 'Tổng Chi Phí'}</span>

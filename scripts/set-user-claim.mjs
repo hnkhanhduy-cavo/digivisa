@@ -5,11 +5,15 @@
  * only from a service account — which is why this exists. Reads the same
  * credentials the Pages Functions use, from .dev.vars.
  *
- *   node scripts/set-user-claim.mjs <email> <password> <claim>
+ *   node scripts/set-user-claim.mjs <email> <password> <claim> [--only]
  *
  * Example:
- *   node scripts/set-user-claim.mjs agency@digivisa.com 123abc agency
+ *   node scripts/set-user-claim.mjs partner@digivisa.com 123abc referrer
  *   node scripts/set-user-claim.mjs ops@digivisa.com secret123 staff
+ *
+ * By default the claim is merged into whatever the account already carries.
+ * Pass --only to replace every existing claim with just this one — needed when
+ * a claim gets renamed, since a stale claim would otherwise linger forever.
  *
  * Existing users keep their password; only the claim is applied. The user must
  * sign out and back in for a new claim to appear in their token.
@@ -17,10 +21,12 @@
 import { readFileSync } from 'node:fs';
 import { createSign } from 'node:crypto';
 
-const [, , email, password, claim] = process.argv;
+const args = process.argv.slice(2);
+const replaceAll = args.includes('--only');
+const [email, password, claim] = args.filter((a) => a !== '--only');
 
 if (!email || !password || !claim) {
-  console.error('Usage: node scripts/set-user-claim.mjs <email> <password> <claim>');
+  console.error('Usage: node scripts/set-user-claim.mjs <email> <password> <claim> [--only]');
   process.exit(1);
 }
 
@@ -103,7 +109,7 @@ if (localId) {
 }
 
 const existing = found.users?.[0]?.customAttributes;
-const claims = existing ? JSON.parse(existing) : {};
+const claims = replaceAll || !existing ? {} : JSON.parse(existing);
 claims[claim] = true;
 
 await call('/accounts:update', token, {

@@ -1990,9 +1990,9 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
                               ) : (
                                 <div className="space-y-0.5">
                                   <div>{formatMoney(order.details.totalFee, order)}</div>
-                                  {Number((order.details as any)?.agencyCommission) > 0 && (
+                                  {Number((order.details as any)?.referralCommission) > 0 && (
                                     <span className="inline-block text-[8.5px] font-black uppercase tracking-wider text-violet-700 bg-violet-50 border border-violet-200 px-1.5 py-0.2 rounded font-sans">
-                                      {language === 'EN' ? 'Agency' : 'Đại lý'}
+                                      {language === 'EN' ? 'Referral' : 'Dẫn khách'}
                                     </span>
                                   )}
                                 </div>
@@ -2149,17 +2149,17 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
                             : 'Cập nhật trạng thái tại tab Order Management.'}
                         </p>
 
-                        {/* Agency commission breakdown — the total is inflated, so say by how much */}
+                        {/* Referral commission breakdown — the total is inflated, so say by how much */}
                         {(() => {
                           const d = (selectedOrder.details || {}) as any;
-                          const asked = Number(d.agencyCommission) || 0;
+                          const asked = Number(d.referralCommission) || 0;
                           if (asked <= 0) return null;
-                          const comm = splitCommission(asked, d.agencyCommissionCurrency || 'USD');
+                          const comm = splitCommission(asked, d.referralCommissionCurrency || 'USD');
                           const serviceUsd = (Number(d.totalFee) || 0) - comm.usd;
                           return (
                             <div className="space-y-1">
                               <label className="text-[10px] font-bold text-violet-700 uppercase">
-                                {language === 'EN' ? 'Agency booking' : 'Đơn của đại lý'}
+                                {language === 'EN' ? 'Referred booking' : 'Đơn có hoa hồng dẫn khách'}
                               </label>
                               <div className="w-full bg-violet-50/70 border border-violet-200 rounded-xl px-3 py-2 space-y-1 font-sans">
                                 <div className="flex items-center justify-between text-[11px]">
@@ -2168,7 +2168,7 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
                                 </div>
                                 <div className="flex items-center justify-between text-[11px]">
                                   <span className="text-violet-700 font-semibold">
-                                    {language === 'EN' ? 'Agency commission (owed)' : 'Hoa hồng đại lý (phải trả)'}
+                                    {language === 'EN' ? 'Referral commission (owed)' : 'Hoa hồng dẫn khách (phải trả)'}
                                   </span>
                                   <span className="font-black text-violet-800 font-mono">{formatMoney(comm.usd, selectedOrder)}</span>
                                 </div>

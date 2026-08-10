@@ -1,7 +1,7 @@
 import React from 'react';
 import { Currency } from '../types';
 
-interface AgencyCommissionFieldProps {
+interface ReferralCommissionFieldProps {
   /** Raw text as typed. Kept as a string so a half-typed number is not fought over. */
   value: string;
   onChange: (next: string) => void;
@@ -10,16 +10,16 @@ interface AgencyCommissionFieldProps {
 }
 
 /**
- * Shown only to accounts carrying the `agency` custom claim. Whatever they enter is
+ * Shown only to accounts carrying the `referrer` custom claim — partners who send us leads. Whatever they enter is
  * added on top of the service price, in the currency currently on screen — the same
  * currency the rest of the form is quoted in, so there is nothing to convert in their head.
  */
-export default function AgencyCommissionField({
+export default function ReferralCommissionField({
   value,
   onChange,
   currency,
   language = 'EN',
-}: AgencyCommissionFieldProps) {
+}: ReferralCommissionFieldProps) {
   const isEn = language === 'EN';
   const symbol = currency === 'VND' ? '₫' : '$';
 
@@ -27,10 +27,10 @@ export default function AgencyCommissionField({
     <div className="p-4 bg-violet-50/60 border border-violet-200 rounded-2xl space-y-2">
       <div className="flex items-center justify-between gap-2">
         <label className="block text-xs font-bold uppercase tracking-wider text-violet-800">
-          {isEn ? 'Your commission' : 'Hoa hồng của bạn'}
+          {isEn ? 'Your referral commission' : 'Hoa hồng dẫn khách của bạn'}
         </label>
         <span className="text-[9px] font-black uppercase tracking-wider text-violet-700 bg-violet-100 border border-violet-200 px-2 py-0.5 rounded-full">
-          {isEn ? 'Agency' : 'Đại lý'}
+          {isEn ? 'Referral' : 'Dẫn khách'}
         </span>
       </div>
 

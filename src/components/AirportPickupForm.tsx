@@ -12,7 +12,7 @@ import { safeStorage, safeOpen } from '../utils/storage';
 import { isValidEmail, isValidInternationalPhone, isValidTaxCode, isValidFlightNumber, sanitizeFlightNumber, formatPhoneE164, getVietnamToday, buildVietnamDate } from '../utils/validation';
 import { generateOrderId, generateTrackingToken } from '../utils/orderIds';
 import { splitCommission } from '../utils/pricing';
-import AgencyCommissionField from './AgencyCommissionField';
+import ReferralCommissionField from './ReferralCommissionField';
 import { Language } from '../utils/translations';
 // @ts-ignore
 import ecoSedanImg from '../assets/images/eco_sedan_1781328905917.jpg';
@@ -27,10 +27,10 @@ interface AirportPickupFormProps {
   onSuccess: (newOrder: Order) => Promise<boolean | void> | boolean | void;
   onCancel: () => void;
   orders?: Order[];
-  isAgency?: boolean;
+  isReferrer?: boolean;
 }
 
-export default function AirportPickupForm({ currency, language, onSuccess, onCancel, orders, isAgency = false }: AirportPickupFormProps) {
+export default function AirportPickupForm({ currency, language, onSuccess, onCancel, orders, isReferrer = false }: AirportPickupFormProps) {
   const isEn = language === 'EN';
 
   const initialDraft = React.useMemo(() => {
@@ -87,7 +87,7 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
   const [pickupAddress, setPickupAddress] = useState<string>(() => (initialDraft && initialDraft.pickupAddress) ?? '');
   const [destinationAddress, setDestinationAddress] = useState<string>(() => (initialDraft && initialDraft.destinationAddress) ?? '');
   const [optionalNote, setOptionalNote] = useState<string>(() => (initialDraft && initialDraft.optionalNote) ?? '');
-  const [agencyCommission, setAgencyCommission] = useState<string>('');
+  const [referralCommission, setReferralCommission] = useState<string>('');
   const [contactPref, setContactPref] = useState<'WhatsApp' | 'Zalo' | 'SMS'>(() => (initialDraft && initialDraft.contactPref) ?? 'WhatsApp');
   
   const [addFastTrack, setAddFastTrack] = useState<boolean>(() => (initialDraft && initialDraft.addFastTrack) ?? false);
@@ -218,7 +218,7 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
       totalVnd = Math.max(0, totalVnd - 200000);
     }
 
-    const commission = splitCommission(parseFloat(agencyCommission) || 0, currency);
+    const commission = splitCommission(parseFloat(referralCommission) || 0, currency);
     total += commission.usd;
     totalVnd += commission.vnd;
 
@@ -434,8 +434,8 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
       ...(fees.commissionVnd > 0
         ? {
             totalVnd: fees.totalVnd,
-            agencyCommission: parseFloat(agencyCommission) || 0,
-            agencyCommissionCurrency: currency,
+            referralCommission: parseFloat(referralCommission) || 0,
+            referralCommissionCurrency: currency,
           }
         : {}),
       wantsInvoice,
@@ -1095,11 +1095,11 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
             )}
           </div>
 
-          {isAgency && (
+          {isReferrer && (
             <div className="pt-2">
-              <AgencyCommissionField
-                value={agencyCommission}
-                onChange={setAgencyCommission}
+              <ReferralCommissionField
+                value={referralCommission}
+                onChange={setReferralCommission}
                 currency={currency}
                 language={language}
               />
@@ -1145,6 +1145,12 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
                     <span>-{formatCharge(9, 200000)}</span>
                   </div>
                 </>
+              )}
+              {(fees.commissionUsd || 0) > 0 && (
+                <div className="flex justify-between text-purple-300 font-medium font-sans pb-2 border-b border-slate-800">
+                  <span>{isEn ? 'Referral commission' : 'Hoa hồng dẫn khách'}</span>
+                  <span>+{formatCharge(fees.commissionUsd, fees.commissionVnd)}</span>
+                </div>
               )}
               <div className="flex justify-between items-center text-sm pt-1">
                 <span className="font-bold text-white">{isEn ? 'Consolidated Total' : 'Tổng Chi Phí Trọn Gói'}</span>

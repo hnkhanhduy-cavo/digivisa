@@ -8,7 +8,7 @@ import { Language } from '../utils/translations';
 import { getVietnamPricing } from '../utils/pricing';
 import { sanitizePassportInput, isValidInternationalPhone, isValidTaxCode, isValidEmail } from '../utils/validation';
 import HistoricalAutofill from './HistoricalAutofill';
-import AgencyCommissionField from './AgencyCommissionField';
+import ReferralCommissionField from './ReferralCommissionField';
 
 interface VisaFormV2Props {
   language: Language;
@@ -42,11 +42,11 @@ interface VisaFormV2Props {
   handleRemoveFile: (type: 'passport' | 'photo') => void;
   passportInputRef: React.RefObject<HTMLInputElement | null>;
   photoInputRef: React.RefObject<HTMLInputElement | null>;
-  fees: { base: number; speed: number; tax: number; total: number; baseVnd: number; speedVnd: number; taxVnd: number; totalVnd: number };
-  isAgency?: boolean;
-  agencyCommission?: string;
-  setAgencyCommission?: (next: string) => void;
-  formatCharge: (usdAmount: number, type?: 'base' | 'speed' | 'tax' | 'total') => string;
+  fees: { base: number; speed: number; tax: number; total: number; baseVnd: number; speedVnd: number; taxVnd: number; totalVnd: number; commissionUsd?: number; commissionVnd?: number };
+  isReferrer?: boolean;
+  referralCommission?: string;
+  setReferralCommission?: (next: string) => void;
+  formatCharge: (usdAmount: number, type?: 'base' | 'speed' | 'tax' | 'total' | 'commission') => string;
   handleSubmit: (e: React.FormEvent) => void;
   VISA_PRICES: Record<string, number>;
   orders?: Order[];
@@ -86,9 +86,9 @@ export default function VisaFormV2({
   fees,
   formatCharge,
   handleSubmit,
-  isAgency = false,
-  agencyCommission = '',
-  setAgencyCommission,
+  isReferrer = false,
+  referralCommission = '',
+  setReferralCommission,
   VISA_PRICES,
 }: VisaFormV2Props) {
 
@@ -1441,14 +1441,24 @@ export default function VisaFormV2({
             </>
           )}
 
-          {isAgency && setAgencyCommission && (
+          {isReferrer && setReferralCommission && (
             <div className="mb-3">
-              <AgencyCommissionField
-                value={agencyCommission}
-                onChange={setAgencyCommission}
+              <ReferralCommissionField
+                value={referralCommission}
+                onChange={setReferralCommission}
                 currency={currency}
                 language={isEn ? 'EN' : 'VI'}
               />
+            </div>
+          )}
+
+          {/* Referral commission row — it lifts the total, so name it instead of hiding it */}
+          {(fees.commissionUsd || 0) > 0 && (
+            <div className="flex justify-between items-center text-xs pb-1.5 mb-1.5 border-b border-slate-150">
+              <span className="font-medium text-purple-700">
+                {isEn ? '🤝 Referral commission' : '🤝 Hoa hồng dẫn khách'}
+              </span>
+              <span className="font-bold text-purple-700">+{formatCharge(fees.commissionUsd || 0, 'commission')}</span>
             </div>
           )}
 

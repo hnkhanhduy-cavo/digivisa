@@ -19,10 +19,10 @@ interface VisaFormProps {
   onSuccess: (newOrder: Order) => Promise<boolean | void> | boolean | void;
   onCancel: () => void;
   orders?: Order[];
-  isAgency?: boolean;
+  isReferrer?: boolean;
 }
 
-export default function VisaForm({ language, currency, onSuccess, onCancel, orders, isAgency = false }: VisaFormProps) {
+export default function VisaForm({ language, currency, onSuccess, onCancel, orders, isReferrer = false }: VisaFormProps) {
   const isEn = language === 'EN';
   const initialDraft = React.useMemo(() => {
     try {
@@ -223,10 +223,10 @@ export default function VisaForm({ language, currency, onSuccess, onCancel, orde
     SuperExpress: 75,
   };
 
-  const [agencyCommission, setAgencyCommission] = useState<string>('');
+  const [referralCommission, setReferralCommission] = useState<string>('');
 
   const getCalculatedFees = () => {
-    const commission = splitCommission(parseFloat(agencyCommission) || 0, currency);
+    const commission = splitCommission(parseFloat(referralCommission) || 0, currency);
     const withCommission = <T extends { total: number; totalVnd: number }>(f: T) => ({
       ...f,
       total: f.total + commission.usd,
@@ -281,7 +281,7 @@ export default function VisaForm({ language, currency, onSuccess, onCancel, orde
   const fees = getCalculatedFees();
 
   // Helper convert
-  const formatCharge = (usdAmount: any, type?: 'base' | 'speed' | 'tax' | 'total') => {
+  const formatCharge = (usdAmount: any, type?: 'base' | 'speed' | 'tax' | 'total' | 'commission') => {
     const val = typeof usdAmount === 'number' ? usdAmount : (parseFloat(usdAmount) || 0);
     if (currency === 'VND') {
       const calculated = getCalculatedFees();
@@ -290,6 +290,7 @@ export default function VisaForm({ language, currency, onSuccess, onCancel, orde
       else if (type === 'speed') vndVal = calculated.speedVnd;
       else if (type === 'tax') vndVal = calculated.taxVnd;
       else if (type === 'total') vndVal = calculated.totalVnd;
+      else if (type === 'commission') vndVal = calculated.commissionVnd;
       else {
         // First check standard base rates for specific nationalities so the option cards are correct
         if (formData.nationality === 'Taiwan' && val === 130) {
@@ -522,8 +523,8 @@ export default function VisaForm({ language, currency, onSuccess, onCancel, orde
       ...(fees.commissionVnd > 0
         ? {
             totalVnd: fees.totalVnd,
-            agencyCommission: parseFloat(agencyCommission) || 0,
-            agencyCommissionCurrency: currency,
+            referralCommission: parseFloat(referralCommission) || 0,
+            referralCommissionCurrency: currency,
           }
         : {}),
       wantsInvoice,
@@ -695,9 +696,9 @@ export default function VisaForm({ language, currency, onSuccess, onCancel, orde
               passportInputRef={passportInputRef}
               photoInputRef={photoInputRef}
               fees={fees}
-              isAgency={isAgency}
-              agencyCommission={agencyCommission}
-              setAgencyCommission={setAgencyCommission}
+              isReferrer={isReferrer}
+              referralCommission={referralCommission}
+              setReferralCommission={setReferralCommission}
               formatCharge={formatCharge}
               handleSubmit={handleSubmit}
               VISA_PRICES={VISA_PRICES}

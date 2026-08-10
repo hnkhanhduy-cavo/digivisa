@@ -112,7 +112,7 @@ export function formatConvertedPrice(usdAmount: number, currency: Currency): str
 }
 
 /**
- * An agency types their commission in whichever currency is on screen. Both totals
+ * A referring partner types their commission in whichever currency is on screen. Both totals
  * need it, so express it in each: the one they typed is kept exact, the other is
  * converted. Charging happens in VND, so a commission entered in VND reaches 9Pay
  * to the dong with no round trip through USD.
