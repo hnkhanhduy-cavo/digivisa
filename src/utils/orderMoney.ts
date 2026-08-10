@@ -252,3 +252,60 @@ export function readReferralCommission(details: any): { usd: number; vnd: number
     ?? 'USD') as Currency;
   return splitCommission(asked, currency);
 }
+
+/** One payable leg of an order: what we owe one service partner for one job. */
+export interface CostLeg {
+  order: Order;
+  /** Empty for the main leg, '_secondary' for the combo leg — matches the field suffixes. */
+  suffix: '' | 'Secondary';
+  serviceType: string;
+  partnerId?: string;
+  costVnd: number;
+  isPaid: boolean;
+  paidAt?: string;
+}
+
+export function isComboOrder(order: Order): boolean {
+  const d = order.details as any;
+  return Boolean(
+    (order.type === 'FastTrack' && d?.addAirportPickup) ||
+    (order.type === 'AirportPickup' && d?.addFastTrack)
+  );
+}
+
+/**
+ * Splits an order into the legs it owes money on. A combo is performed by two
+ * different partners — the airport team and the car company — so it owes two
+ * separate amounts and settles them separately.
+ */
+export function getCostLegs(order: Order): CostLeg[] {
+  const o = order as any;
+  const legs: CostLeg[] = [{
+    order,
+    suffix: '',
+    serviceType: order.type,
+    partnerId: o.assignedPartnerId,
+    costVnd: Number(o.supplierCostVnd) || 0,
+    isPaid: o.supplierPayoutStatus === 'Paid',
+    paidAt: o.supplierPaidAt,
+  }];
+
+  if (isComboOrder(order)) {
+    legs.push({
+      order,
+      suffix: 'Secondary',
+      serviceType: order.type === 'FastTrack' ? 'AirportPickup' : 'FastTrack',
+      partnerId: o.assignedPartnerIdSecondary,
+      costVnd: Number(o.supplierCostVndSecondary) || 0,
+      isPaid: o.supplierPayoutStatusSecondary === 'Paid',
+      paidAt: o.supplierPaidAtSecondary,
+    });
+  }
+
+  return legs;
+}
+
+/** Total owed to service partners on an order, across all its legs. */
+export function totalSupplierCost(order: Order): number {
+  return getCostLegs(order).reduce((sum, leg) => sum + leg.costVnd, 0);
+}

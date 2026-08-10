@@ -8,7 +8,7 @@ import {
   Copy, Download, Wallet
 } from 'lucide-react';
 import { Order, Currency, CURRENCY_SYMBOLS, EXCHANGE_RATES } from '../types';
-import { formatOrderMoney, orderVndTotal, readReferralCommission } from '../utils/orderMoney';
+import { formatOrderMoney, orderVndTotal, readReferralCommission, totalSupplierCost } from '../utils/orderMoney';
 import OMSMoneyLedger from './OMSMoneyLedger';
 import OMSAlertsBoard from './OMSAlertsBoard';
 import OMSAgencyComms from './OMSAgencyComms';
@@ -1974,7 +1974,8 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
                           // Partner cost is kept in VND. Convert it with the order's own
                           // rate so it lines up with every other figure in this box.
                           const totalVnd = orderVndTotal(selectedOrder);
-                          const costVnd = Number((selectedOrder as any).supplierCostVnd) || 0;
+                          // Both legs of a combo, since both are money going out of this order.
+                          const costVnd = totalSupplierCost(selectedOrder);
                           const costUsd = totalVnd > 0 ? (costVnd * totalUsd) / totalVnd : costVnd / 25000;
 
                           const marginUsd = totalUsd - comm.usd - costUsd;
@@ -2857,6 +2858,7 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
       ) : omsSubPage === 'money_ledger' ? (
         <OMSMoneyLedger
           orders={paidOrders}
+          PARTNERS={PARTNERS}
           language={language}
           onUpdateOrder={onUpdateOrder}
         />

@@ -187,6 +187,18 @@ export interface Order {
    * nhà xe), tính bằng VNĐ. Ops tự nhập ở tab Management; chưa nhập thì coi như 0.
    */
   supplierCostVnd?: number;
+  /**
+   * Chi phí chặng phụ của đơn combo. Combo giao cho hai đối tác khác nhau (đội
+   * fast track và nhà xe), nên một con số chi phí không đủ để chia cho cả hai.
+   */
+  supplierCostVndSecondary?: number;
+  /** Đã trả tiền cho đối tác dịch vụ chưa. Vắng mặt = chưa trả. */
+  supplierPayoutStatus?: 'Paid';
+  supplierPaidAt?: string;
+  supplierPaidBy?: string;
+  supplierPayoutStatusSecondary?: 'Paid';
+  supplierPaidAtSecondary?: string;
+  supplierPaidBySecondary?: string;
   /** Đã trả hoa hồng dẫn khách cho bên giới thiệu chưa. Vắng mặt = chưa trả. */
   referralPayoutStatus?: 'Paid';
   referralPaidAt?: string;

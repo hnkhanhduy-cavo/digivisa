@@ -318,7 +318,7 @@ export default function OMSAgencyComms({
 
     const payload: Record<string, any> = {
       // Money is stored as a number so the fulfilment ledger can add it up.
-      [fieldPath]: fieldPath === 'supplierCostVnd'
+      [fieldPath]: (fieldPath === 'supplierCostVnd' || fieldPath === 'supplierCostVndSecondary')
         ? (Number(String(newValue).replace(/\D/g, '')) || 0)
         : newValue,
       editLog: [...oldEditLog, newLogEntry]
@@ -2363,16 +2363,40 @@ export default function OMSAgencyComms({
                   </div>
 
                   {/* Service partner cost — the middle slice of every order's money,
-                      the one nothing else in the system knows about. Ops types it in
-                      here; the fulfilment ledger treats a blank as zero. */}
+                      the one nothing else in the system knows about. A combo goes to two
+                      different partners, so it gets one figure per leg. Ops types them in
+                      here; the ledger treats a blank as zero. */}
                   {(() => {
                     const baseId = selectedOrder.id.replace('_secondary', '');
                     const baseOrder = orders.find((o) => o.id === baseId) || selectedOrder;
-                    const cost = Number((baseOrder as any).supplierCostVnd) || 0;
                     const isEnLang = language === 'EN';
 
+                    const legs: Array<{
+                      fieldPath: 'supplierCostVnd' | 'supplierCostVndSecondary';
+                      partnerKey: string;
+                      serviceType: string;
+                      legLabel: string;
+                    }> = [
+                      {
+                        fieldPath: 'supplierCostVnd',
+                        partnerKey: baseId,
+                        serviceType: baseOrder.type,
+                        legLabel: isEnLang ? 'Main leg' : 'Chặng chính',
+                      },
+                    ];
+
+                    if (isOrderCombo) {
+                      const secondaryType = baseOrder.type === 'FastTrack' ? 'AirportPickup' : 'FastTrack';
+                      legs.push({
+                        fieldPath: 'supplierCostVndSecondary',
+                        partnerKey: `${baseId}_secondary`,
+                        serviceType: secondaryType,
+                        legLabel: isEnLang ? 'Combo leg' : 'Chặng combo',
+                      });
+                    }
+
                     return (
-                      <div className="p-4 bg-amber-50/40 border border-amber-200/70 rounded-2xl space-y-2">
+                      <div className="p-4 bg-amber-50/40 border border-amber-200/70 rounded-2xl space-y-3">
                         <div className="flex items-center space-x-2">
                           <Wallet className="h-4 w-4 text-amber-600 shrink-0" />
                           <h4 className="text-[11.5px] font-black text-slate-800 uppercase tracking-wider">
@@ -2381,38 +2405,71 @@ export default function OMSAgencyComms({
                         </div>
                         <p className="text-[10.5px] text-slate-500 leading-relaxed">
                           {isEnLang
-                            ? 'What we pay the partner who actually performs this service, in VND. Leave it blank until you know the figure — fulfilment reads a blank as 0.'
-                            : 'Số tiền phải trả cho bên trực tiếp làm dịch vụ này, tính bằng VNĐ. Chưa biết thì cứ để trống — bên Fulfilment sẽ hiểu là 0.'}
+                            ? 'What we pay the partner who actually performs this service, in VND. Leave it blank until you know the figure — the ledger reads a blank as 0.'
+                            : 'Số tiền phải trả cho bên trực tiếp làm dịch vụ này, tính bằng VNĐ. Chưa biết thì cứ để trống — sổ tiền sẽ hiểu là 0.'}
                         </p>
-                        <EditableOrderField
-                          key={`${baseId}::supplierCostVnd`}
-                          label={isEnLang ? 'Cost (VND)' : 'Chi phí (VNĐ)'}
-                          value={cost > 0 ? String(cost) : ''}
-                          fieldPath="supplierCostVnd"
-                          logLabel={isEnLang ? 'Service partner cost' : 'Chi phí trả đối tác dịch vụ'}
-                          language={language}
-                          inputType="text"
-                          placeholder={isEnLang ? 'e.g. 1200000' : 'VD: 1200000'}
-                          emptyText={isEnLang ? 'Not entered (0)' : 'Chưa nhập (0)'}
-                          requireReason
-                          validate={(v) => {
-                            const digits = v.replace(/\D/g, '');
-                            if (!digits) return null;
-                            if (!/^\d+$/.test(v.trim())) {
-                              return isEnLang ? 'Digits only, no dots or spaces' : 'Chỉ nhập số, không dấu chấm hay khoảng trắng';
-                            }
-                            return null;
-                          }}
-                          valueClassName="font-extrabold text-amber-800 font-mono"
-                          trailing={
-                            cost > 0 ? (
-                              <span className="text-[10px] font-bold text-amber-700 font-mono">
-                                {cost.toLocaleString('en-US')} ₫
-                              </span>
-                            ) : null
-                          }
-                          onSave={handleSaveField}
-                        />
+
+                        {legs.map((leg) => {
+                          const cost = Number((baseOrder as any)[leg.fieldPath]) || 0;
+                          const partnerId = assignedPartners[leg.partnerKey];
+                          const partner = (PARTNERS[leg.serviceType] || []).find((p) => p.id === partnerId);
+
+                          return (
+                            <div key={leg.fieldPath} className="space-y-1">
+                              {isOrderCombo && (
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="text-[9.5px] font-black uppercase text-amber-700 tracking-wider">
+                                    {leg.legLabel} · {getServiceName(leg.serviceType, language)}
+                                  </span>
+                                  <span className="text-[9.5px] font-semibold text-slate-500 truncate max-w-[55%] text-right">
+                                    {partner
+                                      ? partner.name
+                                      : (isEnLang ? 'No partner assigned' : 'Chưa phân công đối tác')}
+                                  </span>
+                                </div>
+                              )}
+                              {!isOrderCombo && (
+                                <div className="text-[9.5px] font-semibold text-slate-500">
+                                  {partner
+                                    ? `${isEnLang ? 'Partner' : 'Đối tác'}: ${partner.name}`
+                                    : (isEnLang ? 'No partner assigned yet' : 'Chưa phân công đối tác')}
+                                </div>
+                              )}
+                              <EditableOrderField
+                                key={`${baseId}::${leg.fieldPath}`}
+                                label={isEnLang ? 'Cost (VND)' : 'Chi phí (VNĐ)'}
+                                value={cost > 0 ? String(cost) : ''}
+                                fieldPath={leg.fieldPath}
+                                logLabel={
+                                  isOrderCombo
+                                    ? `${isEnLang ? 'Service partner cost' : 'Chi phí trả đối tác dịch vụ'} — ${leg.legLabel}`
+                                    : (isEnLang ? 'Service partner cost' : 'Chi phí trả đối tác dịch vụ')
+                                }
+                                language={language}
+                                inputType="text"
+                                placeholder={isEnLang ? 'e.g. 1200000' : 'VD: 1200000'}
+                                emptyText={isEnLang ? 'Not entered (0)' : 'Chưa nhập (0)'}
+                                requireReason
+                                validate={(v) => {
+                                  if (!v.trim()) return null;
+                                  if (!/^\d+$/.test(v.trim())) {
+                                    return isEnLang ? 'Digits only, no dots or spaces' : 'Chỉ nhập số, không dấu chấm hay khoảng trắng';
+                                  }
+                                  return null;
+                                }}
+                                valueClassName="font-extrabold text-amber-800 font-mono"
+                                trailing={
+                                  cost > 0 ? (
+                                    <span className="text-[10px] font-bold text-amber-700 font-mono">
+                                      {cost.toLocaleString('en-US')} ₫
+                                    </span>
+                                  ) : null
+                                }
+                                onSave={handleSaveField}
+                              />
+                            </div>
+                          );
+                        })}
                       </div>
                     );
                   })()}
