@@ -1,6 +1,0 @@
-{
-  "name": "DigiVisa",
-  "description": "Seamless automated visa processing, airport fast-track immigration escort, and premium private airport pickups.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}

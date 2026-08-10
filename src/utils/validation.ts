@@ -188,18 +188,6 @@ export function getTodayStr(): string {
 }
 
 /**
- * Returns date as YYYY-MM-DD string offset by specified number of days from today.
- */
-export function getTodayOffsetStr(offsetDays: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() + offsetDays);
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
-}
-
-/**
  * Constructs a Date object interpreting the date and time strings in Vietnam Time (+07:00).
  * If time is omitted or empty, defaults to '23:59:59'.
  * Returns null if the date format is invalid.

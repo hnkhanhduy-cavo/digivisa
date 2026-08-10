@@ -37,7 +37,6 @@ DigiVisa is a visa-processing / airport fast-track / private-pickup booking site
   - `orderUtils.ts` — splits bundled "combo" (FastTrack + AirportPickup) orders into separate legs for the OMS/tracker views.
   - `firebase.ts`, `ninepay.ts`, `paymentPolling.ts` — Firebase/Firestore access and the payment/data-layer logic described above.
 - `src/types.ts` is the single source of domain types (`Order`, `VisaApplication`, `FastTrackBooking`, etc.), imported by nearly every component.
-- `digivisaver2/` is a stale duplicate snapshot of the app that predates the 9Pay/Firebase-auth work (missing those files entirely) — not part of the active build; confirm with the user before editing or removing it.
 
 ## Known gaps to be aware of
 

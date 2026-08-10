@@ -11,7 +11,7 @@ import HistoricalAutofill from './HistoricalAutofill';
 import { TimePicker } from './TimePicker';
 import { HistoricalProfile } from '../data/historicalUsers';
 import { safeStorage, safeOpen } from '../utils/storage';
-import { isValidEmail, isValidInternationalPhone, isValidTaxCode, isValidFlightNumber, sanitizeFlightNumber, formatPhoneE164, getTodayOffsetStr, getVietnamToday, buildVietnamDate } from '../utils/validation';
+import { isValidEmail, isValidInternationalPhone, isValidTaxCode, isValidFlightNumber, sanitizeFlightNumber, formatPhoneE164, getVietnamToday, buildVietnamDate } from '../utils/validation';
 import { generateOrderId, generateTrackingToken } from '../utils/orderIds';
 interface FastTrackFormProps {
   currency: Currency;
