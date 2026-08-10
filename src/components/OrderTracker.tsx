@@ -89,6 +89,7 @@ export default function OrderTracker({
   onOpenUserAuth,
 }: OrderTrackerProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  const [sortNewestFirst, setSortNewestFirst] = useState(true);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [previewPhotoUrl, setPreviewPhotoUrl] = useState<string | null>(null);
 
@@ -208,6 +209,21 @@ export default function OrderTracker({
       return false;
     });
   })();
+
+  // Sort: newest first by default; orders without a valid createdAt always sink to the bottom in both directions.
+  const sortedOrders = [...filteredOrders].sort((a, b) => {
+    const ta = a.createdAt ? new Date(a.createdAt).getTime() : NaN;
+    const tb = b.createdAt ? new Date(b.createdAt).getTime() : NaN;
+    const aValid = !isNaN(ta);
+    const bValid = !isNaN(tb);
+    // Both invalid → keep relative order
+    if (!aValid && !bValid) return 0;
+    // Invalid always goes to the end, regardless of sort direction
+    if (!aValid) return 1;
+    if (!bValid) return -1;
+    // Both valid → sort by direction
+    return sortNewestFirst ? tb - ta : ta - tb;
+  });
 
   const getStatusColor = (status: Order['status']) => {
     const s = String(status || '').toLowerCase();
@@ -792,16 +808,35 @@ export default function OrderTracker({
               <input
                 type="text"
                 id="search-input"
-                placeholder={isEn ? 'Filter by Order ID or Service...' : 'Tìm theo mã đơn hoặc dịch vụ...'}
+                placeholder={isEn ? 'Search by order ID, name, phone or email...' : 'Tìm theo mã đơn, tên, số điện thoại hoặc email...'}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2.5 text-xs focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:outline-none transition-all font-medium"
               />
             </div>
+
+            <button
+              type="button"
+              id="sort-order-toggle-btn"
+              onClick={() => setSortNewestFirst((prev) => !prev)}
+              className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg px-3 py-1.5 transition-colors cursor-pointer self-start"
+            >
+              {sortNewestFirst ? (
+                <>
+                  <span>↓</span>
+                  <span>{isEn ? 'Newest first' : 'Mới nhất trước'}</span>
+                </>
+              ) : (
+                <>
+                  <span>↑</span>
+                  <span>{isEn ? 'Oldest first' : 'Cũ nhất trước'}</span>
+                </>
+              )}
+            </button>
           </div>
 
           <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
-            {filteredOrders.length === 0 ? (
+            {sortedOrders.length === 0 ? (
               <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-slate-200 p-6 space-y-4">
                 <BadgeAlert className="h-10 w-10 text-slate-400 mx-auto" />
                 <div>
@@ -819,7 +854,7 @@ export default function OrderTracker({
                 </div>
               </div>
             ) : (
-              filteredOrders.map((order) => {
+              sortedOrders.map((order) => {
                 const isSelected = order.id === selectedOrderId;
                 const details = order.details as any;
                 const paxName = order.type === 'Visa'

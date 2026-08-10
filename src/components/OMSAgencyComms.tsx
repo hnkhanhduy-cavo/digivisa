@@ -2384,8 +2384,8 @@ export default function OMSAgencyComms({
                                   const dateStr = entry.at ? new Date(entry.at).toLocaleString(language === 'EN' ? 'en-US' : 'vi-VN') : 'N/A';
                                   return (
                                     <div key={idx} className="bg-slate-50 border border-slate-200/80 rounded-xl p-2.5 space-y-1.5 text-xs font-mono">
-                                      <div className="flex items-center justify-between gap-2 text-[10.5px]">
-                                        <span className="font-extrabold text-slate-800 font-sans">{entry.label || entry.field}</span>
+                                      <div className="flex items-start justify-between flex-wrap gap-x-3 gap-y-0.5 text-[10.5px]">
+                                        <span className="font-extrabold text-slate-800 font-sans truncate min-w-0" title={entry.label || entry.field}>{entry.label || entry.field}</span>
                                         <span className="text-[9.5px] text-slate-400 font-normal shrink-0">{entry.by || 'staff'} • {dateStr}</span>
                                       </div>
                                       <div className="flex items-center gap-1.5 text-slate-700 font-medium text-[11px] min-w-0">
