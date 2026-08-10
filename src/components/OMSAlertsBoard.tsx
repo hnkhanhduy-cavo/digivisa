@@ -5,6 +5,7 @@ import {
   ArrowRight, ExternalLink, Sparkles, Car, Plane, Users, RotateCcw
 } from 'lucide-react';
 import { Order, Currency, CURRENCY_SYMBOLS, EXCHANGE_RATES } from '../types';
+import { isOrderLegClosed } from '../utils/orderStatus';
 
 interface OMSAlertsBoardProps {
   orders: Order[];
@@ -659,7 +660,7 @@ export default function OMSAlertsBoard({
       const schedTime = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])).getTime();
       const baseTime = new Date(Number(simParts[0]), Number(simParts[1]) - 1, Number(simParts[2])).getTime();
       const isPast = schedTime < baseTime;
-      const incomplete = o.status !== 'Completed' && o.status !== 'Approved' && o.status !== 'Approved & Issued' && o.status !== 'Service Completed' && o.status !== 'Journey Completed' && o.status !== 'Cancelled';
+      const incomplete = !isOrderLegClosed(o.status);
       return isPast && incomplete;
     }
     return false;

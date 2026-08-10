@@ -291,7 +291,7 @@ function buildOrderExportFields(order: any): Array<{ label: string; value: strin
   ];
 }
 
-import { getServiceStatusOptions, getStatusLabel, getSubStatusLabel, getSubStatusOptions, normalizeStatusForTimeline, getTimelineStepsForOrder } from '../utils/orderStatus';
+import { getServiceStatusOptions, getStatusLabel, getSubStatusLabel, getSubStatusOptions, normalizeStatusForTimeline, getTimelineStepsForOrder, isOrderLegClosed } from '../utils/orderStatus';
 
 export default function OMS({ orders, setOrders, currency, language = 'EN', onUpdateOrder }: OMSProps) {
   // Filter only paid orders for OMS
@@ -1425,8 +1425,12 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
 
         <div className="bg-white/10 backdrop-blur-md border border-white/10 rounded-2xl p-4 shrink-0 text-center relative z-10 min-w-[150px]">
           <span className="text-[10px] uppercase text-zinc-400 font-bold block mb-1">Incoming Orders Ledger</span>
-          <span className="text-3xl font-extrabold text-white block">{getSplitOrders(paidOrders).length}</span>
-          <span className="text-[10px] text-[#A78BFA] font-medium block mt-1">Ready for Partner Dispatch</span>
+          <span className="text-3xl font-extrabold text-white block">
+            {getSplitOrders(paidOrders).filter((o) => !isOrderLegClosed(o.status)).length}
+          </span>
+          <span className="text-[10px] text-[#A78BFA] font-medium block mt-1">
+            {language === 'EN' ? 'Service legs still open' : 'Chặng dịch vụ chưa hoàn tất'}
+          </span>
         </div>
       </div>
 

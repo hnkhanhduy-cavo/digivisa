@@ -56,6 +56,26 @@ export function getServiceStatusOptions(serviceType: string): string[] {
   return [...stepIds, 'Cancelled'];
 }
 
+/** Statuses that mean a service leg needs no further work — finished, or called off. */
+const CLOSED_STATUSES = [
+  'Completed',
+  'Approved',
+  'Approved & Issued',
+  'Service Completed',
+  'Journey Completed',
+  'Cancelled',
+];
+
+/**
+ * True when a leg is done with — either delivered or cancelled — and so should not
+ * be counted as outstanding work. Judge each leg by its own status: a combo's two
+ * legs finish independently.
+ */
+export function isOrderLegClosed(status?: string | null): boolean {
+  if (!status) return false;
+  return CLOSED_STATUSES.includes(status.trim());
+}
+
 /**
  * Returns available sub-status options for a given status.
  * Sub-statuses are ONLY applicable for Visa service. Returns [] for all other services.
