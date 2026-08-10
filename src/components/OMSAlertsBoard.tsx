@@ -477,6 +477,27 @@ export default function OMSAlertsBoard({
     return dateStr;
   };
 
+  const renderDateNavButtons = () => (
+    <div className="inline-flex items-center gap-1">
+      <button
+        type="button"
+        onClick={() => setSimDate(addDaysToDate(simDate, -1))}
+        title={language === 'EN' ? 'Previous day' : 'Ngày trước'}
+        className="w-5 h-5 flex items-center justify-center bg-white hover:bg-slate-100 text-slate-700 font-bold rounded border border-slate-200 text-xs transition-colors cursor-pointer"
+      >
+        ‹
+      </button>
+      <button
+        type="button"
+        onClick={() => setSimDate(addDaysToDate(simDate, 1))}
+        title={language === 'EN' ? 'Next day' : 'Ngày sau'}
+        className="w-5 h-5 flex items-center justify-center bg-white hover:bg-slate-100 text-slate-700 font-bold rounded border border-slate-200 text-xs transition-colors cursor-pointer"
+      >
+        ›
+      </button>
+    </div>
+  );
+
   const formatDateSub = (dateStr: string) => {
     try {
       const parts = dateStr.split('-');
@@ -1236,9 +1257,12 @@ export default function OMSAlertsBoard({
                   <Clock className="h-4 w-4 text-indigo-500 shrink-0" />
                   📋 {simDate === realToday ? "Operations - Today" : "Operations - Selected Date"}
                 </span>
-                <span className="bg-indigo-50 text-indigo-700 text-[10px] px-2 py-0.5 rounded font-mono font-bold">
-                  Date: {activeSimDate}
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="bg-indigo-50 text-indigo-700 text-[10px] px-2 py-0.5 rounded font-mono font-bold">
+                    Date: {activeSimDate}
+                  </span>
+                  {renderDateNavButtons()}
+                </div>
               </div>
 
               {filteredTodaysSchedule.length === 0 ? (
@@ -1261,9 +1285,12 @@ export default function OMSAlertsBoard({
                   <Calendar className="h-4 w-4 text-purple-500 shrink-0" />
                   🗓️ Tomorrow's Dispatch Board
                 </span>
-                <span className="bg-purple-50 text-purple-700 text-[10px] px-2 py-0.5 rounded font-mono font-bold">
-                  {tomorrowSimDate}
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="bg-purple-50 text-purple-700 text-[10px] px-2 py-0.5 rounded font-mono font-bold">
+                    {tomorrowSimDate}
+                  </span>
+                  {renderDateNavButtons()}
+                </div>
               </div>
 
               {filteredTomorrowsSchedule.length === 0 ? (
