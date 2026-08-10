@@ -8,7 +8,6 @@ import { Order, Currency, CURRENCY_SYMBOLS, EXCHANGE_RATES } from '../types';
 
 interface OMSAlertsBoardProps {
   orders: Order[];
-  setOrders: (orders: Order[]) => void;
   currency: Currency;
   assignedPartners: Record<string, string>;
   PARTNERS: Record<string, Array<{ id: string; name: string; contact: string; rating: string; activeOrders: number }>>;
@@ -18,7 +17,6 @@ interface OMSAlertsBoardProps {
 
 export default function OMSAlertsBoard({
   orders,
-  setOrders,
   currency,
   assignedPartners,
   PARTNERS,
@@ -1028,16 +1026,6 @@ export default function OMSAlertsBoard({
                       </div>
                       <div className="flex items-center space-x-2">
                         <span className="text-[10px] text-slate-550 font-bold">Status: "{order.status}"</span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const completedStatus = 'Completed';
-                            setOrders(orders.map(o => o.id === order.id ? { ...o, status: completedStatus } : o));
-                          }}
-                          className="px-2 py-0.5 bg-amber-600 hover:bg-amber-700 text-white rounded text-[9.5px] font-bold cursor-pointer"
-                        >
-                          Mark Settled Today
-                        </button>
                       </div>
                     </div>
                   );
@@ -1050,80 +1038,204 @@ export default function OMSAlertsBoard({
         {/* RIGHT COLUMN: CHRONOLOGY BOARD (4/12) */}
         <div className="lg:col-span-4 space-y-4">
 
-          {/* TODAY'S PASSENGER FLIGHT ARRIVAL RUN SHEET (REALTIME) */}
+          {/* TODAY'S LIVE OPERATIONS BOARD */}
           <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4 space-y-3">
-              <div className="pb-2 border-b border-indigo-50 flex items-center justify-between">
+              <div className="pb-2 border-b border-slate-100 flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
-                  <Clock className="h-4 w-4 text-emerald-500 shrink-0" />
-                  ⚡ Today's Dispatch Board (Simulated)
+                  <Clock className="h-4 w-4 text-indigo-500 shrink-0" />
+                  📋 {simDate === realToday ? "Operations - Today" : "Operations - Selected Date"}
                 </span>
                 <span className="bg-indigo-50 text-indigo-700 text-[10px] px-2 py-0.5 rounded font-mono font-bold">
-                  {activeSimDate}
+                  Date: {activeSimDate}
                 </span>
               </div>
 
               {filteredTodaysSchedule.length === 0 ? (
                 <div className="py-6 text-center text-slate-400 space-y-1">
                   <Users className="h-5 w-5 text-slate-300 mx-auto" />
-                  <p className="text-[10px] font-bold text-slate-500">No scheduled activities today</p>
-                  <p className="text-[9px]">Check other simulated date scales</p>
+                  <p className="text-[10px] font-bold text-slate-500">No active orders scheduled for today</p>
+                  <p className="text-[9px]">Check other simulation dates or add a new service order!</p>
                 </div>
               ) : (
                 <div className="space-y-2.5">
                   {filteredTodaysSchedule.map((order) => {
-                    const details = order.details as any;
+                    const details = (order.details as any) || {};
                     const partnerAssigned = assignedPartners[order.id];
+                    
+                    const isGround = order.type === 'FastTrack' || order.type === 'AirportPickup';
+                    const wantsVAT = !!details.wantsInvoice;
+                    const isVATStamped = order.invoiceStatus === 'Issued & Tax Stamped';
+                    const isRefunded = order.paymentStatus === 'Refunded' || order.subStatus === 'Refunded';
+                    const isCancelled = order.status === 'Cancelled';
+                    const hasIssue = order.status === 'Needs Resubmission' || order.status === 'Pending Documents' || order.status === 'Declined';
+                    const isCombo = (order.type === 'FastTrack' && !!details?.addAirportPickup) ||
+                                    (order.type === 'AirportPickup' && !!details?.addFastTrack);
+                    
+                    const hasStaffOrPartner = isGround && (
+                      !!partnerAssigned || 
+                      order.status === 'Staff Assigned' || 
+                      order.status === 'Driver Assigned' || 
+                      order.status === 'Driver Waiting At Gate' || 
+                      order.status === 'In Transit' || 
+                      order.status === 'Passenger Greeted' || 
+                      order.status === 'Luggage Handover Completed' || 
+                      order.status === 'Service Completed' || 
+                      order.status === 'Journey Completed' || 
+                      order.status === 'Completed'
+                    );
+
+                    // Dynamic styling based on severity/state
+                    let cardStyles = "border-slate-100 bg-slate-50/40";
+                    let textAccent = "text-slate-800";
+                    if (isCancelled || isRefunded) {
+                      cardStyles = "border-slate-250 bg-slate-100/40 opacity-80";
+                      textAccent = "text-slate-500";
+                    } else if (hasIssue) {
+                      cardStyles = "border-rose-200 bg-rose-50/15";
+                    } else if (isGround && !hasStaffOrPartner) {
+                      cardStyles = "border-rose-200 bg-rose-50/20";
+                    } else if (wantsVAT && !isVATStamped) {
+                      cardStyles = "border-amber-200 bg-amber-50/20";
+                    } else {
+                      cardStyles = "border-indigo-100 bg-indigo-50/15";
+                    }
+
                     return (
-                      <div key={order.id} className="p-3 bg-slate-50/60 rounded-lg border border-slate-100 text-xs text-slate-700 space-y-2">
+                      <div key={order.id} className={`p-3 rounded-lg border text-xs text-slate-700 space-y-2 transition-all ${cardStyles}`}>
                         <div className="flex justify-between items-center">
-                          <strong className="text-slate-800 text-[11px] font-bold">{getPassengerName(order)}</strong>
-                          <span className="font-mono text-[10px] font-semibold text-indigo-700">{order.id}</span>
+                          <strong className={`text-[11px] font-bold ${textAccent}`}>{getPassengerName(order)}</strong>
+                          <span className="font-mono text-[9px] font-semibold text-slate-400 bg-slate-100 px-1 py-0.2 rounded">{order.id}</span>
                         </div>
                         
-                        <div className="grid grid-cols-2 gap-1 text-[10px] font-medium text-slate-500">
-                          <div>
-                            <span>Service: </span>
-                            <span className="text-indigo-650 font-bold">
-                              {order.type === 'FastTrack'
-                                ? `Fasttrack (${(order.details as any)?.serviceDirection || (order.details as any)?.direction || 'Arrival'})`
-                                : order.type === 'AirportPickup'
-                                  ? `Car/Bus (${(order.details as any)?.direction || 'Arrival'})`
-                                  : order.type}
-                            </span>
-                          </div>
-                          <div>
-                            <span>Flight/Time: </span>
-                            <strong className="text-slate-800">{details.flightNumber || 'N/A'}{details.arrivalTime ? ` @ ${details.arrivalTime}` : ''}</strong>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 text-[10.5px]">
-                          <span className="text-slate-400">
-                            Partner: <span className="font-bold text-slate-600">
-                              {partnerAssigned ? PARTNERS[order.type]?.find(p => p.id === partnerAssigned)?.name : 'Unassigned'}
-                            </span>
-                          </span>
-                          
-                          <span className="bg-emerald-50 text-emerald-800 font-bold rounded px-1.5 text-[9px] uppercase">
-                            {order.status}
-                          </span>
-                        </div>
-
-                        {/* Immediate quick complete if arriving today */}
-                        {order.status !== 'Completed' && order.status !== 'Approved & Issued' && order.status !== 'Service Completed' && order.status !== 'JourneyCompleted' && (
-                          <div className="pt-1 flex justify-end">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const doneState = 'Completed';
-                                setOrders(orders.map(o => o.id === order.id ? { ...o, status: doneState } : o));
-                              }}
-                              className="bg-emerald-500 hover:bg-emerald-600 text-white font-black text-[9px] tracking-wide uppercase px-2 py-0.5 rounded cursor-pointer transition-all"
-                            >
-                              Mark Clearance Done!
-                            </button>
+                        {isCombo && (
+                          <div className="bg-amber-50 text-amber-800 border border-amber-250/50 rounded px-1.5 py-0.5 text-[8.5px] font-black w-fit uppercase flex items-center gap-1 select-none">
+                            <span>⚡ Combo Pack: FT + Car</span>
                           </div>
                         )}
+
+                        {isCombo ? (
+                          <div className="space-y-1.5 bg-slate-100/50 border border-slate-200 rounded-lg p-2 text-slate-750">
+                            <div className="flex items-center justify-between text-[10px] pb-1 border-b border-slate-200">
+                              <span className="font-bold text-slate-500">Service Legs:</span>
+                              <span className="text-[9px] text-amber-750 font-black font-mono">2 Services</span>
+                            </div>
+                            
+                            {/* Leg 1: Primary Service */}
+                            <div className="flex items-center justify-between text-[10px]">
+                              <span className="text-slate-650 font-bold flex items-center gap-1">
+                                {order.type === 'FastTrack' ? '✈️ Leg 1: VIP Fast-Track' : '🚘 Leg 1: Airport Transfer'}
+                              </span>
+                              <span className="bg-indigo-50 text-indigo-800 font-extrabold px-1.5 py-0.2 rounded text-[8.5px] uppercase border border-indigo-100">
+                                {order.status}
+                              </span>
+                            </div>
+
+                            {/* Leg 2: Secondary Service */}
+                            <div className="flex items-center justify-between text-[10px]">
+                              <span className="text-slate-650 font-bold flex items-center gap-1">
+                                {order.type === 'FastTrack' ? '🚘 Leg 2: Airport Transfer' : '✈️ Leg 2: VIP Fast-Track'}
+                              </span>
+                              <span className="bg-purple-50 text-purple-800 font-extrabold px-1.5 py-0.2 rounded text-[8.5px] uppercase border border-purple-100/50">
+                                {order.secondaryStatus || 'Confirmed'}
+                              </span>
+                            </div>
+
+                            {/* Flight & Info */}
+                            <div className="grid grid-cols-2 gap-1 pt-1 border-t border-slate-200 text-[9.5px] text-slate-500 font-medium">
+                              <div>
+                                <span>Payment: </span>
+                                <span className="font-bold text-slate-750">{isRefunded ? 'Refunded' : order.paymentStatus}</span>
+                              </div>
+                              <div>
+                                <span>Flight: </span>
+                                <strong className="text-slate-800">
+                                  {details.flightNumber || 'N/A'}{details.arrivalTime ? ` @ ${details.arrivalTime}` : ''}
+                                </strong>
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-2 gap-1 text-[10px] font-medium text-slate-500">
+                            <div>
+                              <span>Service: </span>
+                              <span className="text-indigo-700 font-bold">
+                                {order.type === 'FastTrack'
+                                  ? `Fasttrack (${details.serviceDirection || details.direction || 'Arrival'})`
+                                  : order.type === 'AirportPickup'
+                                    ? `Car/Bus (${details.direction || 'Arrival'})`
+                                    : order.type}
+                              </span>
+                            </div>
+                            <div>
+                              <span>Payment: </span>
+                              <span className={`font-bold ${isRefunded ? 'text-purple-600' : 'text-slate-700'}`}>
+                                {isRefunded ? 'Refunded' : order.paymentStatus}
+                              </span>
+                            </div>
+                            <div>
+                              <span>Flight/Time: </span>
+                              <strong className="text-slate-800">
+                                {order.type === 'Visa' 
+                                  ? (details.processingSpeed || 'Standard') 
+                                  : `${details.flightNumber || 'N/A'}${details.arrivalTime ? ` @ ${details.arrivalTime}` : ''}`
+                                }
+                              </strong>
+                            </div>
+                            <div>
+                              <span>Status: </span>
+                              <span className="bg-indigo-50 text-indigo-800 font-bold px-1.5 py-0.5 rounded text-[9px] uppercase border border-indigo-100">
+                                {order.status}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Interactive dynamic status flags */}
+                        <div className="flex flex-wrap gap-1 pt-1">
+                          {isGround && (
+                            <span className={`px-1.5 py-0.2 rounded-[3px] text-[8.5px] font-bold ${
+                              hasStaffOrPartner 
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/50' 
+                                : 'bg-rose-50 text-rose-700 border border-rose-200/50'
+                            }`}>
+                              {hasStaffOrPartner ? '✓ Staff Assigned' : '🚨 Staff Unassigned'}
+                            </span>
+                          )}
+                          {wantsVAT && (
+                            <span className={`px-1.5 py-0.2 rounded-[3px] text-[8.5px] font-bold ${
+                              isVATStamped 
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/50' 
+                                : 'bg-amber-50 text-amber-700 border border-amber-200/50'
+                            }`}>
+                              {isVATStamped ? '🧾 VAT Tax Stamped' : '🧾 VAT Stamp Required'}
+                            </span>
+                          )}
+                          {hasIssue && (
+                            <span className="bg-red-50 text-red-700 border border-red-200/50 px-1.5 py-0.2 rounded-[3px] text-[8.5px] font-bold animate-pulse">
+                              ⚠️ Attention: {order.status}
+                            </span>
+                          )}
+                          {isCancelled && !isRefunded && (
+                            <span className="bg-purple-50 text-purple-700 border border-purple-200/50 px-1.5 py-0.2 rounded-[3px] text-[8.5px] font-bold">
+                              💸 Cancelled / Refund Due
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-[10px]">
+                          <span className="text-slate-400">
+                            {isGround ? (
+                              <>
+                                Agent: <span className="font-bold text-slate-600">
+                                  {partnerAssigned ? PARTNERS[order.type]?.find(p => p.id === partnerAssigned)?.name : 'None'}
+                                </span>
+                              </>
+                            ) : (
+                              <span className="italic">Operational Alert Centre</span>
+                            )}
+                          </span>
+                        </div>
                       </div>
                     );
                   })}
@@ -1189,21 +1301,7 @@ export default function OMSAlertsBoard({
                           </span>
                         </div>
 
-                        {/* Immediate quick complete if arriving tomorrow */}
-                        {order.status !== 'Completed' && order.status !== 'Approved & Issued' && order.status !== 'Service Completed' && order.status !== 'JourneyCompleted' && (
-                          <div className="pt-1 flex justify-end">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const doneState = 'Completed';
-                                setOrders(orders.map(o => o.id === order.id ? { ...o, status: doneState } : o));
-                              }}
-                              className="bg-purple-600 hover:bg-purple-700 text-white font-black text-[9px] tracking-wide uppercase px-2 py-0.5 rounded cursor-pointer transition-all font-sans"
-                            >
-                              Mark Clearance Done!
-                            </button>
-                          </div>
-                        )}
+
                       </div>
                     );
                   })}

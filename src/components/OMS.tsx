@@ -2940,7 +2940,6 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
       ) : (
         <OMSAlertsBoard
           orders={paidOrders}
-          setOrders={setOrders}
           currency={currency}
           assignedPartners={assignedPartners}
           PARTNERS={PARTNERS}
