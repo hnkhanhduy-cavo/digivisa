@@ -182,6 +182,11 @@ export interface Order {
   invoiceStatus?: 'Draft' | 'Sent to Customer' | 'Issued & Tax Stamped' | 'Archived';
   /** Số hoá đơn VAT do kế toán cấp. Không bắt buộc; chỉ cảnh báo khi đã đánh dấu xuất mà còn trống. */
   invoiceNumber?: string;
+  /**
+   * Tiền phải trả cho bên đối tác thực sự làm dịch vụ (đại lý visa, đội sân bay,
+   * nhà xe), tính bằng VNĐ. Ops tự nhập ở tab Management; chưa nhập thì coi như 0.
+   */
+  supplierCostVnd?: number;
   editLog?: OrderEditLogEntry[];
 }
 

@@ -5,7 +5,7 @@ import {
   Smartphone, Share2, Clipboard, ArrowRight, UserCheck, AlertCircle, 
   RefreshCw, Layers, FileText, PhoneCall, CheckSquare, Search, Filter,
   ExternalLink, User, Compass, HelpCircle, ClipboardCheck, ArrowUpRight,
-  ChevronRight, ChevronDown, Building, ShieldAlert, CheckSquare2, X, Download
+  ChevronRight, ChevronDown, Building, ShieldAlert, CheckSquare2, X, Download, Wallet
 } from 'lucide-react';
 import { Order, Currency, CURRENCY_SYMBOLS, OrderEditLogEntry } from '../types';
 import { safeStorage, safeOpen } from '../utils/storage';
@@ -301,7 +301,8 @@ export default function OMSAgencyComms({
     const baseOrder = orders.find((o) => o.id === baseId) || selectedOrder;
 
     const subKey = fieldPath.startsWith('details.') ? fieldPath.replace('details.', '') : fieldPath;
-    const oldValue = ((((baseOrder.details as any)?.[subKey] ?? (baseOrder as any)?.[subKey]) || '') as string).trim();
+    // String(): not every editable field holds a string — the partner cost is a number.
+    const oldValue = String(((baseOrder.details as any)?.[subKey] ?? (baseOrder as any)?.[subKey]) ?? '').trim();
 
     const oldEditLog: OrderEditLogEntry[] = (baseOrder as any).editLog || [];
 
@@ -316,7 +317,10 @@ export default function OMSAgencyComms({
     };
 
     const payload: Record<string, any> = {
-      [fieldPath]: newValue,
+      // Money is stored as a number so the fulfilment ledger can add it up.
+      [fieldPath]: fieldPath === 'supplierCostVnd'
+        ? (Number(String(newValue).replace(/\D/g, '')) || 0)
+        : newValue,
       editLog: [...oldEditLog, newLogEntry]
     };
 
@@ -2357,6 +2361,61 @@ export default function OMSAgencyComms({
                       );
                     })()}
                   </div>
+
+                  {/* Service partner cost — the middle slice of every order's money,
+                      the one nothing else in the system knows about. Ops types it in
+                      here; the fulfilment ledger treats a blank as zero. */}
+                  {(() => {
+                    const baseId = selectedOrder.id.replace('_secondary', '');
+                    const baseOrder = orders.find((o) => o.id === baseId) || selectedOrder;
+                    const cost = Number((baseOrder as any).supplierCostVnd) || 0;
+                    const isEnLang = language === 'EN';
+
+                    return (
+                      <div className="p-4 bg-amber-50/40 border border-amber-200/70 rounded-2xl space-y-2">
+                        <div className="flex items-center space-x-2">
+                          <Wallet className="h-4 w-4 text-amber-600 shrink-0" />
+                          <h4 className="text-[11.5px] font-black text-slate-800 uppercase tracking-wider">
+                            {isEnLang ? 'Service Partner Cost' : 'Chi phí trả đối tác dịch vụ'}
+                          </h4>
+                        </div>
+                        <p className="text-[10.5px] text-slate-500 leading-relaxed">
+                          {isEnLang
+                            ? 'What we pay the partner who actually performs this service, in VND. Leave it blank until you know the figure — fulfilment reads a blank as 0.'
+                            : 'Số tiền phải trả cho bên trực tiếp làm dịch vụ này, tính bằng VNĐ. Chưa biết thì cứ để trống — bên Fulfilment sẽ hiểu là 0.'}
+                        </p>
+                        <EditableOrderField
+                          key={`${baseId}::supplierCostVnd`}
+                          label={isEnLang ? 'Cost (VND)' : 'Chi phí (VNĐ)'}
+                          value={cost > 0 ? String(cost) : ''}
+                          fieldPath="supplierCostVnd"
+                          logLabel={isEnLang ? 'Service partner cost' : 'Chi phí trả đối tác dịch vụ'}
+                          language={language}
+                          inputType="text"
+                          placeholder={isEnLang ? 'e.g. 1200000' : 'VD: 1200000'}
+                          emptyText={isEnLang ? 'Not entered (0)' : 'Chưa nhập (0)'}
+                          requireReason
+                          validate={(v) => {
+                            const digits = v.replace(/\D/g, '');
+                            if (!digits) return null;
+                            if (!/^\d+$/.test(v.trim())) {
+                              return isEnLang ? 'Digits only, no dots or spaces' : 'Chỉ nhập số, không dấu chấm hay khoảng trắng';
+                            }
+                            return null;
+                          }}
+                          valueClassName="font-extrabold text-amber-800 font-mono"
+                          trailing={
+                            cost > 0 ? (
+                              <span className="text-[10px] font-bold text-amber-700 font-mono">
+                                {cost.toLocaleString('en-US')} ₫
+                              </span>
+                            ) : null
+                          }
+                          onSave={handleSaveField}
+                        />
+                      </div>
+                    );
+                  })()}
 
                   {/* Edit History (Ops View) */}
                   {(() => {

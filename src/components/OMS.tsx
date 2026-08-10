@@ -8,7 +8,8 @@ import {
   Copy, Download
 } from 'lucide-react';
 import { Order, Currency, CURRENCY_SYMBOLS, EXCHANGE_RATES } from '../types';
-import { getVietnamPricing, splitCommission } from '../utils/pricing';
+import { splitCommission } from '../utils/pricing';
+import { formatOrderMoney, orderVndTotal } from '../utils/orderMoney';
 import OMSAlertsBoard from './OMSAlertsBoard';
 import OMSAgencyComms from './OMSAgencyComms';
 import { safeStorage, safeOpen } from '../utils/storage';
@@ -522,211 +523,7 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
   });
 
   // Helper formats
-  const formatMoney = (usdAmount: any, order?: Order) => {
-    const val = typeof usdAmount === 'number' ? usdAmount : (parseFloat(usdAmount) || 0);
-    if (order && order.type === 'Visa') {
-      const details = order.details as any;
-      if (details.destinationCountry === 'Vietnam') {
-        const pricing = getVietnamPricing(
-          details.visaType,
-          details.resultsOption || '',
-          details.submissionTiming || ''
-        );
-        if (currency === 'VND') {
-          return `${pricing.totalVnd.toLocaleString('en-US')} ₫`;
-        }
-        return `${CURRENCY_SYMBOLS[currency]}${Math.round(pricing.total * EXCHANGE_RATES[currency]).toLocaleString()}`;
-      }
-    }
-
-    if (currency === 'VND') {
-      if (order && order.type === 'Visa') {
-        const details = order.details as any;
-          const base = details.visaType === 'Tourist (90 Days)' ? 220 : (details.nationality === 'Taiwan' || details.nationality === 'China' ? 130 : 120);
-          let baseVnd = base * 25000;
-          if (details.nationality === 'Taiwan') baseVnd = 3450000;
-          else if (details.nationality === 'China') baseVnd = 3445000;
-          else if (details.nationality === 'Korea' || details.nationality === 'Japan' || details.nationality === 'South Korea') {
-            if (base === 120) baseVnd = 3120000;
-            if (base === 220) baseVnd = 5720000;
-          }
-          
-          let speed = 0;
-          
-          const speedVnd = speed * 25000;
-          const subtotalVnd = baseVnd + speedVnd;
-          const taxVnd = Math.round(subtotalVnd * 0.08);
-          const totalVnd = subtotalVnd + taxVnd;
-          
-          return `${totalVnd.toLocaleString('en-US')} ₫`;
-        }
-
-      if (order && order.type === 'AirportPickup') {
-        const details = order.details as any;
-        const airportName = details.airport || '';
-        const vehicleType = details.vehicleType || '4 seats';
-        
-        const isHan = airportName.includes('HAN');
-        const isDad = airportName.includes('DAD');
-        let baseVnd = 750000;
-        if (isHan) {
-          if (vehicleType === '4 seats') baseVnd = 765000;
-          else if (vehicleType === '7 seats') baseVnd = 1065000;
-          else baseVnd = 1565000;
-        } else if (isDad) {
-          if (vehicleType === '4 seats') baseVnd = 700000;
-          else if (vehicleType === '7 seats') baseVnd = 1000000;
-          else baseVnd = 1500000;
-        } else {
-          // SGN
-          if (vehicleType === '4 seats') baseVnd = 750000;
-          else if (vehicleType === '7 seats') baseVnd = 1050000;
-          else baseVnd = 1550000;
-        }
-        
-        const addFastTrack = details.addFastTrack;
-        const fastTrackType = details.fastTrackType || 'VIP Meet & Assist';
-        let comboVnd = 0;
-        if (addFastTrack) {
-          if (fastTrackType === 'VIP Meet & Assist') comboVnd = 1150000;
-          else if (fastTrackType === 'Premium Fast Track') comboVnd = 1250000;
-          else if (fastTrackType === 'Elite Lounges Gate-to-Gate') comboVnd = 1400000;
-        }
-        
-        let totalVnd = baseVnd + comboVnd;
-        if (addFastTrack) {
-          totalVnd = Math.max(0, totalVnd - 200000);
-        }
-        return `${totalVnd.toLocaleString('en-US')} ₫`;
-      }
-
-      if (order && order.type === 'FastTrack') {
-        const details = order.details as any;
-        const packageType = details.packageType || 'Fast Track Standard';
-        let packageVnd = 1150000;
-        if (packageType === 'Fast Track Standard') packageVnd = 1150000;
-        else if (packageType === 'Fast Track Business') packageVnd = 1250000;
-        else if (packageType === 'Fast Track Vip') packageVnd = 1400000;
-        
-        let esimVnd = details.hasEsim ? 375000 : 0;
-        
-        let pickupVnd = 0;
-        if (details.addAirportPickup) {
-          const airportName = details.airport || '';
-          const vehicleType = details.selectedPickupVehicle || '4 seats';
-          const isHan = airportName.includes('HAN');
-          const isDad = airportName.includes('DAD');
-          if (isHan) {
-            if (vehicleType === '4 seats') pickupVnd = 765000;
-            else if (vehicleType === '7 seats') pickupVnd = 1065000;
-            else pickupVnd = 1565000;
-          } else if (isDad) {
-            if (vehicleType === '4 seats') pickupVnd = 700000;
-            else if (vehicleType === '7 seats') pickupVnd = 1000000;
-            else pickupVnd = 1500000;
-          } else {
-            // SGN
-            if (vehicleType === '4 seats') pickupVnd = 750000;
-            else if (vehicleType === '7 seats') pickupVnd = 1050000;
-            else pickupVnd = 1550000;
-          }
-        }
-        
-        let totalVnd = packageVnd + esimVnd + pickupVnd;
-        if (details.addAirportPickup) {
-          totalVnd = Math.max(0, totalVnd - 200000);
-        }
-        return `${totalVnd.toLocaleString('en-US')} ₫`;
-      }
-
-      const EXACT_SUMS: Record<number, number> = {
-        12: 300000,
-        15: 375000,
-        24: 600000,
-        27: 700000,
-        29: 750000,
-        38: 1000000,
-        39: 1000000,
-        40: 1050000,
-        42: 1100000,
-        45: 1150000,
-        48: 1250000,
-        51: 1300000,
-        54: 1375000,
-        55: 1400000,
-        57: 1500000,
-        59: 1550000,
-        60: 1525000,
-        61: 1550000,
-        63: 1600000,
-        64: 1625000,
-        65: 1700000,
-        66: 1675000,
-        67: 1750000,
-        69: 1800000,
-        70: 1775000,
-        72: 1850000,
-        73: 1850000,
-        74: 1950000,
-        75: 1950000,
-        76: 2000000,
-        78: 2050000,
-        79: 2000000,
-        80: 2100000,
-        81: 2100000,
-        82: 2100000,
-        83: 2150000,
-        84: 2200000,
-        85: 2200000,
-        86: 2250000,
-        87: 2250000,
-        88: 2225000,
-        89: 2300000,
-        91: 2350000,
-        93: 2450000,
-        94: 2375000,
-        95: 2500000,
-        96: 2475000,
-        97: 2550000,
-        99: 2600000,
-        102: 2650000,
-        103: 2700000,
-        104: 2700000,
-        105: 2750000,
-        106: 2750000,
-        108: 2800000,
-        112: 2900000,
-        114: 2950000,
-        120: 3120000,
-        130: 3450000,
-        132: 3300000,
-        135: 3375000,
-        144: 3600000,
-        147: 3675000,
-        159: 3975000,
-        162: 4100000,
-        177: 4475000,
-        195: 4875000,
-        207: 5175000,
-        210: 5250000,
-        219: 5475000,
-        220: 5720000,
-        222: 5550000,
-        234: 5850000,
-        237: 5975000,
-        252: 6350000,
-      };
-      
-      const matched = EXACT_SUMS[val];
-      if (matched !== undefined) {
-        return `${matched.toLocaleString('en-US')} ₫`;
-      }
-      
-      let converted = val * EXCHANGE_RATES[currency];
-      return `${converted.toLocaleString('en-US')} ₫`;
-    }
-    return `$ ${val.toFixed(2)}`;
-  };
+  const formatMoney = (usdAmount: any, order?: Order) => formatOrderMoney(usdAmount, currency, order);
 
   const getStatusBadgeStyle = (status: string) => {
     const s = String(status || '').toLowerCase();
@@ -2149,33 +1946,68 @@ export default function OMS({ orders, setOrders, currency, language = 'EN', onUp
                             : 'Cập nhật trạng thái tại tab Order Management.'}
                         </p>
 
-                        {/* Referral commission breakdown — the total is inflated, so say by how much */}
-                        {(() => {
+                        {/* Where this order's money goes. Three slices: what we owe the
+                            partner who sent the customer, what we owe the partner who does
+                            the work, and what is left over. The middle one only exists if
+                            ops has typed it in over in Order Management. */}
+                        {!selectedOrder.id.endsWith('_secondary') && (() => {
                           const d = (selectedOrder.details || {}) as any;
+                          const totalUsd = Number(d.totalFee) || 0;
+                          if (totalUsd <= 0) return null;
+
                           const asked = Number(d.referralCommission) || 0;
-                          if (asked <= 0) return null;
-                          const comm = splitCommission(asked, d.referralCommissionCurrency || 'USD');
-                          const serviceUsd = (Number(d.totalFee) || 0) - comm.usd;
+                          const comm = asked > 0
+                            ? splitCommission(asked, d.referralCommissionCurrency || 'USD')
+                            : { usd: 0, vnd: 0 };
+
+                          // Partner cost is kept in VND. Convert it with the order's own
+                          // rate so it lines up with every other figure in this box.
+                          const totalVnd = orderVndTotal(selectedOrder);
+                          const costVnd = Number((selectedOrder as any).supplierCostVnd) || 0;
+                          const costUsd = totalVnd > 0 ? (costVnd * totalUsd) / totalVnd : costVnd / 25000;
+
+                          const marginUsd = totalUsd - comm.usd - costUsd;
+                          const isEnLang = language === 'EN';
+
                           return (
                             <div className="space-y-1">
-                              <label className="text-[10px] font-bold text-violet-700 uppercase">
-                                {language === 'EN' ? 'Referred booking' : 'Đơn có hoa hồng dẫn khách'}
+                              <label className="text-[10px] font-bold text-slate-500 uppercase">
+                                {isEnLang ? 'Where the money goes' : 'Tiền của đơn này đi đâu'}
                               </label>
-                              <div className="w-full bg-violet-50/70 border border-violet-200 rounded-xl px-3 py-2 space-y-1 font-sans">
+                              <div className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 space-y-1 font-sans">
                                 <div className="flex items-center justify-between text-[11px]">
-                                  <span className="text-slate-600">{language === 'EN' ? 'Service price' : 'Giá dịch vụ'}</span>
-                                  <span className="font-bold text-slate-800 font-mono">{formatMoney(serviceUsd, selectedOrder)}</span>
+                                  <span className="font-bold text-slate-800">{isEnLang ? 'Collected' : 'Tổng thu'}</span>
+                                  <span className="font-black text-slate-900 font-mono">{formatMoney(totalUsd, selectedOrder)}</span>
                                 </div>
+                                {comm.usd > 0 && (
+                                  <div className="flex items-center justify-between text-[11px]">
+                                    <span className="text-violet-700 font-semibold">
+                                      {isEnLang ? 'Referral commission (owed)' : 'Hoa hồng dẫn khách (phải trả)'}
+                                    </span>
+                                    <span className="font-bold text-violet-800 font-mono">-{formatMoney(comm.usd, selectedOrder)}</span>
+                                  </div>
+                                )}
                                 <div className="flex items-center justify-between text-[11px]">
-                                  <span className="text-violet-700 font-semibold">
-                                    {language === 'EN' ? 'Referral commission (owed)' : 'Hoa hồng dẫn khách (phải trả)'}
+                                  <span className={costVnd > 0 ? 'text-amber-700 font-semibold' : 'text-slate-400 font-semibold'}>
+                                    {isEnLang ? 'Service partner cost' : 'Chi phí đối tác dịch vụ'}
                                   </span>
-                                  <span className="font-black text-violet-800 font-mono">{formatMoney(comm.usd, selectedOrder)}</span>
+                                  <span className={`font-bold font-mono ${costVnd > 0 ? 'text-amber-800' : 'text-slate-400'}`}>
+                                    -{formatMoney(costUsd, selectedOrder)}
+                                  </span>
                                 </div>
-                                <div className="flex items-center justify-between text-xs pt-1 border-t border-violet-200">
-                                  <span className="font-bold text-slate-800">{language === 'EN' ? 'Collected' : 'Tổng thu'}</span>
-                                  <span className="font-black text-slate-900 font-mono">{formatMoney(Number(d.totalFee) || 0, selectedOrder)}</span>
+                                <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-200">
+                                  <span className="font-bold text-slate-800">{isEnLang ? 'Margin' : 'Còn lại'}</span>
+                                  <span className={`font-black font-mono ${marginUsd < 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
+                                    {formatMoney(marginUsd, selectedOrder)}
+                                  </span>
                                 </div>
+                                {costVnd <= 0 && (
+                                  <p className="text-[9.5px] text-slate-400 leading-snug pt-0.5">
+                                    {isEnLang
+                                      ? 'Partner cost not entered yet, so this margin is the ceiling, not the real one. Enter it in Order Management.'
+                                      : 'Chưa nhập chi phí đối tác, nên số còn lại đang là mức tối đa chứ chưa phải lãi thật. Nhập ở tab Order Management.'}
+                                  </p>
+                                )}
                               </div>
                             </div>
                           );
