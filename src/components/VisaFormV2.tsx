@@ -390,8 +390,8 @@ export default function VisaFormV2({
         {/* Live Prices Grid or Vietnam sub-options */}
         {formData.destinationCountry === 'Vietnam' ? (
           <div className="p-4 bg-white border border-slate-200 rounded-2xl space-y-3.5 shadow-xs animate-fade-in mt-2">
-            <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
-              <h4 className="font-display font-bold text-xs text-indigo-700 uppercase tracking-wide flex items-center gap-1.5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+              <h4 className="font-display font-bold text-xs text-indigo-700 uppercase tracking-wide flex items-center gap-1.5 min-w-0">
                 <span>⚡</span>{' '}
                 {formData.visaType === 'Vietnam approval letter on arrival'
                   ? (isEn ? 'Vietnam Approval Letter Processing Schedule' : 'Lịch trình xử lý Thư chấp thuận Việt Nam')
@@ -399,7 +399,7 @@ export default function VisaFormV2({
               </h4>
 
               {/* Clean compact time badge */}
-              <div className="text-[10px] font-mono font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-0.5 rounded-full flex items-center gap-1 whitespace-nowrap shadow-2xs">
+              <div className="text-[10px] font-mono font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-0.5 rounded-full flex items-center gap-1 whitespace-nowrap shadow-2xs self-start sm:self-auto">
                 <Clock className="h-3 w-3 text-indigo-600 animate-pulse" />
                 <span>{vnTimeDetails.formattedTime} {isEn ? 'Vietnam Time (GMT +7)' : 'Giờ Việt Nam (GMT +7)'}</span>
               </div>
