@@ -496,22 +496,6 @@ export default function OrderTracker({
     return `$ ${val.toFixed(2)}`;
   };
 
-  const getExpectedResultDate = (order: Order) => {
-    const speed = (order.details as any)?.processingSpeed || 'Standard';
-    const created = order.createdAt ? new Date(order.createdAt) : new Date();
-    const resultDate = new Date(created);
-    if (speed === 'SuperExpress') {
-      resultDate.setHours(resultDate.getHours() + 6);
-      return `${resultDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })} (Within 4-8 hours)`;
-    } else if (speed === 'Express') {
-      resultDate.setDate(resultDate.getDate() + 2);
-      return resultDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-    } else {
-      resultDate.setDate(resultDate.getDate() + 4);
-      return resultDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-    }
-  };
-
   const getInvoiceBreakdown = (order: Order) => {
     const details = order.details as any;
     const isVnd = currency === 'VND';
@@ -1170,14 +1154,7 @@ export default function OrderTracker({
                         </h5>
                         <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">{getStatusMessage(trackingOrder!)}</p>
                         
-                        {trackingOrder!.type === 'Visa' && (
-                          <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center gap-2 text-[11px]">
-                            <span className="text-slate-400 font-bold uppercase text-[9px]">Expected Result:</span>
-                            <strong className="text-indigo-600 bg-indigo-50/50 border border-indigo-100 px-2 py-0.5 rounded font-mono font-black">
-                              {getExpectedResultDate(trackingOrder!)}
-                            </strong>
-                          </div>
-                        )}
+
                       </div>
                     </div>
                   )}
@@ -1313,13 +1290,7 @@ export default function OrderTracker({
                           </div>
                         </div>
 
-                        <div className="pt-2.5 border-t border-slate-150">
-                          <span className="text-indigo-600 block text-[10px] uppercase font-bold tracking-wide">Expected Date receive the result</span>
-                          <span className="font-extrabold text-slate-800 flex items-center gap-1.5 mt-0.5">
-                            <Calendar className="h-3.5 w-3.5 text-indigo-550 shrink-0" />
-                            {getExpectedResultDate(selectedOrder)}
-                          </span>
-                        </div>
+
                       </>
                     )}
 
