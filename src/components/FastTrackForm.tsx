@@ -1248,19 +1248,19 @@ export default function FastTrackForm({ currency, onSuccess, onCancel, language 
                       onChange={(e) => setSelectedPickupVehicle(e.target.value as any)}
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-base sm:text-xs font-bold text-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                     >
-                      {(() => {
-                        const p4 = getVehiclePrice(formData.airport || 'Tan Son Nhat (SGN)', '4 seats');
-                        const p7 = getVehiclePrice(formData.airport || 'Tan Son Nhat (SGN)', '7 seats');
-                        const p16 = getVehiclePrice(formData.airport || 'Tan Son Nhat (SGN)', '16 seats');
-                        return (
-                          <>
-                            <option value="4 seats">{isEn ? '4 Seats Eco Sedan' : 'Xe Sedan 4 Chỗ Tiết Kiệm'} ({formatCharge(p4.usd, p4.vnd)})</option>
-                            <option value="7 seats">{isEn ? '7 Seats Comfort SUV' : 'Xe SUV 7 Chỗ Rộng Rãi'} ({formatCharge(p7.usd, p7.vnd)})</option>
-                            <option value="16 seats">{isEn ? '16 Seats Executive Minibus' : 'Xe Minibus 16 Chỗ Cao Cấp'} ({formatCharge(p16.usd, p16.vnd)})</option>
-                          </>
-                        );
-                      })()}
+                      <option value="4 seats">{isEn ? '4 Seats Eco Sedan' : 'Xe Sedan 4 Chỗ Tiết Kiệm'}</option>
+                      <option value="7 seats">{isEn ? '7 Seats Comfort SUV' : 'Xe SUV 7 Chỗ Rộng Rãi'}</option>
+                      <option value="16 seats">{isEn ? '16 Seats Executive Minibus' : 'Xe Minibus 16 Chỗ Cao Cấp'}</option>
                     </select>
+                    {(() => {
+                      const currentPrice = getVehiclePrice(formData.airport || 'Tan Son Nhat (SGN)', selectedPickupVehicle);
+                      return (
+                        <p className="text-[11px] font-semibold text-slate-500 mt-1.5 flex items-center justify-between">
+                          <span>{isEn ? 'Vehicle Price:' : 'Giá dịch vụ xe:'}</span>
+                          <span className="font-bold text-indigo-600">{formatCharge(currentPrice.usd, currentPrice.vnd)}</span>
+                        </p>
+                      );
+                    })()}
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">

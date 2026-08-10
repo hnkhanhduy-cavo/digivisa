@@ -1008,12 +1008,12 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
                     {isEn ? 'Special Chauffeur Operations Notes (Optional)' : 'Yêu Cầu Đặc Biệt Cho Tài Xế (Không bắt buộc)'}
                   </label>
                   <textarea
-                    rows={2}
+                    rows={3}
                     value={optionalNote}
                     onChange={(e) => setOptionalNote(e.target.value)}
                     placeholder={isEn 
-                      ? 'Add instruction such as kid seating pads, passenger age alerts, physical aids, delayed connection warnings, etc.' 
-                      : 'Nhập thêm các hướng dẫn đặc biệt như ghế ngồi cho trẻ em, độ tuổi hành khách, hỗ trợ di chuyển, cảnh báo chuyến bay nối chuyến trễ, v.v.'}
+                      ? 'e.g. child seat needed, elderly passenger needs assistance...' 
+                      : 'VD: cần ghế trẻ em, khách lớn tuổi cần hỗ trợ...'}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-700 text-base sm:text-xs focus:ring-2 focus:ring-indigo-500/20 focus:outline-none transition-all"
                   />
                 </div>

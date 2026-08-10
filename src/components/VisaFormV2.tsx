@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Globe, FileUser, CreditCard, Upload, Calendar, FileText, Check, ShieldAlert, BadgeCheck, Clock, Sparkles, Zap, AlertTriangle, Timer, Lock,
+  Globe, FileUser, CreditCard, Upload, FileText, Check, ShieldAlert, BadgeCheck, Clock, Sparkles, Zap, AlertTriangle, Timer, Lock,
   Trash2, RefreshCw, Eye, X, CheckCircle
 } from 'lucide-react';
 import { VisaApplication, Currency, NATIONALITIES, Order } from '../types';
@@ -905,7 +905,6 @@ export default function VisaFormV2({
               {isEn ? 'Passport Expiry Date *' : 'Ngày Hết Hạn Hộ Chiếu *'}
             </label>
             <div className="relative">
-              <Calendar className="absolute right-3 top-2.5 h-4 w-4 text-slate-400 pointer-events-none" />
               <input
                 type="date"
                 value={formData.passportExpiry}
@@ -923,7 +922,6 @@ export default function VisaFormV2({
               {isEn ? 'Date of Birth *' : 'Ngày Sinh *'}
             </label>
             <div className="relative">
-              <Calendar className="absolute right-3 top-2.5 h-4 w-4 text-slate-400 pointer-events-none" />
               <input
                 type="date"
                 value={formData.dateOfBirth}
@@ -958,7 +956,6 @@ export default function VisaFormV2({
               {isEn ? 'Planned Date of Arrival *' : 'Ngày Nhập Cảnh Dự Kiến *'}
             </label>
             <div className="relative">
-              <Calendar className="absolute right-3 top-2.5 h-4 w-4 text-slate-400 pointer-events-none" />
               <input
                 type="date"
                 value={formData.arrivalDate}

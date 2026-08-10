@@ -217,8 +217,8 @@ export default function HistoricalAutofill({ onSelect, serviceType, language = '
                         : 'border-slate-200 hover:border-indigo-400 bg-white hover:bg-slate-50/80 shadow-2xs'
                     }`}
                   >
-                    <div className="space-y-1 overflow-hidden pr-2">
-                      <div className="flex items-center space-x-2">
+                    <div className="space-y-1 overflow-hidden pr-2 flex-1 min-w-0">
+                      <div className="flex items-center space-x-2 min-w-0">
                         <span className="font-bold text-slate-900 truncate">
                           {profile.contactName || `${profile.firstName} ${profile.lastName}`}
                         </span>
@@ -229,13 +229,13 @@ export default function HistoricalAutofill({ onSelect, serviceType, language = '
                         )}
                       </div>
 
-                      <div className="text-[10px] text-slate-500 space-y-0.5">
+                      <div className="text-[10px] text-slate-500 space-y-0.5 min-w-0">
                         {profile.passportNumber && (
-                          <p>🛂 Hộ chiếu: <strong className="font-mono text-slate-700">{profile.passportNumber}</strong> ({profile.nationality})</p>
+                          <p className="truncate">🛂 Hộ chiếu: <strong className="font-mono text-slate-700">{profile.passportNumber}</strong> ({profile.nationality})</p>
                         )}
                         {profile.email && <p className="truncate">✉️ Email: <strong className="text-slate-700">{profile.email}</strong></p>}
-                        {profile.phone && <p>📞 SĐT: <strong className="font-mono text-slate-700">{profile.phone}</strong></p>}
-                        {profile.flightNumber && <p>✈️ Chuyến bay: <strong className="font-mono text-slate-700">{profile.flightNumber}</strong> ({profile.airport || ''})</p>}
+                        {profile.phone && <p className="truncate">📞 SĐT: <strong className="font-mono text-slate-700">{profile.phone}</strong></p>}
+                        {profile.flightNumber && <p className="truncate">✈️ Chuyến bay: <strong className="font-mono text-slate-700">{profile.flightNumber}</strong> ({profile.airport || ''})</p>}
                       </div>
 
                       <div className="pt-1 flex items-center space-x-2">
