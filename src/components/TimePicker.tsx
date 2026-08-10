@@ -102,7 +102,7 @@ export const TimePicker: React.FC<TimePickerProps> = ({
           value={hasValue ? `${internalHour}:${internalMinute} ${internalPeriod}` : ''}
           onClick={() => setIsOpen(true)}
           placeholder={placeholder}
-          className={`w-full bg-slate-50 border rounded-xl pl-4 pr-11 py-3 text-slate-700 text-sm font-semibold focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:outline-none cursor-pointer transition-all ${
+          className={`w-full bg-slate-50 border rounded-xl pl-4 pr-11 py-3 text-slate-700 text-base sm:text-sm font-semibold focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:outline-none cursor-pointer transition-all ${
             error ? 'border-red-400 bg-red-50/10' : 'border-slate-200'
           } ${className}`}
         />

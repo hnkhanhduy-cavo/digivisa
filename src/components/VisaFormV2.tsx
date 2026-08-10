@@ -338,7 +338,7 @@ export default function VisaFormV2({
                   submissionTiming: val === 'Vietnam' ? 'before_3pm' : '',
                 }));
               }}
-              className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800 text-xs font-semibold focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none transition-all cursor-pointer"
+              className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800 text-base sm:text-xs font-semibold focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none transition-all cursor-pointer"
             >
               <option value="Vietnam">{isEn ? 'Vietnam (eVisa)' : 'Việt Nam (eVisa)'}</option>
               <option value="Korea">{isEn ? 'Korea' : 'Hàn Quốc'}</option>
@@ -370,7 +370,7 @@ export default function VisaFormV2({
                     : (val === 'Multiple' ? 'Tourist (90 Days)' : 'Tourist (30 Days)'));
                 setFormData((prev) => ({ ...prev, visaType: mappedType as any }));
               }}
-              className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-slate-800 text-xs font-semibold focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none transition-all cursor-pointer"
+              className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-slate-800 text-base sm:text-xs font-semibold focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none transition-all cursor-pointer"
             >
               <option value="Single">
                 {isEn ? 'Single' : '1 Lần'}
@@ -851,7 +851,7 @@ export default function VisaFormV2({
               value={formData.firstName}
               onChange={(e) => setFormData((prev) => ({ ...prev, firstName: e.target.value }))}
               placeholder={isEn ? 'e.g. ALEXANDRA' : 'Ví dụ: ALEXANDRA'}
-              className={`w-full bg-white border rounded-xl px-3 outline-none py-2 text-xs font-semibold focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all ${
+              className={`w-full bg-white border rounded-xl px-3 outline-none py-2 text-base sm:text-xs font-semibold focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all ${
                 errors.firstName ? 'border-red-400 bg-red-50/5' : 'border-slate-200'
               }`}
             />
@@ -867,7 +867,7 @@ export default function VisaFormV2({
               value={formData.lastName}
               onChange={(e) => setFormData((prev) => ({ ...prev, lastName: e.target.value }))}
               placeholder={isEn ? 'e.g. SMITH' : 'Ví dụ: SMITH'}
-              className={`w-full bg-white border rounded-xl px-3 outline-none py-2 text-xs font-semibold focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all ${
+              className={`w-full bg-white border rounded-xl px-3 outline-none py-2 text-base sm:text-xs font-semibold focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all ${
                 errors.lastName ? 'border-red-400 bg-red-50/5' : 'border-slate-200'
               }`}
             />
@@ -893,7 +893,7 @@ export default function VisaFormV2({
                 }
               }}
               placeholder={isEn ? 'e.g. A12345678' : 'Ví dụ: A12345678'}
-              className={`w-full bg-white border rounded-xl px-3 outline-none py-2 text-xs font-mono font-semibold focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all ${
+              className={`w-full bg-white border rounded-xl px-3 outline-none py-2 text-base sm:text-xs font-mono font-semibold focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all ${
                 errors.passportNumber ? 'border-red-400 bg-red-50/5' : 'border-slate-200'
               }`}
             />
@@ -910,7 +910,7 @@ export default function VisaFormV2({
                 type="date"
                 value={formData.passportExpiry}
                 onChange={(e) => setFormData((prev) => ({ ...prev, passportExpiry: e.target.value }))}
-                className={`w-full bg-white border rounded-xl px-3 outline-none py-2 text-xs font-semibold focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all ${
+                className={`w-full bg-white border rounded-xl px-3 outline-none py-2 text-base sm:text-xs font-semibold focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all ${
                   errors.passportExpiry ? 'border-red-400 bg-red-50/5' : 'border-slate-200'
                 }`}
               />
@@ -945,7 +945,7 @@ export default function VisaFormV2({
                     });
                   }
                 }}
-                className={`w-full bg-white border rounded-xl px-3 outline-none py-2 text-xs font-semibold focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all ${
+                className={`w-full bg-white border rounded-xl px-3 outline-none py-2 text-base sm:text-xs font-semibold focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all ${
                   errors.dateOfBirth ? 'border-red-400 bg-red-50/5' : 'border-slate-200'
                 }`}
               />
@@ -980,7 +980,7 @@ export default function VisaFormV2({
                     });
                   }
                 }}
-                className={`w-full bg-white border rounded-xl px-3 outline-none py-2 text-xs font-semibold focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all ${
+                className={`w-full bg-white border rounded-xl px-3 outline-none py-2 text-base sm:text-xs font-semibold focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all ${
                   errors.arrivalDate ? 'border-red-400 bg-red-50/5' : 'border-slate-200'
                 }`}
               />
@@ -1148,7 +1148,7 @@ export default function VisaFormV2({
                 }
               }}
               placeholder="e.g. traveller@domain.com"
-              className={`w-full bg-white border rounded-xl px-3 outline-none py-2 text-xs font-semibold focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all ${
+              className={`w-full bg-white border rounded-xl px-3 outline-none py-2 text-base sm:text-xs font-semibold focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all ${
                 errors.email ? 'border-red-400 bg-red-50/5' : 'border-slate-200'
               }`}
             />
@@ -1176,7 +1176,7 @@ export default function VisaFormV2({
                 }
               }}
               placeholder={isEn ? "e.g. +84912345678" : "VD: +84912345678"}
-              className={`w-full bg-white border rounded-xl px-3 outline-none py-2 text-xs font-semibold focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all ${
+              className={`w-full bg-white border rounded-xl px-3 outline-none py-2 text-base sm:text-xs font-semibold focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all ${
                 errors.phone ? 'border-red-400 bg-red-50/5' : 'border-slate-200'
               }`}
             />
@@ -1246,7 +1246,7 @@ export default function VisaFormV2({
                     }
                   }}
                   placeholder="DIGIVISA VIETNAM CO LTD"
-                  className={`w-full bg-white border rounded-lg p-2 text-xs ${
+                  className={`w-full bg-white border rounded-lg p-2 text-base sm:text-xs ${
                     errors.companyName ? 'border-red-400 bg-red-50/5' : 'border-slate-200'
                   }`}
                 />
@@ -1271,7 +1271,7 @@ export default function VisaFormV2({
                     }
                   }}
                   placeholder="0102030405"
-                  className={`w-full bg-white border rounded-lg p-2 text-xs font-mono ${
+                  className={`w-full bg-white border rounded-lg p-2 text-base sm:text-xs font-mono ${
                     errors.taxCode ? 'border-red-400 bg-red-50/5' : 'border-slate-200'
                   }`}
                 />
@@ -1296,7 +1296,7 @@ export default function VisaFormV2({
                     }
                   }}
                   placeholder="15 Le Loi, Ben Nghe, District 1, HCMC"
-                  className={`w-full bg-white border rounded-lg p-2 text-xs ${
+                  className={`w-full bg-white border rounded-lg p-2 text-base sm:text-xs ${
                     errors.companyAddress ? 'border-red-400 bg-red-50/5' : 'border-slate-200'
                   }`}
                 />
@@ -1333,7 +1333,7 @@ export default function VisaFormV2({
                     }
                   }}
                   placeholder="finance@yourcompany.com"
-                  className={`w-full bg-white border rounded-lg p-2 text-xs ${
+                  className={`w-full bg-white border rounded-lg p-2 text-base sm:text-xs ${
                     errors.companyEmail ? 'border-red-400 bg-red-50/5' : 'border-slate-200'
                   }`}
                 />

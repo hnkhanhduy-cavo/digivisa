@@ -712,7 +712,7 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
                 <select
                   value={formData.airport || 'Tan Son Nhat (SGN)'}
                   onChange={(e) => setFormData((prev) => ({ ...prev, airport: e.target.value }))}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-705 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none transition-all cursor-pointer"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-705 text-base sm:text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none transition-all cursor-pointer"
                 >
                   <option value="Tan Son Nhat (SGN)">{isEn ? 'Tan Son Nhat (SGN) - Ho Chi Minh City' : 'Sân bay Tân Sơn Nhất (SGN) - TP. HCM'}</option>
                   <option value="Noi Bai (HAN)">{isEn ? 'Noi Bai (HAN) - Hanoi' : 'Sân bay Nội Bài (HAN) - Hà Nội'}</option>
@@ -733,7 +733,7 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
                         type="text"
                         value={destinationAddress}
                         onChange={(e) => setDestinationAddress(e.target.value)}
-                        className={`w-full bg-slate-50 border rounded-xl pl-10 pr-4 py-3 text-slate-705 text-sm font-medium focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 focus:outline-none transition-all ${
+                        className={`w-full bg-slate-50 border rounded-xl pl-10 pr-4 py-3 text-slate-705 text-base sm:text-sm font-medium focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 focus:outline-none transition-all ${
                           errors.destinationAddress ? 'border-red-400 animate-pulse bg-red-50/10' : 'border-slate-200'
                         }`}
                         placeholder={isEn ? 'e.g. Hilton Executive Hotel, Room 104' : 'VD: Khách sạn Hilton, Phòng 104'}
@@ -752,7 +752,7 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
                         type="text"
                         value={pickupAddress}
                         onChange={(e) => setPickupAddress(e.target.value)}
-                        className={`w-full bg-slate-50 border rounded-xl pl-10 pr-4 py-3 text-slate-705 text-sm font-medium focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 focus:outline-none transition-all ${
+                        className={`w-full bg-slate-50 border rounded-xl pl-10 pr-4 py-3 text-slate-705 text-base sm:text-sm font-medium focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 focus:outline-none transition-all ${
                           errors.pickupAddress ? 'border-red-400 animate-pulse bg-red-50/10' : 'border-slate-200'
                         }`}
                         placeholder={isEn ? 'e.g. 15 Le Loi Street, Dist 1, HCMC' : 'VD: Số 15 Lê Lợi, Quận 1, TP. HCM'}
@@ -762,7 +762,7 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label id="lbl-pickup-date" className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
                       {isEn ? 'Pickup Date' : 'Ngày Đón'}
@@ -792,7 +792,7 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
                           });
                         }
                       }}
-                      className={`w-full bg-slate-50 border rounded-xl px-4 py-3 text-slate-700 text-sm font-medium focus:ring-2 focus:outline-none transition-all ${
+                      className={`w-full bg-slate-50 border rounded-xl px-4 py-3 text-slate-700 text-base sm:text-sm font-medium focus:ring-2 focus:outline-none transition-all ${
                         errors.pickupDate ? 'border-red-400 bg-red-50/15' : 'border-slate-200'
                       }`}
                     />
@@ -839,7 +839,7 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
                           });
                         }
                       }}
-                      className={`w-full bg-slate-50 border rounded-xl px-4 py-3 text-slate-700 text-sm font-medium focus:ring-2 focus:outline-none transition-all uppercase font-mono ${
+                      className={`w-full bg-slate-50 border rounded-xl px-4 py-3 text-slate-700 text-base sm:text-sm font-medium focus:ring-2 focus:outline-none transition-all uppercase font-mono ${
                         errors.flightNumber ? 'border-red-400 bg-red-50/10' : 'border-slate-200'
                       }`}
                       placeholder={isEn ? 'e.g. EK349, VN257' : 'VD: EK349, VN257'}
@@ -868,7 +868,7 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
                     type="text"
                     value={formData.passengerName}
                     onChange={(e) => setFormData((prev) => ({ ...prev, passengerName: e.target.value }))}
-                    className={`w-full bg-slate-50 border rounded-xl px-4 py-3 text-slate-700 text-sm font-medium focus:ring-2 focus:outline-none transition-all ${
+                    className={`w-full bg-slate-50 border rounded-xl px-4 py-3 text-slate-700 text-base sm:text-sm font-medium focus:ring-2 focus:outline-none transition-all ${
                       errors.passengerName ? 'border-red-400' : 'border-slate-200'
                     }`}
                     placeholder={isEn ? 'e.g. Dr. Eleanor Vance' : 'VD: NGUYEN VAN A'}
@@ -899,7 +899,7 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
                         }
                       }
                     }}
-                    className={`w-full bg-slate-50 border rounded-xl px-4 py-3 text-slate-705 text-sm font-medium focus:ring-2 focus:outline-none transition-all ${
+                    className={`w-full bg-slate-50 border rounded-xl px-4 py-3 text-slate-705 text-base sm:text-sm font-medium focus:ring-2 focus:outline-none transition-all ${
                       errors.passengerPhone ? 'border-red-400' : 'border-slate-200'
                     }`}
                     placeholder="e.g. +84912345678"
@@ -993,7 +993,7 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
                         }));
                       }
                     }}
-                    className={`w-full bg-slate-50 border rounded-xl px-4 py-3 text-slate-800 text-sm font-medium focus:ring-2 focus:outline-none transition-all ${
+                    className={`w-full bg-slate-50 border rounded-xl px-4 py-3 text-slate-800 text-base sm:text-sm font-medium focus:ring-2 focus:outline-none transition-all ${
                       errors.passengerEmail ? 'border-red-400 bg-red-50/10' : 'border-slate-200'
                     }`}
                     placeholder="email@airport-transfer.com"
@@ -1014,7 +1014,7 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
                     placeholder={isEn 
                       ? 'Add instruction such as kid seating pads, passenger age alerts, physical aids, delayed connection warnings, etc.' 
                       : 'Nhập thêm các hướng dẫn đặc biệt như ghế ngồi cho trẻ em, độ tuổi hành khách, hỗ trợ di chuyển, cảnh báo chuyến bay nối chuyến trễ, v.v.'}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-700 text-xs focus:ring-2 focus:ring-indigo-500/20 focus:outline-none transition-all"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-700 text-base sm:text-xs focus:ring-2 focus:ring-indigo-500/20 focus:outline-none transition-all"
                   />
                 </div>
               </div>
@@ -1154,7 +1154,7 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
                 animate={{ opacity: 1, height: 'auto' }}
                 className="p-4 bg-white border border-slate-200 rounded-2xl grid grid-cols-1 md:grid-cols-2 gap-4"
               >
-                <div className="col-span-2 md:col-span-1">
+                <div className="md:col-span-1">
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                     {isEn ? 'Company Registered Name' : 'Tên Đăng Ký Công Ty'}
                   </label>
@@ -1163,14 +1163,14 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
                     value={companyName}
                     onChange={(e) => setCompanyName(e.target.value)}
                     placeholder="e.g. DIGIVISA LTD"
-                    className={`w-full bg-slate-50 border rounded-xl px-3 py-2 text-xs font-medium focus:ring-2 focus:ring-indigo-500/20 focus:outline-none transition-all ${
+                    className={`w-full bg-slate-50 border rounded-xl px-3 py-2 text-base sm:text-xs font-medium focus:ring-2 focus:ring-indigo-500/20 focus:outline-none transition-all ${
                       errors.companyName ? 'border-red-400 bg-red-50/15' : 'border-slate-200'
                     }`}
                   />
                   {errors.companyName && <span className="text-[10px] text-red-500 font-medium block mt-1">{errors.companyName}</span>}
                 </div>
 
-                <div className="col-span-2 md:col-span-1">
+                <div className="md:col-span-1">
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                     {isEn ? 'Tax Code / MST ID' : 'Mã Số Thuế (MST)'}
                   </label>
@@ -1189,14 +1189,14 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
                       }
                     }}
                     placeholder="e.g. 0102030405"
-                    className={`w-full bg-slate-50 border rounded-xl px-3 py-2 text-xs font-mono font-medium focus:ring-2 focus:ring-indigo-500/20 focus:outline-none transition-all ${
+                    className={`w-full bg-slate-50 border rounded-xl px-3 py-2 text-base sm:text-xs font-mono font-medium focus:ring-2 focus:ring-indigo-500/20 focus:outline-none transition-all ${
                       errors.taxCode ? 'border-red-400 bg-red-50/15' : 'border-slate-200'
                     }`}
                   />
                   {errors.taxCode && <span className="text-[10px] text-red-500 font-medium block mt-1">{errors.taxCode}</span>}
                 </div>
 
-                <div className="col-span-2">
+                <div className="md:col-span-2">
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                     {isEn ? 'Registered Tax Address' : 'Địa Chỉ Đăng Ký Doanh Nghiệp'}
                   </label>
@@ -1205,14 +1205,14 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
                     value={companyAddress}
                     onChange={(e) => setCompanyAddress(e.target.value)}
                     placeholder={isEn ? 'e.g. 15 Le Loi, Ben Nghe, District 1, HCMC' : 'VD: 15 Lê Lợi, Bến Nghé, Quận 1, TP. HCM'}
-                    className={`w-full bg-slate-50 border rounded-xl px-3 py-2 text-xs font-medium focus:ring-2 focus:ring-indigo-500/20 focus:outline-none transition-all ${
+                    className={`w-full bg-slate-50 border rounded-xl px-3 py-2 text-base sm:text-xs font-medium focus:ring-2 focus:ring-indigo-500/20 focus:outline-none transition-all ${
                       errors.companyAddress ? 'border-red-400 bg-red-50/15' : 'border-slate-200'
                     }`}
                   />
                   {errors.companyAddress && <span className="text-[10px] text-red-500 font-medium block mt-1">{errors.companyAddress}</span>}
                 </div>
 
-                <div className="col-span-2">
+                <div className="md:col-span-2">
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                     {isEn ? 'VAT Invoice Recipient Email (Optional)' : 'Email Nhận Hóa Đơn Điện Tử (Không bắt buộc)'}
                   </label>
@@ -1243,7 +1243,7 @@ export default function AirportPickupForm({ currency, language, onSuccess, onCan
                       }
                     }}
                     placeholder="e.g. accounting@company.com"
-                    className={`w-full bg-slate-50 border rounded-xl px-3 py-2 text-xs font-medium focus:ring-2 focus:ring-indigo-500/20 focus:outline-none ${
+                    className={`w-full bg-slate-50 border rounded-xl px-3 py-2 text-base sm:text-xs font-medium focus:ring-2 focus:ring-indigo-500/20 focus:outline-none ${
                       errors.companyEmail ? 'border-red-400 bg-red-50/15' : 'border-slate-200'
                     }`}
                   />
