@@ -5,7 +5,7 @@ import {
   Smartphone, Share2, Clipboard, ArrowRight, UserCheck, AlertCircle, 
   RefreshCw, Layers, FileText, PhoneCall, CheckSquare, Search, Filter,
   ExternalLink, User, Compass, HelpCircle, ClipboardCheck, ArrowUpRight,
-  ChevronRight, Building, ShieldAlert, CheckSquare2, X
+  ChevronRight, ChevronDown, Building, ShieldAlert, CheckSquare2, X
 } from 'lucide-react';
 import { Order, Currency, CURRENCY_SYMBOLS, OrderEditLogEntry } from '../types';
 import { safeStorage, safeOpen } from '../utils/storage';
@@ -279,6 +279,7 @@ export default function OMSAgencyComms({
   });
 
   const [previewPhotoUrl, setPreviewPhotoUrl] = useState<string | null>(null);
+  const [isEditLogOpen, setIsEditLogOpen] = useState<boolean>(false);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -2341,6 +2342,72 @@ export default function OMSAgencyComms({
                       );
                     })()}
                   </div>
+
+                  {/* Edit History (Ops View) */}
+                  {(() => {
+                    const baseId = selectedOrder.id.replace('_secondary', '');
+                    const baseOrder = orders.find((o) => o.id === baseId) || selectedOrder;
+                    const logEntries: OrderEditLogEntry[] = [...((baseOrder as any).editLog || [])].reverse();
+
+                    return (
+                      <div className="pt-4 border-t border-slate-200/80 space-y-2">
+                        <button
+                          type="button"
+                          onClick={() => setIsEditLogOpen(!isEditLogOpen)}
+                          className="w-full flex justify-between items-center text-left py-1 group cursor-pointer focus:outline-none"
+                        >
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-[11px] font-black text-slate-700 uppercase tracking-widest flex items-center gap-1.5">
+                              <Clock className="h-4 w-4 text-indigo-600" />
+                              <span>{language === 'EN' ? 'Edit history' : 'Nhật ký chỉnh sửa'}</span>
+                            </h4>
+                            <span className="text-[9.5px] font-bold bg-slate-150 text-slate-700 px-2 py-0.5 rounded-full font-mono">
+                              {logEntries.length}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1 text-[10px] text-indigo-600 font-bold group-hover:underline">
+                            <span>{isEditLogOpen ? (language === 'EN' ? 'Collapse' : 'Thu gọn') : (language === 'EN' ? 'Expand' : 'Xem chi tiết')}</span>
+                            {isEditLogOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                          </div>
+                        </button>
+
+                        {isEditLogOpen && (
+                          <div className="space-y-2 pt-1">
+                            {logEntries.length === 0 ? (
+                              <p className="text-xs text-slate-400 font-medium italic px-1 py-1">
+                                {language === 'EN' ? 'No edits yet' : 'Chưa có chỉnh sửa nào'}
+                              </p>
+                            ) : (
+                              <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                                {logEntries.map((entry, idx) => {
+                                  const dateStr = entry.at ? new Date(entry.at).toLocaleString(language === 'EN' ? 'en-US' : 'vi-VN') : 'N/A';
+                                  return (
+                                    <div key={idx} className="bg-slate-50 border border-slate-200/80 rounded-xl p-2.5 space-y-1.5 text-xs font-mono">
+                                      <div className="flex items-center justify-between gap-2 text-[10.5px]">
+                                        <span className="font-extrabold text-slate-800 font-sans">{entry.label || entry.field}</span>
+                                        <span className="text-[9.5px] text-slate-400 font-normal shrink-0">{entry.by || 'staff'} • {dateStr}</span>
+                                      </div>
+                                      <div className="flex items-center gap-1.5 text-slate-700 font-medium text-[11px] min-w-0">
+                                        <span className="truncate max-w-[45%]" title={entry.oldValue || 'N/A'}>{entry.oldValue || 'N/A'}</span>
+                                        <span className="text-slate-400 shrink-0">→</span>
+                                        <span className="font-bold text-slate-900 truncate max-w-[45%]" title={entry.newValue}>{entry.newValue}</span>
+                                      </div>
+                                      {entry.reason && (
+                                        <div className="text-[10.5px] bg-amber-50 border border-amber-200/70 text-amber-900 rounded-lg p-1.5 font-sans leading-relaxed">
+                                          <span className="font-bold text-amber-800 mr-1">{language === 'EN' ? 'Reason:' : 'Lý do:'}</span>
+                                          {entry.reason}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {/* Internal Ops Discussion Notes */}
                   <div className="pt-4 border-t border-slate-200/80 space-y-3">

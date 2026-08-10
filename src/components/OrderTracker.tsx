@@ -6,7 +6,7 @@ import {
   BadgeAlert, Plane, ShieldCheck as VerifiedIcon, QrCode, CreditCard,
   CheckCircle, AlertTriangle, Check, Car, X
 } from 'lucide-react';
-import { Order, Currency, CURRENCY_SYMBOLS, EXCHANGE_RATES } from '../types';
+import { Order, Currency, CURRENCY_SYMBOLS, EXCHANGE_RATES, OrderEditLogEntry } from '../types';
 import { safeOpen, safeStorage, ordersStorageKey } from '../utils/storage';
 import { Language, TRANSLATIONS } from '../utils/translations';
 import { getVietnamPricing } from '../utils/pricing';
@@ -1462,7 +1462,26 @@ export default function OrderTracker({
                         )}
                       </>
                     )}
-                    
+                    {/* Customer Edit Update Notification Line */}
+                    {(() => {
+                      const editLog: OrderEditLogEntry[] = (selectedOrder as any)?.editLog || [];
+                      if (editLog.length === 0) return null;
+                      const latestEntry = editLog[editLog.length - 1];
+                      if (!latestEntry || !latestEntry.at) return null;
+                      const d = new Date(latestEntry.at);
+                      if (isNaN(d.getTime())) return null;
+                      const day = String(d.getDate()).padStart(2, '0');
+                      const month = String(d.getMonth() + 1).padStart(2, '0');
+                      const formattedDate = `${day}/${month}`;
+                      return (
+                        <div className="pt-2.5 mt-2.5 border-t border-slate-200/80 text-[11px] text-slate-500 font-medium leading-relaxed">
+                          {isEn
+                            ? `Order details were updated on ${formattedDate} by our support team`
+                            : `Thông tin đơn đã được cập nhật ngày ${formattedDate} bởi đội hỗ trợ`}
+                        </div>
+                      );
+                    })()}
+
                     {/* General Special Requests / Customer Note */}
                     {(() => {
                       const details = selectedOrder.details as any;
