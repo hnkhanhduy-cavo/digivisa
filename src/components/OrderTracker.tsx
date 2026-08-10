@@ -900,7 +900,7 @@ export default function OrderTracker({
             >
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="text-[10px] font-mono text-slate-400 uppercase font-black">Authorized Tracking Ticket</span>
                     {isCombo && (
                       <span className="text-[10px] font-black bg-gradient-to-r from-amber-500 to-orange-500 text-white px-2 py-0.5 rounded-md shadow-xs flex items-center gap-1 uppercase tracking-wider">
@@ -919,34 +919,34 @@ export default function OrderTracker({
 
               {/* Segmented Control Toggles for Combo Orders */}
               {isCombo && (
-                <div className="flex bg-slate-100 p-1 rounded-xl w-full max-w-md border border-slate-200">
+                <div className="flex flex-col sm:flex-row bg-slate-100 p-1 rounded-xl w-full max-w-md border border-slate-200 gap-1 sm:gap-0">
                   <button
                     type="button"
                     onClick={() => setUserActiveComboLeg('primary')}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 text-xs font-black rounded-lg transition-all cursor-pointer ${
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 text-xs font-black rounded-lg transition-all cursor-pointer min-w-0 ${
                       userActiveComboLeg === 'primary'
                         ? 'bg-white text-indigo-700 shadow-sm border border-slate-200/50'
                         : 'text-slate-500 hover:text-slate-800'
                     }`}
                   >
-                    <Sparkles className="h-3.5 w-3.5" />
-                    <span>Fast-Track Escort</span>
-                    <span className="text-[9px] bg-slate-200 text-slate-700 px-1.5 py-0.2 rounded font-mono">
+                    <Sparkles className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate min-w-0">Fast-Track Escort</span>
+                    <span className="text-[9px] bg-slate-200 text-slate-700 px-1.5 py-0.2 rounded font-mono shrink-0">
                       {selectedOrder.status}
                     </span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setUserActiveComboLeg('secondary')}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 text-xs font-black rounded-lg transition-all cursor-pointer ${
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 text-xs font-black rounded-lg transition-all cursor-pointer min-w-0 ${
                       userActiveComboLeg === 'secondary'
                         ? 'bg-white text-indigo-700 shadow-sm border border-slate-200/50'
                         : 'text-slate-500 hover:text-slate-800'
                     }`}
                   >
-                    <Car className="h-3.5 w-3.5" />
-                    <span>Airport Transfer</span>
-                    <span className="text-[9px] bg-slate-200 text-slate-700 px-1.5 py-0.2 rounded font-mono">
+                    <Car className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate min-w-0">Airport Transfer</span>
+                    <span className="text-[9px] bg-slate-200 text-slate-700 px-1.5 py-0.2 rounded font-mono shrink-0">
                       {selectedOrder.secondaryStatus || 'Confirmed'}
                     </span>
                   </button>
@@ -1016,86 +1016,87 @@ export default function OrderTracker({
                         </p>
                       </div>
                     </div>
-                  ) : (
-                    <div className="relative w-full py-2 space-y-2.5">
-                      {/* Circles & Connecting Line Row */}
-                      <div className="relative flex items-center justify-between w-full px-4 h-8">
-                        {/* Background Connecting Line (Center of 1st circle to center of last circle) */}
-                        <div className="absolute left-8 right-8 top-1/2 -translate-y-1/2 h-1 bg-slate-200 rounded-full z-0" />
+                  ) : (() => {
+                    const stepsForOrder = getTimelineStepsForOrder(trackingOrder!.type);
+                    const totalSteps = stepsForOrder.length;
+                    const normalizedCurrent = normalizeStatusForTimeline(trackingOrder!.status, trackingOrder!.type);
+                    const currentIndex = stepsForOrder.findIndex(step => step.id === normalizedCurrent);
+
+                    return (
+                      <div className="relative w-full py-2">
+                        {/* Background Connecting Line (Centered between 1st circle and last circle. top-6 (24px) aligns with circle center: 8px top padding (py-2) + 16px circle radius (h-8 / 2)) */}
+                        <div 
+                          className="absolute top-6 -translate-y-1/2 h-1 bg-slate-200 rounded-full z-0" 
+                          style={{
+                            left: `${50 / totalSteps}%`,
+                            right: `${50 / totalSteps}%`
+                          }}
+                        />
                         
                         {/* Active Connecting Line Highlight */}
-                        <div className="absolute left-8 right-8 top-1/2 -translate-y-1/2 h-1 z-0 overflow-hidden rounded-full pointer-events-none">
+                        <div 
+                          className="absolute top-6 -translate-y-1/2 h-1 z-0 overflow-hidden rounded-full pointer-events-none"
+                          style={{
+                            left: `${50 / totalSteps}%`,
+                            right: `${50 / totalSteps}%`
+                          }}
+                        >
                           <div 
                             className="h-full bg-indigo-500 transition-all duration-500 rounded-full"
                             style={{
                               width: (() => {
                                 if (!isOrderPaid) return '0%';
-                                const stepsForOrder = getTimelineStepsForOrder(trackingOrder!.type);
-                                const normalizedCurrent = normalizeStatusForTimeline(trackingOrder!.status, trackingOrder!.type);
-                                const currentIndex = stepsForOrder.findIndex(step => step.id === normalizedCurrent);
                                 if (currentIndex <= 0) return '0%';
-                                const maxIdx = stepsForOrder.length - 1;
+                                const maxIdx = totalSteps - 1;
                                 return `${Math.min(100, Math.max(0, (currentIndex / maxIdx) * 100))}%`;
                               })()
                             }}
                           />
                         </div>
 
-                        {/* Steps Circles */}
-                        {getTimelineStepsForOrder(trackingOrder!.type).map((step, idx, arr) => {
-                          const normalizedCurrent = normalizeStatusForTimeline(trackingOrder!.status, trackingOrder!.type);
-                          const currentIndex = arr.findIndex(s => s.id === normalizedCurrent);
-                          const isCompleted = isOrderPaid && idx < currentIndex;
-                          const isActive = isOrderPaid && idx === currentIndex;
+                        {/* Combined Steps Column Row */}
+                        <div className="relative flex w-full">
+                          {stepsForOrder.map((step, idx) => {
+                            const isCompleted = isOrderPaid && idx < currentIndex;
+                            const isActive = isOrderPaid && idx === currentIndex;
 
-                          return (
-                            <div 
-                              key={step.id} 
-                              className="relative z-10 flex items-center justify-center cursor-default"
-                            >
-                              {/* Step Circle Bubble */}
-                              <div className={`h-8 w-8 rounded-full flex items-center justify-center border font-mono text-xs font-black transition-all duration-300 ${
-                                isCompleted 
-                                  ? 'bg-emerald-500 border-emerald-600 text-white shadow-md shadow-emerald-500/10' 
-                                  : isActive 
-                                  ? 'bg-indigo-600 border-indigo-700 text-white ring-4 ring-indigo-100 shadow-md shadow-indigo-600/15 scale-110' 
-                                  : 'bg-white border-slate-250 text-slate-400 hover:border-slate-400 hover:text-slate-600'
-                              }`}>
-                                {isCompleted ? (
-                                  <Check className="h-4 w-4 text-white font-bold" />
-                                ) : (
-                                  idx + 1
-                                )}
+                            return (
+                              <div key={step.id} className="flex-1 min-w-0 flex flex-col items-center text-center">
+                                {/* Step Circle Bubble Container */}
+                                <div className="h-8 flex items-center justify-center relative z-10">
+                                  <div className={`h-8 w-8 rounded-full flex items-center justify-center border font-mono text-xs font-black transition-all duration-300 ${
+                                    isCompleted 
+                                      ? 'bg-emerald-500 border-emerald-600 text-white shadow-md shadow-emerald-500/10' 
+                                      : isActive 
+                                      ? 'bg-indigo-600 border-indigo-700 text-white ring-4 ring-indigo-100 shadow-md shadow-indigo-600/15 scale-110' 
+                                      : 'bg-white border-slate-250 text-slate-400 hover:border-slate-400 hover:text-slate-600'
+                                  }`}>
+                                    {isCompleted ? (
+                                      <Check className="h-4 w-4 text-white font-bold" />
+                                    ) : (
+                                      idx + 1
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Step Label & Description */}
+                                <div className="mt-2.5 flex flex-col items-center w-full px-0.5">
+                                  <span className={`text-[11px] font-bold transition-colors leading-tight break-words text-center ${
+                                    isActive ? 'text-indigo-600 font-extrabold' : isCompleted ? 'text-slate-700' : 'text-slate-400'
+                                  }`}>
+                                    {getStatusLabel(step.label, language as any)}
+                                  </span>
+                                  <span className="text-[9px] text-slate-400 hidden sm:block mt-0.5 leading-tight break-words text-center">
+                                    {step.desc}
+                                  </span>
+                                </div>
                               </div>
-                            </div>
-                          );
-                        })}
+                            );
+                          })}
+                        </div>
                       </div>
-
-                      {/* Step Text Labels Row */}
-                      <div className="flex justify-between w-full px-4">
-                        {getTimelineStepsForOrder(trackingOrder!.type).map((step, idx, arr) => {
-                          const normalizedCurrent = normalizeStatusForTimeline(trackingOrder!.status, trackingOrder!.type);
-                          const currentIndex = arr.findIndex(s => s.id === normalizedCurrent);
-                          const isCompleted = isOrderPaid && idx < currentIndex;
-                          const isActive = isOrderPaid && idx === currentIndex;
-
-                          return (
-                            <div key={step.id} className="w-24 flex flex-col items-center text-center">
-                              <span className={`text-[11px] font-bold transition-colors ${
-                                isActive ? 'text-indigo-600 font-extrabold' : isCompleted ? 'text-slate-700' : 'text-slate-400'
-                              }`}>
-                                {getStatusLabel(step.label, language as any)}
-                              </span>
-                              <span className="text-[9px] text-slate-400 hidden sm:block mt-0.5">
-                                {step.desc}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
+                    );
+                  })()}
 
                   {isOrderPaid && (
                     <div className="bg-white border border-slate-150 rounded-xl p-3 text-xs text-slate-600 flex items-start space-x-2.5 shadow-sm mt-2">
