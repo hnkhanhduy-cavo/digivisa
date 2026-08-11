@@ -11,7 +11,7 @@ import { safeOpen, safeStorage, ordersStorageKey } from '../utils/storage';
 import { Language, TRANSLATIONS } from '../utils/translations';
 import { getVietnamPricing } from '../utils/pricing';
 import { formatOrderMoney, readReferralCommission } from '../utils/orderMoney';
-import { formatPhoneE164 } from '../utils/validation';
+import { formatPhoneE164, phoneDigitsMatch, passportMatches } from '../utils/validation';
 import { hasWhatsApp, hasZalo, buildWhatsAppChatUrl, buildZaloChatUrl } from '../utils/contact';
 import { getCustomerTimelineStepsForOrder, normalizeCustomerStatusForTimeline, getStatusLabel, getSubStatusLabel, getSubStatusOptions } from '../utils/orderStatus';
 
@@ -151,7 +151,13 @@ export default function OrderTracker({
   const filteredOrders = (() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return userVisibleOrders;
-    const qDigits = q.replace(/\D/g, '');
+
+    // Typing the signed-in account's own email returns every order on that account,
+    // even the ones filled in with a different contact email.
+    const accountEmail = (currentUser?.email || '').trim().toLowerCase();
+    if (accountEmail && accountEmail.includes(q)) {
+      return userVisibleOrders;
+    }
 
     return userVisibleOrders.filter((o) => {
       // 1. Match Order ID or Service Type (service type requires query length >= 3)
@@ -171,7 +177,7 @@ export default function OrderTracker({
         return true;
       }
 
-      // 3. Match Email
+      // 3. Match Email filled into the order
       const emailList = [
         details.email,
         details.contactEmail,
@@ -183,28 +189,20 @@ export default function OrderTracker({
         }
       }
 
-      // 4. Match Phone Number (requires at least 3 digits, single-direction comparison, plus 0/84 normalization)
-      if (qDigits.length >= 3) {
-        const phoneList = [
-          details.phone,
-          details.contactPhone,
-          details.passengerPhone
-        ];
-        const normQ = qDigits.startsWith('84') ? '0' + qDigits.slice(2) : qDigits;
-        for (const ph of phoneList) {
-          if (ph && typeof ph === 'string' && ph.toLowerCase() !== 'n/a') {
-            const phDigits = ph.replace(/\D/g, '');
-            if (phDigits.length > 0) {
-              if (phDigits.includes(qDigits)) {
-                return true;
-              }
-              const normPh = phDigits.startsWith('84') ? '0' + phDigits.slice(2) : phDigits;
-              if (normPh.includes(normQ)) {
-                return true;
-              }
-            }
-          }
-        }
+      // 4. Match Phone Number (digits only, 0 <-> 84 normalized)
+      const phoneList = [
+        details.phone,
+        details.contactPhone,
+        details.passengerPhone
+      ];
+      for (const ph of phoneList) {
+        if (phoneDigitsMatch(q, ph)) return true;
+      }
+
+      // 5. Match Passport Number
+      const passportList = [details.passportNumber, details.passportNo];
+      for (const p of passportList) {
+        if (passportMatches(q, p)) return true;
       }
 
       return false;
@@ -601,7 +599,7 @@ export default function OrderTracker({
               <input
                 type="text"
                 id="search-input"
-                placeholder={isEn ? 'Search by order ID, name, phone or email...' : 'Tìm theo mã đơn, tên, số điện thoại hoặc email...'}
+                placeholder={isEn ? 'Search by order ID, name, phone, passport or email...' : 'Tìm theo mã đơn, tên, SĐT, số hộ chiếu hoặc email...'}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2.5 text-xs focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:outline-none transition-all font-medium"

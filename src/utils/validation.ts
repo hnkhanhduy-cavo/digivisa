@@ -252,6 +252,38 @@ export function parsePhoneAndChannel(rawPhone?: string | null, contactPref?: str
   };
 }
 
+/**
+ * Loose phone match for order search boxes.
+ * Compares digits only, and treats +84xxxxxxxxx and 0xxxxxxxxx as the same number.
+ * Returns false when the query has fewer than 3 digits, so a stray digit does not match everything.
+ */
+export function phoneDigitsMatch(query: string, value: unknown): boolean {
+  const qDigits = String(query || '').replace(/\D/g, '');
+  if (qDigits.length < 3) return false;
+  if (!value || typeof value !== 'string') return false;
+  const raw = value.trim();
+  if (!raw || raw.toLowerCase() === 'n/a') return false;
+  const vDigits = raw.replace(/\D/g, '');
+  if (!vDigits) return false;
+  if (vDigits.includes(qDigits)) return true;
+  const normQ = qDigits.startsWith('84') ? '0' + qDigits.slice(2) : qDigits;
+  const normV = vDigits.startsWith('84') ? '0' + vDigits.slice(2) : vDigits;
+  return normV.includes(normQ);
+}
+
+/**
+ * Loose passport match for order search boxes.
+ * Ignores spaces and case; requires at least 3 characters so short queries do not match everything.
+ */
+export function passportMatches(query: string, value: unknown): boolean {
+  const q = String(query || '').trim().toLowerCase().replace(/\s/g, '');
+  if (q.length < 3) return false;
+  if (!value || typeof value !== 'string') return false;
+  const v = value.trim().toLowerCase().replace(/\s/g, '');
+  if (!v || v === 'n/a') return false;
+  return v.includes(q);
+}
+
 
 
 
