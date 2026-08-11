@@ -3,6 +3,7 @@ import { Sparkles, Users, Check, UserCheck, CheckCircle2, Search } from 'lucide-
 import { auth } from '../utils/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { Order } from '../types';
+import { phoneDigitsMatch, passportMatches } from '../utils/validation';
 
 export interface UserProfile {
   id: string;
@@ -36,7 +37,7 @@ export default function HistoricalAutofill({ onSelect, serviceType, language = '
   const [currentUser, setCurrentUser] = useState<User | null>(auth.currentUser);
   const [isOpen, setIsOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [userProfiles, setUserProfiles] = useState<UserProfile[]>([]);
+  const [allProfiles, setAllProfiles] = useState<UserProfile[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Listen to Auth State
@@ -47,7 +48,7 @@ export default function HistoricalAutofill({ onSelect, serviceType, language = '
     return () => unsub();
   }, []);
 
-  // Load max 4 recent successful registered profiles from past orders
+  // Load every registered profile from past orders (deduped by passport / name)
   useEffect(() => {
     try {
       const uid = currentUser?.uid;
@@ -97,18 +98,18 @@ export default function HistoricalAutofill({ onSelect, serviceType, language = '
           }
         });
 
-        // Take MAX 4 MOST RECENT PROFILES
-        const list = Array.from(profileMap.values()).slice(0, 4);
-        setUserProfiles(list);
+        // Keep EVERY profile so the search box can reach the customer's whole history.
+        // Trimming down to the 4 most recent is a display concern, handled at render time.
+        setAllProfiles(Array.from(profileMap.values()));
       } else {
-        setUserProfiles([]);
+        setAllProfiles([]);
       }
     } catch (e) {
       console.error('Error reading user profiles:', e);
     }
   }, [currentUser, orders]);
 
-  if (userProfiles.length === 0) {
+  if (allProfiles.length === 0) {
     return null;
   }
 
@@ -118,24 +119,39 @@ export default function HistoricalAutofill({ onSelect, serviceType, language = '
     setIsOpen(false);
   };
 
-  const selectedProfile = userProfiles.find((p) => p.id === selectedId);
+  const selectedProfile = allProfiles.find((p) => p.id === selectedId);
 
-  const filteredProfiles = userProfiles.filter((p) => {
-    if (!searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase().trim();
-    const name = (p.contactName || `${p.firstName || ''} ${p.lastName || ''}`).toLowerCase();
-    const email = (p.email || '').toLowerCase();
-    const passport = (p.passportNumber || '').toLowerCase();
-    const phone = (p.phone || '').toLowerCase();
-    const orderId = (p.orderId || '').toLowerCase();
-    return (
-      name.includes(q) ||
-      email.includes(q) ||
-      passport.includes(q) ||
-      phone.includes(q) ||
-      orderId.includes(q)
-    );
-  });
+  const trimmedQuery = searchQuery.trim();
+  const hasQuery = trimmedQuery.length > 0;
+
+  const matchedProfiles = (() => {
+    if (!hasQuery) return allProfiles;
+    const q = trimmedQuery.toLowerCase();
+
+    // Typing the signed-in account's own email brings back every profile on that account.
+    const accountEmail = (currentUser?.email || '').trim().toLowerCase();
+    if (accountEmail && accountEmail.includes(q)) return allProfiles;
+
+    return allProfiles.filter((p) => {
+      const name = (p.contactName || `${p.firstName || ''} ${p.lastName || ''}`).trim().toLowerCase();
+      if (name && name.includes(q)) return true;
+
+      const email = (p.email || '').toLowerCase();
+      if (email && email !== 'n/a' && email.includes(q)) return true;
+
+      const orderId = (p.orderId || '').toLowerCase();
+      if (orderId && orderId.includes(q)) return true;
+
+      if (passportMatches(q, p.passportNumber)) return true;
+      if (phoneDigitsMatch(q, p.phone)) return true;
+
+      return false;
+    });
+  })();
+
+  // Nothing typed yet: suggest just the 4 most recent profiles so the banner stays compact.
+  // Typing: search the whole history, capped at 20 results.
+  const filteredProfiles = hasQuery ? matchedProfiles.slice(0, 20) : matchedProfiles.slice(0, 4);
 
   return (
     <div className="bg-gradient-to-r from-emerald-50/90 via-indigo-50/70 to-blue-50/80 p-4 sm:p-5 rounded-2xl border border-indigo-150 shadow-xs space-y-3 mb-6" id="historical-autofill-banner">
@@ -147,16 +163,16 @@ export default function HistoricalAutofill({ onSelect, serviceType, language = '
           <div>
             <div className="flex items-center space-x-2">
               <span className="text-[10px] uppercase font-extrabold tracking-wider text-indigo-900 bg-indigo-100 px-2 py-0.5 rounded-full border border-indigo-200">
-                ⚡ {isEn ? '4 Recent Successful Orders' : '4 Đơn Thành Công Gần Nhất'}
+                ⚡ {isEn ? 'Your Successful Orders' : 'Đơn Đã Đăng Ký Thành Công'}
               </span>
             </div>
             <h4 className="font-display font-bold text-slate-800 text-xs mt-1">
               {isEn ? 'Quick Fill from Registered Successful Orders' : 'Gọi lại thông tin từ các đơn đã đăng ký thành công'}
             </h4>
             <p className="text-[11px] text-slate-600 max-w-xl">
-              {isEn 
-                ? 'Click below to quickly populate traveller biometrics, contact email, phone & flight details from your 4 most recent successful orders.'
-                : 'Nhấn nút bên dưới để chọn lại 1 trong 4 đơn đăng ký thành công gần nhất để điền nhanh các ô thông tin.'}
+              {isEn
+                ? 'Search your past orders by name, phone, passport or email to auto-fill traveller details, contact and flight info.'
+                : 'Nhấn nút bên dưới để tìm lại đơn cũ theo họ tên, số điện thoại, số hộ chiếu hoặc email và điền nhanh thông tin.'}
             </p>
           </div>
         </div>
@@ -182,7 +198,7 @@ export default function HistoricalAutofill({ onSelect, serviceType, language = '
               {isEn ? 'Select an order to auto-fill details below:' : 'Bấm vào đơn để tự động điền lại thông tin bên dưới:'}
             </span>
             <span className="text-[10px] font-semibold text-slate-500">
-              {isEn ? `Showing ${filteredProfiles.length} of ${userProfiles.length} order(s)` : `Hiển thị ${filteredProfiles.length}/${userProfiles.length} đơn`}
+              {isEn ? `Showing ${filteredProfiles.length} of ${allProfiles.length} order(s)` : `Hiển thị ${filteredProfiles.length}/${allProfiles.length} đơn`}
             </span>
           </div>
 
@@ -191,15 +207,15 @@ export default function HistoricalAutofill({ onSelect, serviceType, language = '
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
             <input
               type="text"
-              placeholder={isEn ? 'Search by full traveler name, email address or passport code...' : 'Tìm theo họ tên, email hoặc số hộ chiếu...'}
+              placeholder={isEn ? 'Search by name, phone, passport, email or order ID...' : 'Tìm theo họ tên, SĐT, số hộ chiếu, email hoặc mã đơn...'}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs font-semibold focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none transition-all"
             />
           </div>
 
-          {/* Grid list of max 4 recent orders */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[220px] overflow-y-auto pr-1">
+          {/* Grid list: 4 most recent when idle, up to 20 search hits while typing */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[300px] overflow-y-auto pr-1">
             {filteredProfiles.length === 0 ? (
               <p className="text-xs text-slate-400 py-4 text-center col-span-2">
                 {isEn ? 'No matching profiles found in database' : 'Không tìm thấy hồ sơ phù hợp trong hệ thống'}
